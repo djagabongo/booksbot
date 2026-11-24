@@ -34,8 +34,18 @@
   const OPT_KEYS = ["storage", "color", "ram", "conn"];
   const OPT_LABEL = { storage: "Вградена памет", color: "Цвят", ram: "RAM", conn: "Свързаност" };
 
+  const L = window.LABELS || {};
+  const SALE = L.sale || {};
+  const NEW_RE = (L.new || []).length ? new RegExp((L.new || []).map((x) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "i") : null;
+  const HOT = new Set(L.hot || []);
+
   function addProduct(p) {
-    p.variants.forEach((v) => { v.price = finalPrice(v.base, v.disc); BY_ID.set(v.id, { p, v }); });
+    p.variants.forEach((v) => {
+      const pct = SALE[v.id] ?? SALE[p.slug];
+      if (pct > 0 && pct < 100) v.disc = pct;
+      v.price = finalPrice(v.base, v.disc);
+      BY_ID.set(v.id, { p, v });
+    });
     const priced = p.variants.filter((v) => v.price != null);
     p.min = priced.length ? Math.min(...priced.map((v) => v.price)) : null;
     p.def = p.variants[0];
@@ -46,6 +56,11 @@
       if (vals.length) p.opts[k] = vals;
     }
     p.disc = Math.max(0, ...p.variants.map((v) => v.disc || 0));
+    p.tags = {
+      new: !!NEW_RE && (p.cat === "phones" || p.cat === "tablets") && NEW_RE.test(p.name),
+      hot: HOT.has(p.slug),
+      sale: p.disc > 0,
+    };
     p.search = norm(`${p.brand} ${p.name} ${p.sub || ""} ${(p.compat || []).map((k) => MODEL_NAMES[k] || "").join(" ")}`);
     PRODUCTS.push(p);
     BY_SLUG.set(p.slug, p);
@@ -161,6 +176,15 @@
       : `<span class="price">${p.kind === "g" && p.variants.length > 1 ? "<small>от</small> " : ""}${eur(p.min)}</span>${
           p.disc ? `<span class="old">${eur(Math.round((p.min / (1 - p.disc / 100)) * 100) / 100)}</span>` : ""}`;
 
+  function badgesHtml(p, cls) {
+    const b = [
+      p.tags.sale && `<span class="badge badge--sale">-${p.disc}%</span>`,
+      p.tags.new && `<span class="badge badge--new">Ново</span>`,
+      p.tags.hot && `<span class="badge badge--hot">Хит</span>`,
+    ].filter(Boolean);
+    return b.length ? `<div class="${cls}">${b.join("")}</div>` : "";
+  }
+
   function card(p) {
     let opts = "";
     if (p.kind === "g") {
@@ -182,7 +206,7 @@
           : `<button class="card__go card__go--add" data-add="${p.def.id}" aria-label="Добави ${esc(p.name)} в количката">${icon("plus")}</button>`;
     return `<article class="card">
       <a class="card__media" href="${href}" tabindex="-1" aria-hidden="true">${imgTag(p.img, p.name)}</a>
-      ${p.disc ? `<span class="badge">-${p.disc}%</span>` : ""}
+      ${badgesHtml(p, "badges")}
       <div class="card__tools">
         <button class="card__tool ${isFav(p.slug) ? "on" : ""}" data-fav="${p.slug}" aria-label="Любими" aria-pressed="${isFav(p.slug)}">${icon("heart")}</button>
         ${canCompare(p) ? `<button class="card__tool ${inCmp(p.slug) ? "on" : ""}" data-cmp="${p.slug}" aria-label="Сравни" title="Сравни">${icon("swap")}</button>` : ""}
@@ -213,7 +237,8 @@
     PRODUCTS.filter((p) => p.cat === "phones").forEach((p) => (brandCounts[p.brand] = (brandCounts[p.brand] || 0) + 1));
     const brands = Object.entries(brandCounts).sort((a, b) => b[1] - a[1]).filter(([b]) => C.logos[b]).slice(0, 12);
     const recent = state.recent.map((s) => BY_SLUG.get(s)).filter(Boolean);
-    const topTabs = ["Всички", "Apple", "Samsung", "Google", "Xiaomi", "Motorola"];
+    const hasSale = PRODUCTS.some((p) => p.tags.sale && p.cat === "phones");
+    const topTabs = ["Всички", "Нови", ...(hasSale ? ["Намалени"] : []), "Apple", "Samsung", "Google", "Xiaomi"];
 
     view.innerHTML = `
     <section class="container bento">
@@ -321,11 +346,12 @@
     ${contactBlock()}`;
 
     const drawTop = (brand) => {
+      const byTag = { Нови: "new", Намалени: "sale" }[brand];
       const list = brand === "Всички" ? FEATURED
-        : PRODUCTS.filter((p) => p.cat === "phones" && p.brand === brand && p.min != null).sort((a, b) => (featuredRank.get(a) ?? 99) - (featuredRank.get(b) ?? 99) || b.min - a.min).slice(0, 8);
+        : PRODUCTS.filter((p) => p.cat === "phones" && p.min != null && (byTag ? p.tags[byTag] : p.brand === brand)).sort((a, b) => (featuredRank.get(a) ?? 99) - (featuredRank.get(b) ?? 99) || b.min - a.min).slice(0, 8);
       $("#topGrid").innerHTML = list.map(card).join("");
-      $("#topMore").href = brand === "Всички" ? "#/c/phones" : `#/c/phones?brand=${encodeURIComponent(brand)}`;
-      $("#topMore").innerHTML = `${brand === "Всички" ? "Всички телефони" : "Всички " + esc(brand)} ${icon("arrow")}`;
+      $("#topMore").href = brand === "Всички" ? "#/c/phones" : byTag ? `#/c/phones?tag=${byTag}` : `#/c/phones?brand=${encodeURIComponent(brand)}`;
+      $("#topMore").innerHTML = `${brand === "Всички" ? "Всички телефони" : byTag ? (byTag === "new" ? "Всички нови модели" : "Всички намалени") : "Всички " + esc(brand)} ${icon("arrow")}`;
       $$("#topTabs [data-top]").forEach((b) => b.setAttribute("aria-selected", b.dataset.top === brand));
     };
     $("#topTabs").addEventListener("click", (e) => { const b = e.target.closest("[data-top]"); if (b) drawTop(b.dataset.top); });
@@ -393,6 +419,7 @@
       mem: new Set((q.get("mem") || "").split(",").filter(Boolean)),
       q: q.get("q") || "",
       sort: q.get("sort") || "rec",
+      tags: new Set((q.get("tag") || "").split(",").filter(Boolean)),
       max: +q.get("max") || 0,
       shown: PAGE,
     };
@@ -417,7 +444,8 @@
             </label>
             <select class="select" id="sortSel" aria-label="Подреждане">
               <option value="rec">Препоръчани</option><option value="asc">Цена: ниска → висока</option>
-              <option value="desc">Цена: висока → ниска</option><option value="name">Име: А → Я</option>
+              <option value="desc">Цена: висока → ниска</option><option value="new">Първо новите</option>
+              <option value="sale">Най-голямо намаление</option><option value="name">Име: А → Я</option>
             </select>
           </div>
           <div class="active-f" id="activeF"></div>
@@ -444,11 +472,14 @@
       (!cat.sub || p.sub === cat.sub) &&
       (!cat.model || (p.compat || []).includes(cat.model) || p.mk === cat.model) &&
       (!cat.mem.size || (p.opts.storage || []).some((s) => cat.mem.has(s))) &&
-      (!cat.max || (p.min != null && p.min <= cat.max)));
+      (!cat.max || (p.min != null && p.min <= cat.max)) &&
+      (!cat.tags.size || [...cat.tags].every((t) => p.tags[t])));
     const pr = (p) => (p.min == null ? Infinity : p.min);
     if (cat.sort === "asc") list.sort((a, b) => pr(a) - pr(b));
     else if (cat.sort === "desc") list.sort((a, b) => (b.min ?? -1) - (a.min ?? -1));
     else if (cat.sort === "name") list.sort((a, b) => a.name.localeCompare(b.name, "bg"));
+    else if (cat.sort === "new") list.sort((a, b) => b.tags.new - a.tags.new || (b.min ?? -1) - (a.min ?? -1));
+    else if (cat.sort === "sale") list.sort((a, b) => b.disc - a.disc || (a.min ?? 1e9) - (b.min ?? 1e9));
     else {
       const catRank = { phones: 0, tablets: 1, accessories: 2, cameras: 3 };
       list.sort((a, b) =>
@@ -475,7 +506,9 @@
     const check = (name, val, n, on) =>
       `<label class="check"><input type="checkbox" data-f="${name}" value="${esc(val)}" ${on ? "checked" : ""}><span>${esc(val)}</span><em>${n}</em></label>`;
     const clip = brands.length > 10;
+    const TAGS = [["new", "Ново"], ["sale", "Намаление"], ["hot", "Хит"]].map(([k, n]) => [k, n, base.filter((p) => p.tags[k]).length]).filter((t) => t[2]);
     return `
+      ${TAGS.length ? `<div class="fgroup"><h4>Етикети</h4><div class="tagf">${TAGS.map(([k, n, c]) => `<label class="tagf__chip tagf__chip--${k}"><input type="checkbox" data-f="tag" value="${k}" ${cat.tags.has(k) ? "checked" : ""}><span>${n} <em>${c}</em></span></label>`).join("")}</div></div>` : ""}
       ${subs.length > 1 ? `<div class="fgroup"><h4>Вид аксесоар</h4>
         <label class="check"><input type="radio" name="fsub" data-f="sub" value="" ${!cat.sub ? "checked" : ""}><span>Всички</span></label>
         ${subs.map(([v, n]) => `<label class="check"><input type="radio" name="fsub" data-f="sub" value="${esc(v)}" ${cat.sub === v ? "checked" : ""}><span>${esc(v)}</span><em>${n}</em></label>`).join("")}</div>` : ""}
@@ -506,10 +539,11 @@
     $("#moreBtn")?.addEventListener("click", () => { cat.shown += PAGE; refreshCatalog(); });
     moreObs.disconnect();
     if ($("#moreBtn") && cat.shown < PAGE * 6) moreObs.observe($("#moreBtn"));
-    const nf = cat.brands.size + cat.mem.size + (cat.sub ? 1 : 0) + (cat.model ? 1 : 0) + (cat.max ? 1 : 0);
+    const nf = cat.tags.size + cat.brands.size + cat.mem.size + (cat.sub ? 1 : 0) + (cat.model ? 1 : 0) + (cat.max ? 1 : 0);
     $("#fCount").textContent = nf ? `(${nf})` : "";
     $("#filterApply").textContent = `Покажи ${plural(list.length, "резултат", "резултата")}`;
     const chips = [
+      ...[...cat.tags].map((t) => ["tag", t, { new: "Ново", sale: "Намаление", hot: "Хит" }[t]]),
       ...[...cat.brands].map((b) => ["brand", b, b]),
       ...[...cat.mem].map((m) => ["mem", m, m]),
       cat.sub && ["sub", cat.sub, cat.sub],
@@ -519,6 +553,7 @@
     $("#activeF").innerHTML = chips.map(([k, v, t]) => `<button class="chip chip--x" data-unf="${k}" data-v="${esc(v)}">${esc(t)} ${icon("close")}</button>`).join("");
     const qs = new URLSearchParams();
     if (cat.q) qs.set("q", cat.q);
+    if (cat.tags.size) qs.set("tag", [...cat.tags].join(","));
     if (cat.brands.size) qs.set("brand", [...cat.brands].join(","));
     if (cat.sub) qs.set("sub", cat.sub);
     if (cat.model) qs.set("model", cat.model);
@@ -533,8 +568,8 @@
     const t = e.target;
     const f = t.dataset.f;
     if (!f || !cat) return;
-    if (f === "brand" || f === "mem") {
-      const set = f === "brand" ? cat.brands : cat.mem;
+    if (f === "brand" || f === "mem" || f === "tag") {
+      const set = f === "brand" ? cat.brands : f === "mem" ? cat.mem : cat.tags;
       t.checked ? set.add(t.value) : set.delete(t.value);
     } else if (f === "sub") cat.sub = t.value;
     else if (f === "model") cat.model = t.value;
@@ -588,7 +623,7 @@
          <a class="btn btn--primary btn--lg btn--block" href="#/inquiries?topic=${encodeURIComponent(p.name)}">Изпрати запитване</a>`
       : `<div class="pd__price"><span class="price">${eur(cur.price, true)}</span><small class="muted">с ДДС</small>
           ${cur.disc ? `<span class="old">${eur(cur.base, true)}</span>` : ""}</div>
-         <p class="stock ${cur.stock ? "" : "stock--no"}"><i></i>${cur.stock ? "Наличност с потвърждение · срокът се уточнява при заявката" : "По заявка"}</p>
+         <p class="stock ${cur.stock ? "" : "stock--no"}"><i></i>${cur.stock ? "В наличност" : "По заявка"}</p>
          <button class="btn btn--primary btn--lg btn--block" data-add="${cur.id}">${icon("bag")} Добави в количката</button>`;
   }
 
@@ -623,6 +658,7 @@
         </div>
         <div class="pd__info">
           <div class="pd__brand">${C.logos[p.brand] ? `<img src="${esc(C.logos[p.brand])}" alt="">` : ""}<span>${esc(p.brand)} / ${esc(CAT_NAMES[p.cat])}${p.sub ? " / " + esc(p.sub) : ""}</span></div>
+          ${badgesHtml(p, "pd__badges")}
           <h1>${esc(p.name)}</h1>
           <p class="muted pd__codes" id="pdCodes"></p>
           ${p.desc ? `<p class="muted">${esc(p.desc)}</p>` : ""}
@@ -753,6 +789,7 @@
           <div class="qv__media"><img src="${esc(full(cur.img))}" alt="${esc(p.name)}" id="qvImg"></div>
           <div class="qv__info">
             <span class="card__brand">${esc(p.brand)}</span>
+            ${badgesHtml(p, "pd__badges")}
             <h2>${esc(p.name)}</h2>
             ${p.kind === "g" ? `<div class="config config--compact">${configHtml(p, cur, true)}</div>` : `<p class="muted">${esc(p.sub || CAT_NAMES[p.cat])}</p>`}
             <div class="pd__buy">${buyHtml(p, cur)}</div>
@@ -1257,7 +1294,7 @@
     setLd("ld-product", {
       "@context": "https://schema.org", "@type": "Product", name: p.name, brand: { "@type": "Brand", name: p.brand },
       image: new URL(full(p.img), location.href).href, sku: String(p.def.id), category: CAT_NAMES[p.cat],
-      ...(priced.length ? { offers: { "@type": "AggregateOffer", priceCurrency: "EUR", lowPrice: p.min, highPrice: Math.max(...priced.map((v) => v.price)), offerCount: priced.length } } : {}),
+      ...(priced.length ? { offers: { "@type": "AggregateOffer", priceCurrency: "EUR", lowPrice: p.min, highPrice: Math.max(...priced.map((v) => v.price)), offerCount: priced.length, availability: "https://schema.org/InStock" } } : {}),
     });
   }
 
@@ -1388,12 +1425,13 @@
       if (d.cmp) return toggleCompare(d.cmp);
       if (d.expand !== undefined) { t.closest(".fgroup").classList.remove("fgroup--clip"); t.remove(); return; }
       if (d.reset !== undefined && cat) {
-        Object.assign(cat, { brands: new Set(), mem: new Set(), sub: "", model: "", max: 0, q: "", shown: PAGE });
+        Object.assign(cat, { tags: new Set(), brands: new Set(), mem: new Set(), sub: "", model: "", max: 0, q: "", shown: PAGE });
         if ($("#catSearch")) $("#catSearch").value = "";
         return refreshCatalog();
       }
       if (d.unf && cat) {
-        if (d.unf === "brand") cat.brands.delete(d.v);
+        if (d.unf === "tag") cat.tags.delete(d.v);
+        else if (d.unf === "brand") cat.brands.delete(d.v);
         else if (d.unf === "mem") cat.mem.delete(d.v);
         else cat[d.unf] = d.unf === "max" ? 0 : "";
         return refreshCatalog();
