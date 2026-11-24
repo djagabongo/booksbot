@@ -478,7 +478,7 @@
     const brands = facet(base, (p) => p.brand).sort((a, b) => b[1] - a[1]);
     const subs = facet(base, (p) => p.sub).sort((a, b) => b[1] - a[1]);
     const memOrder = (s) => parseFloat(s) * (s.includes("TB") ? 1024 : s.includes("MB") ? 1 / 1024 : 1);
-    const mems = facet(base, (p) => p.opts.storage).sort((a, b) => memOrder(a[0]) - memOrder(b[0]));
+    const mems = facet(base, (p) => p.opts.storage).filter(([v]) => !/MB/i.test(v)).sort((a, b) => memOrder(a[0]) - memOrder(b[0]));
     const prices = base.map((p) => p.min).filter((x) => x != null);
     const maxP = prices.length ? Math.ceil(Math.max(...prices) / 10) * 10 : 0;
     const check = (name, val, n, on) =>
@@ -597,7 +597,7 @@
          <a class="btn btn--primary btn--lg btn--block" href="#/inquiries?topic=${encodeURIComponent(p.name)}">Изпрати запитване</a>`
       : `<div class="pd__price"><span class="price">${eur(cur.price, true)}</span><small class="muted">с ДДС</small>
           ${cur.disc ? `<span class="old">${eur(cur.base, true)}</span>` : ""}</div>
-         <p class="stock ${cur.stock ? "" : "stock--no"}"><i></i>${cur.stock ? "В наличност · срокът се уточнява при потвърждение" : "По заявка"}</p>
+         <p class="stock ${cur.stock ? "" : "stock--no"}"><i></i>${cur.stock ? "Наличност с потвърждение · срокът се уточнява при заявката" : "По заявка"}</p>
          <button class="btn btn--primary btn--lg btn--block" data-add="${cur.id}">${icon("bag")} Добави в количката</button>`;
   }
 
@@ -687,7 +687,7 @@
     const draw = (keepGallery) => {
       if (!keepGallery) gi = 0;
       drawGallery();
-      $("#pdCodes").innerHTML = `Артикул № ${cur.id}${cur.code ? ` · Каталожен номер: <b>${esc(cur.code)}</b>` : ""}`;
+      $("#pdCodes").textContent = `Артикул № ${cur.id}`;
       $("#config").innerHTML = configHtml(p, cur);
       $("#pdBuy").innerHTML = buyHtml(p, cur);
       $("#stickyBuy").innerHTML = cur.price == null ? "" : `<div><b>${eur(cur.price, true)}</b><small>${esc([cur.storage, cur.color].filter(Boolean).join(" · ") || p.name)}</small></div><button class="btn btn--primary" data-add="${cur.id}">${icon("bag")} В количката</button>`;
@@ -699,7 +699,7 @@
     const drawSpecs = () => {
       const base = [
         cur.storage && ["Вградена памет", cur.storage], cur.ram && ["RAM", cur.ram], cur.color && ["Цвят", cur.color], cur.conn && ["Свързаност", cur.conn],
-        ["Артикул №", cur.id], cur.code && ["Каталожен номер (BrosBG)", cur.code],
+        ["Артикул №", cur.id],
       ].filter(Boolean);
       const render = (sections) => {
         const secs = [["Избрана конфигурация", base], ...sections];
@@ -1042,7 +1042,7 @@
         <label class="field"><span>Бележка към поръчката</span><textarea class="input" name="note" rows="2"></textarea></label>
         <div class="summary" id="sum"></div>
         <label class="check check--consent"><input type="checkbox" required><span>Съгласен/на съм с <a href="#/legal/terms" target="_blank">общите условия</a> и <a href="#/legal/privacy" target="_blank">политиката за поверителност</a>. *</span></label>
-        <button class="btn btn--primary btn--block btn--lg" type="submit">Изпрати заявката</button>
+        <button class="btn btn--primary btn--block btn--lg" type="submit">Изпрати заявка за поръчка</button>
         <p class="muted small center">Магазинът потвърждава наличността, сумата и срока преди изпълнение.</p>
       </form>`);
     const f = $("#checkoutForm");
@@ -1267,7 +1267,7 @@
     setLd("ld-product", {
       "@context": "https://schema.org", "@type": "Product", name: p.name, brand: { "@type": "Brand", name: p.brand },
       image: new URL(full(p.img), location.href).href, sku: String(p.def.id), category: CAT_NAMES[p.cat],
-      ...(priced.length ? { offers: { "@type": "AggregateOffer", priceCurrency: "EUR", lowPrice: p.min, highPrice: Math.max(...priced.map((v) => v.price)), offerCount: priced.length, availability: "https://schema.org/InStock" } } : {}),
+      ...(priced.length ? { offers: { "@type": "AggregateOffer", priceCurrency: "EUR", lowPrice: p.min, highPrice: Math.max(...priced.map((v) => v.price)), offerCount: priced.length } } : {}),
     });
   }
 
@@ -1331,13 +1331,23 @@
     $$("[data-tel]").forEach((e) => { e.href = "tel:" + tel; e.textContent = S.phone; });
     $$("[data-mail]").forEach((e) => { e.href = "mailto:" + S.email; e.textContent = S.email; });
     $$("[data-hours]").forEach((e) => (e.innerHTML = hoursHtml()));
+    const today = () => {
+      const d = new Date(), wd = d.getDay();
+      const h = S.hours[wd === 0 ? 2 : wd === 6 ? 1 : 0][1];
+      const m = h.match(/(\d+):(\d+)\D+(\d+):(\d+)/);
+      if (!m) return `<i class="dot"></i>Днес: ${esc(h.toLowerCase())}`;
+      const now = d.getHours() * 60 + d.getMinutes(), from = +m[1] * 60 + +m[2], to = +m[3] * 60 + +m[4];
+      const open = now >= from && now < to;
+      return `<i class="dot ${open ? "dot--on" : ""}"></i>${open ? "Отворено сега" : "Затворено сега"} · днес ${esc(h)}`;
+    };
+    const td = $("[data-today]");
+    if (td) { td.innerHTML = today(); setInterval(() => (td.innerHTML = today()), 60000); }
     $("[data-tagline]").textContent = S.tagline;
     $("[data-copy]").textContent = `© ${new Date().getFullYear()} GDMobil · ${S.company} · ЕИК ${S.eik}`;
     $("#socials").innerHTML = `
       <a href="${esc(S.social.facebook)}" target="_blank" rel="noopener" aria-label="Facebook"><svg viewBox="0 0 24 24"><path d="M14 8h3V4h-3a4 4 0 0 0-4 4v3H7v4h3v9h4v-9h3l1-4h-4V8z"/></svg></a>
       <a href="${esc(S.social.instagram)}" target="_blank" rel="noopener" aria-label="Instagram"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></svg></a>`;
-    $("#fab").innerHTML = `${S.viber ? `<a href="viber://chat?number=%2B${esc(S.viber)}" class="fab__btn fab__viber" aria-label="Пиши ни във Viber">V</a>` : ""}
-      <a href="tel:${tel}" class="fab__btn fab__call" aria-label="Обади се на ${esc(S.phone)}">${icon("phone")}</a>`;
+    $("#fab").innerHTML = S.viber ? `<a href="viber://chat?number=%2B${esc(S.viber)}" class="fab__btn fab__viber" aria-label="Пиши ни във Viber">V</a>` : "";
     $("#menuBody").innerHTML = `
       ${window.CATEGORIES.map((c) => `<a href="#/c/${c.key}"><img src="${esc(c.img)}" alt="">${esc(c.name)}</a>`).join("")}
       <hr><a href="#/service">${icon("wrench")} Сервиз и ремонти</a><a href="#/inquiries">${icon("mail")} Запитвания</a>

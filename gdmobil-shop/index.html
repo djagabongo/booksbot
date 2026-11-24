@@ -13,9 +13,8 @@
   <meta property="og:image" content="assets/img/logo.webp" />
   <meta property="og:locale" content="bg_BG" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23e2492a'/%3E%3Ctext x='32' y='42' font-family='Arial' font-weight='800' font-size='26' text-anchor='middle' fill='white'%3EGD%3C/text%3E%3C/svg%3E" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="preload" href="assets/fonts/onest-cyrillic-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="assets/fonts/unbounded-cyrillic-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="assets/img/icons/apple-touch-icon.png" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -29,8 +28,7 @@
   <div class="topbar">
     <div class="container topbar__inner">
       <a data-maps target="_blank" rel="noopener" class="topbar__item">◉ <span data-addr></span></a>
-      <span class="topbar__item hide-sm">Вземане от магазина без такса</span>
-      <span class="topbar__item hide-sm">Еконт и Спиди до офис или адрес</span>
+      <span class="topbar__item hide-sm" data-today></span>
       <a data-tel class="topbar__item topbar__tel"></a>
     </div>
   </div>

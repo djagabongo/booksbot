@@ -4,7 +4,7 @@
 и assets/legal.js от текстовете на правните страници.
 
 Употреба:
-    python3 tools/build_catalog.py <папка_с_източници>
+    python3 tools/build_catalog.py <папка_с_източници> [--keep-legacy]
 
 В папката трябва да има:
     catalog-list.json, models.json, shop.json (по желание)
@@ -16,6 +16,45 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Аксесоари за много стари устройства (отпреди ~2019 г.) се скриват от каталога.
+# Изпълнете скрипта с --keep-legacy, за да ги запазите.
+LEGACY = re.compile(r"""(
+  \bHTC\b | \bLG\b | BlackBerry | Lumia | \bAsha\b |
+  Galaxy\s*(S|Note)\s*([2-9]|10)(?![0-9]) | Galaxy\s*(J[0-9]|Grand|Ace|Core|Young|Trend|Mini|Alpha|Mega|Pocket) | Galaxy\s*A[3578](?![0-9]) |
+  \bI?phone\s*(4|4s|5|5s|5c|6|6s|7|8|x|xs|xr)(?![0-9a-z]) |
+  Redmi\s*(Note\s*)?[1-7](?![0-9]) | \bXiaomi\s*Mi\s*[1-9](?![0-9]) | \bMi\s*A[12]\b |
+  Huawei\s*(P|Mate)\s*([6-9]|10|20)(?![0-9]) | Ascend |
+  Pixel\s*[1-3](a|\s*XL)?(?![0-9]) |
+  Xperia\s*(Z|E|M|C|XA|XZ|L)[0-9]? (?![0-9]) |
+  \bMoto\s*(G[1-6]|E[1-5]|X)(?![0-9])
+)""", re.I | re.X)
+KEEP_LEGACY = "--keep-legacy" in sys.argv
+
+# Корекции на правните текстове, за да отговарят на новия сайт (без лична връзка за проследяване,
+# без база данни и броячи; хостинг Netlify; шрифтове и снимки от самия сайт; карта при поискване).
+LEGAL_FIXES = [
+    ("Данните за заявката и статуса се съхраняват в системата.",
+     "Данните за заявката се изпращат до магазина (по имейл или чрез онлайн форма) и се обработват от GDMobil."),
+    ("След заявяване получавате номер и лична връзка за статус. При изпращане магазинът може да добави номер на товарителница. Не публикувайте личната връзка за проследяване.",
+     "След заявяване получавате номер на заявката. Магазинът Ви информира за потвърждението и статуса по телефона или по имейл, а при изпращане може да Ви предостави номер на товарителница за проследяване при куриера."),
+    (" За защита от злоупотреби се използва краткотраен технически идентификатор за ограничаване на заявки.", ""),
+    ("Данните се записват в защитена база към сайта и са достъпни за упълномощения собственик при обслужването.",
+     "Заявките и запитванията се изпращат до имейла на магазина – директно от Вашия имейл клиент или, когато е включено, чрез доставчик на онлайн форми – и са достъпни за упълномощения собственик при обслужването."),
+    ("Сайтът използва инфраструктура на OpenAI Sites и Cloudflare. Някои продуктови изображения се зареждат от външен доставчик и съответният сървър получава техническата заявка.",
+     "Сайтът се хоства при Netlify. Шрифтовете и продуктовите изображения се зареждат от самия сайт. Картата в раздел „Контакти“ се зарежда от Google Maps само ако я поискате с бутона „Покажи картата“ – тогава Google получава техническата заявка."),
+    (" Личната връзка за поръчката показва статуса, артикулите и сумите на всеки, който я притежава; пазете я и не я споделяйте публично.", ""),
+    ("Сайтът изчислява сумите по избраните конфигурации и прилага техническа защита от злоупотреби.",
+     "Сайтът изчислява сумите по избраните конфигурации."),
+    ("Количката, любимите продукти и списъкът за сравнение се запазват чрез localStorage на устройството Ви.",
+     "Количката, любимите продукти, списъкът за сравнение, последно разгледаните продукти, последните търсения и избраната светла или тъмна тема се запазват чрез localStorage на устройството Ви."),
+    (" За входа на собственика могат да се използват необходими бисквитки на платформата за идентификация.",
+     " За по-бързо зареждане и работа при слаба връзка браузърът пази копие от страниците и снимките на сайта (кеш на приложението). Сайтът не използва бисквитки."),
+    ("Не сме добавили Google Analytics, Meta Pixel или рекламни тракери. Собствените броячи отчитат общ брой разглеждания, отваряния на продукти, добавяния в количка и отваряния на поръчка по дни. За тях не се създават бисквитки или идентификатори на посетители и не се записват имена, контакти, търсения или пълни адреси на страници. Общите броячи се пазят до 90 дни; Do Not Track и Global Privacy Control спират изпращането им. За ограничаване на злоупотреби се използва временен хеш на техническия адрес, който не се свързва с тези броячи.",
+     "Не сме добавили Google Analytics, Meta Pixel, рекламни тракери или броячи на посещенията. Шрифтовете и изображенията се зареждат от самия сайт. Картата в раздел „Контакти“ се зарежда от Google Maps само след натискане на „Покажи картата“."),
+    ("Това премахва запазената количка, любимите и сравненията на съответното устройство,",
+     "Това премахва запазената количка, любимите, сравненията и кеша на сайта на съответното устройство,"),
+]
+
 CAT_MAP = {"Телефони": "phones", "Таблети": "tablets", "Аксесоари": "accessories", "Камери": "cameras"}
 UNSET = {"Не е посочена", "Неуточнен цвят", "Стандартна версия", ""}
 
@@ -45,6 +84,7 @@ def build_catalog(src):
         overrides = json.load(open(shop_path, encoding="utf-8")).get("overrides", {})
 
     groups, singles, logos = {}, [], {}
+    legacy_hidden = 0
     model_dir = os.path.join(src, "models")
     model_data = {}
     if os.path.isdir(model_dir):
@@ -66,6 +106,9 @@ def build_catalog(src):
         ov = overrides.get(str(x["id"]), {})
         disc = ov.get("discountPercent")
         out_of_stock = ov.get("stockStatus") not in (None, "in_stock")
+        if cat == "accessories" and not KEEP_LEGACY and LEGACY.search(x["name"]):
+            legacy_hidden += 1
+            continue
         if x.get("groupId"):
             g = groups.setdefault(x["groupSlug"], {
                 "s": x["groupSlug"], "n": x["familyName"], "b": x["brand"], "c": cat,
@@ -78,7 +121,7 @@ def build_catalog(src):
                 "" if o.get("ram") in UNSET else o.get("ram", ""),
                 "" if o.get("color") in UNSET else o.get("color", ""),
                 "" if o.get("connection") in UNSET else o.get("connection", ""),
-                num(x["price"]), im, x.get("brosCode", ""),
+                num(x["price"]), im, "",  # кодът на доставчика не се публикува
                 disc or 0, 0 if out_of_stock else 1,
                 [r for r in (img_ref(g) for g in (model_data.get(x["id"], {}).get("gallery") or []))
                  if r and r != im and has_img(r)],
@@ -124,7 +167,8 @@ def build_catalog(src):
         json.dumps(data, ensure_ascii=False, separators=(",", ":")) + ";\n"
     path = os.path.join(ROOT, "assets", "catalog.js")
     open(path, "w", encoding="utf-8").write(js)
-    print(f"catalog.js: {len(groups)} модела, {len(singles)} артикула, {len(js) // 1024} KB")
+    print(f"catalog.js: {len(groups)} модела, {len(singles)} артикула, {len(js) // 1024} KB"
+          f" (скрити аксесоари за стари модели: {legacy_hidden})")
 
 
 SPEC_SECTIONS = [
@@ -211,7 +255,10 @@ def build_legal(src):
     for name in ["terms", "delivery", "returns", "privacy", "cookies"]:
         p = os.path.join(d, name + ".txt")
         if os.path.exists(p):
-            out[name] = parse_legal(open(p, encoding="utf-8").read())
+            text = open(p, encoding="utf-8").read()
+            for old, new in LEGAL_FIXES:
+                text = text.replace(old, new)
+            out[name] = parse_legal(text)
     js = "/* Автоматично генериран от tools/build_catalog.py */\nwindow.LEGAL=" + \
         json.dumps(out, ensure_ascii=False, indent=1) + ";\n"
     open(os.path.join(ROOT, "assets", "legal.js"), "w", encoding="utf-8").write(js)
@@ -219,7 +266,8 @@ def build_legal(src):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    if len(args) != 1:
         sys.exit(__doc__)
-    build_catalog(sys.argv[1])
-    build_legal(sys.argv[1])
+    build_catalog(args[0])
+    build_legal(args[0])
