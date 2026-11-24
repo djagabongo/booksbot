@@ -500,9 +500,17 @@
       list.sort((a, b) =>
         (featuredRank.get(a) ?? 99) - (featuredRank.get(b) ?? 99) ||
         catRank[a.cat] - catRank[b.cat] ||
-        (a.cat === "accessories" ? a.name.localeCompare(b.name, "bg") : (b.min ?? -1) - (a.min ?? -1)));
+        (a.cat === "accessories" ? accRank(a) - accRank(b) || a.name.localeCompare(b.name, "bg") : (b.min ?? -1) - (a.min ?? -1)));
     }
     return list;
+  }
+
+  // аксесоари: първо за подбраните модели, после калъфи/протектори, после нови модели, накрая универсални
+  const FEAT_MK = new Set(FEATURED.map((p) => p.mk).filter(Boolean));
+  const SUB_RANK = { "Калъфи": 0, "Протектори": 1, "Зарядни": 2, "Слушалки": 3, "Кабели": 4, "Power Bank": 5, "Стойки": 6 };
+  function accRank(p) {
+    const forFeatured = (p.compat || []).some((k) => FEAT_MK.has(k)) ? 0 : 1;
+    return forFeatured * 100 + (p.compat && p.compat.length ? 0 : 50) + (SUB_RANK[p.sub] ?? 9);
   }
 
   function facet(base, fn) {
