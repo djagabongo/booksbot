@@ -32,6 +32,8 @@ KEEP_LEGACY = "--keep-legacy" in sys.argv
 # Телефони и таблети, представени преди тази година, не се включват (--min-year 0 = без филтър)
 MIN_YEAR = int(sys.argv[sys.argv.index("--min-year") + 1]) if "--min-year" in sys.argv else 2023
 # Модели без година в данните, за които е известно, че са по-стари
+# Марки телефони/таблети, които не се продават в магазина
+EXCLUDE_BRANDS = {"maxcom", "evolveo", "gigaset", "mobiola"}
 OLD_DEVICES = re.compile(r"\b(LG\s+Cam\s+Plus|Nokia\s+T21|Galaxy\s+Tab\s+Active\s*4)\b", re.I)
 ACCESSORIES_FILE = sys.argv[sys.argv.index("--accessories") + 1] if "--accessories" in sys.argv else None
 
@@ -130,6 +132,9 @@ def build_catalog(src):
             continue  # аксесоарите идват от casestore.bg (--accessories)
         if cat == "accessories" and not KEEP_LEGACY and LEGACY.search(x["name"]):
             legacy_hidden += 1
+            continue
+        if cat in ("phones", "tablets") and (x.get("brand") or "").lower() in EXCLUDE_BRANDS:
+            too_old += 1
             continue
         if x.get("groupId") and cat in ("phones", "tablets") and MIN_YEAR:
             y = release_year(x)
