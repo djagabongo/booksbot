@@ -73,8 +73,8 @@
 
   for (const g of C.groups) {
     addProduct({
-      kind: "g", slug: g.s, name: g.n, brand: g.b, cat: g.c, mk: g.mk, specs: g.sp || {},
-      variants: g.v.map((a) => ({ id: a[0], storage: a[1], ram: a[2], color: a[3], conn: a[4], base: a[5], img: a[6], code: a[7], disc: a[8], stock: a[9], gal: a[10] || [] })),
+      kind: "g", slug: g.s, name: g.n, brand: g.b, cat: g.c, mk: g.mk, specs: g.sp || {}, sub: g.sc, compat: g.cm,
+      variants: g.v.map((a) => ({ id: a[0], storage: a[1], ram: a[2], color: a[3], conn: a[4], base: a[5], img: a[6], code: a[7], disc: a[8], stock: a[9], gal: a[10] || [], old: a[11] })),
     });
   }
   for (const i of C.items) {
@@ -107,6 +107,10 @@
 
   /* ---------- цветове ---------- */
   const COLORS = [
+    [/прозрач|transparent|clear|кристал/i, "linear-gradient(135deg,#ffffff,#d9e4ee)"],
+    [/многоцвет|multi|rainbow|дъга/i, "conic-gradient(#ff5a5a,#ffd84d,#5ad17a,#4f9cff,#b36bff,#ff5a5a)"],
+    [/мента|тюркоаз|mint|turquoise/i, "#7fd1c0"],
+    [/кафяв|бежов|brown|beige|camel/i, "#a47e5b"],
     [/черен|black|obsidian|graphite|midnight|night|charcoal|onyx|pitch|mulberry|scarab|hematite/i, "#1f2023"],
     [/бял|white|porcelain|cream|ivory|frost|cloud dancer|silk/i, "#f1f0ec"],
     [/сребр|silver|moonstone|meteor/i, "#d4d6da"],
@@ -202,7 +206,7 @@
       opts = `<div class="card__opts">
         ${cols.length ? `<span class="dots" title="${esc(cols.join(", "))}">${cols.slice(0, 5).map((c) => `<i style="background:${colorHex(c)}"></i>`).join("")}${cols.length > 5 ? `<em>+${cols.length - 5}</em>` : ""}</span>` : ""}
         ${st.length ? `<span class="card__mem">${esc(st[0])}${st.length > 1 ? ` – ${esc(st[st.length - 1])}` : ""}</span>` : ""}
-      </div>`;
+      </div>${p.cat === "accessories" ? `<div class="card__sub">${esc(p.sub || "")}</div>` : ""}`;
     } else {
       opts = `<div class="card__sub">${esc(p.sub || CAT_NAMES[p.cat] || "")}${p.compat && p.compat.length ? ` · ${esc(MODEL_NAMES[p.compat[0]] || "")}${p.compat.length > 1 ? ` +${p.compat.length - 1}` : ""}` : ""}</div>`;
     }

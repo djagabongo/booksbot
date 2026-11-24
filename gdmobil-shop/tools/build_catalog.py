@@ -87,6 +87,54 @@ def num(v):
     return int(v) if float(v).is_integer() else round(float(v), 2)
 
 
+COLOR_PATTERNS = [
+    re.compile(r",?\s*Цвят\s+(?P<c>[^,]{2,40})$", re.I),
+    re.compile(r"\s+(?P<c>(?:светло|тъмно)?[а-яё]+)\s+цвят$", re.I),
+    re.compile(r",\s*(?P<c>[а-яё]+(?:\s+[а-яё]+)?)$"),
+    re.compile(r"\s+-\s+(?P<c>black|white|blue|red|green|pink|purple|gold|silver|gray|grey|transparent|clear|navy|brown|beige)$", re.I),
+]
+
+
+def split_color(name):
+    """„Кейс X за iPhone 17, черен“ → („Кейс X за iPhone 17“, „Черен“)"""
+    for rx in COLOR_PATTERNS:
+        m = rx.search(name)
+        if m:
+            base = name[: m.start()].rstrip(" ,-–")
+            color = m.group("c").strip(" -").strip()
+            if base and color and len(base) > 8:
+                return base, color[:1].upper() + color[1:]
+    return name, None
+
+
+def group_colors(items):
+    """Обединява аксесоари, които се различават само по цвят, в един продукт с избор на цвят."""
+    buckets, singles = {}, []
+    for it in items:
+        base, color = split_color(it["n"])
+        if not color:
+            singles.append(it)
+            continue
+        key = (base.lower(), it["sc"], tuple(it["cm"]))
+        buckets.setdefault(key, []).append((base, color, it))
+    groups = []
+    for key, lst in buckets.items():
+        colors = {c.lower() for _, c, _ in lst}
+        if len(lst) < 2 or len(colors) < 2:
+            singles.extend(it for _, _, it in lst)
+            continue
+        seen, variants = set(), []
+        for base, color, it in sorted(lst, key=lambda x: (x[2]["p"] or 0, x[1])):
+            if color.lower() in seen:
+                singles.append(it)  # същият цвят два пъти – оставяме отделно
+                continue
+            seen.add(color.lower())
+            variants.append([it["i"], "", "", color, "", it["p"], it["im"], "", 0, it.get("st", 1), [], it.get("op")])
+        first = lst[0][2]
+        groups.append({"s": first["s"], "n": lst[0][0], "b": first["b"], "c": "accessories", "mk": "", "sc": first["sc"], "cm": first["cm"], "v": variants})
+    return groups, singles
+
+
 def build_catalog(src):
     items = json.load(open(os.path.join(src, "catalog-list.json"), encoding="utf-8"))
     models = json.load(open(os.path.join(src, "models.json"), encoding="utf-8"))
@@ -215,13 +263,19 @@ def build_catalog(src):
             e["count"] += m["count"]
         models = sorted(merged.values(), key=lambda m: (m["brand"], m["name"]))
         non_phone = re.compile(r"чанта|\bbag\b|handbag|портфейл|раница|backpack|несесер|purse|tote|клъч|куфар", re.I)
-        dropped = [it for it in cs["items"] if (it["sc"] == "Други аксесоари" and non_phone.search(it["n"])) or not it.get("im")]
+        laptop = re.compile(r"лаптоп|laptop|macbook|\b1[3-7](?:[.,]\d)?\s*(?:\"|”|''|inch|инча)", re.I)
+        dropped = [it for it in cs["items"] if (it["sc"] == "Други аксесоари" and non_phone.search(it["n"])) or not it.get("im")
+                   or (not it["cm"] and laptop.search(it["n"]) and not re.search(r"ipad|tab|таблет", it["n"], re.I))]
         cs["items"] = [it for it in cs["items"] if it not in dropped]
-        print(f"casestore.bg: махнати {len(dropped)} чанти, портфейли, раници и продукти без снимка")
+        print(f"casestore.bg: махнати {len(dropped)} чанти, портфейли, раници, калъфи за лаптоп и продукти без снимка")
         for it in cs["items"]:
             it["cm"] = [remap(k) for k in it["cm"]]
             it.pop("src", None)
-            singles.append(it)
+        acc_groups, acc_singles = group_colors(cs["items"])
+        singles.extend(acc_singles)
+        for g in acc_groups:
+            groups[g["s"]] = g
+        print(f"casestore.bg: {sum(len(g['v']) for g in acc_groups)} аксесоара в {len(acc_groups)} продукта с избор на цвят, {len(acc_singles)} самостоятелни")
         linked = sum(1 for m in models if any(g.get("mk") == m["key"] for g in groups.values()))
         print(f"casestore.bg: {len(cs['items'])} аксесоара, {len(models)} модела (свързани с телефони/таблети в магазина: {linked})")
 
