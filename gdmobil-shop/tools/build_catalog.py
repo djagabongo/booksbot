@@ -45,6 +45,16 @@ def build_catalog(src):
         overrides = json.load(open(shop_path, encoding="utf-8")).get("overrides", {})
 
     groups, singles, logos = {}, [], {}
+    model_dir = os.path.join(src, "models")
+    model_data = {}
+    if os.path.isdir(model_dir):
+        for f in os.listdir(model_dir):
+            if f.endswith(".json"):
+                for v in json.load(open(os.path.join(model_dir, f), encoding="utf-8")):
+                    model_data[v["id"]] = v
+    img_dir = os.path.join(ROOT, "assets", "img", "products")
+    def has_img(ref):
+        return os.path.exists(os.path.join(img_dir, ref + ".webp"))
     thumbs_missing = set()
     for x in items:
         cat = CAT_MAP.get(x["cat"], "accessories")
@@ -70,7 +80,15 @@ def build_catalog(src):
                 "" if o.get("connection") in UNSET else o.get("connection", ""),
                 num(x["price"]), im, x.get("brosCode", ""),
                 disc or 0, 0 if out_of_stock else 1,
+                [r for r in (img_ref(g) for g in (model_data.get(x["id"], {}).get("gallery") or []))
+                 if r and r != im and has_img(r)],
             ])
+            for r in g["v"][-1][10]:
+                if not os.path.exists(os.path.join(img_dir, r + "-sm.webp")):
+                    thumbs_missing.add(r)
+            md = model_data.get(x["id"])
+            if md and md.get("features") and "f" not in g:
+                g["f"] = md["features"]
             if len(x.get("specs", {})) > len(g["sp"]):
                 g["sp"] = {k: v for k, v in x["specs"].items() if k not in ("Памет", "RAM")}
         else:
@@ -82,10 +100,18 @@ def build_catalog(src):
             })
 
     size_order = lambda s: (0 if not s else 1, float(re.sub(r"[^\d.]", "", s) or 0) * (1024 if "TB" in s else 1 if "GB" in s else 1 / 1024))
+    specs = {}
     for g in groups.values():
         g["v"].sort(key=lambda v: (size_order(v[1]), v[5] or 0))
         if not g["sp"]:
             del g["sp"]
+        f = g.pop("f", None)
+        if f:
+            specs[g["s"]] = format_specs(f)
+    js = "/* Автоматично генериран от tools/build_catalog.py */\nwindow.SPECS=" + \
+        json.dumps(specs, ensure_ascii=False, separators=(",", ":")) + ";\n"
+    open(os.path.join(ROOT, "assets", "specs.js"), "w", encoding="utf-8").write(js)
+    print(f"specs.js: {len(specs)} модела, {len(js) // 1024} KB")
 
     data = {
         "groups": sorted(groups.values(), key=lambda g: g["n"]),
@@ -99,6 +125,58 @@ def build_catalog(src):
     path = os.path.join(ROOT, "assets", "catalog.js")
     open(path, "w", encoding="utf-8").write(js)
     print(f"catalog.js: {len(groups)} модела, {len(singles)} артикула, {len(js) // 1024} KB")
+
+
+SPEC_SECTIONS = [
+    ("Дисплей", ["Дисплей размер", "Дисплей тип", "Дисплей резолюция", "Дисплей защита"]),
+    ("Производителност", ["Чипсет", "Процесор", "Операционна система", "Карта памет"]),
+    ("Камери", ["Камера", "Камера екстри", "Предна камера", "Видеозапис", "Автофокус", "Светкавица"]),
+    ("Батерия", ["Батерия 2", "Батерия"]),
+    ("Свързаност", ["Мрежа 5G", "Мрежа 4G", "Мрежа 3G", "Мрежа 2G", "SIM карта", "Wi-Fi", "Bluetooth", "NFC", "GPS", "Инфрачервен порт", "Cellular"]),
+    ("Корпус и сензори", ["Размер", "Тегло", "Защита вода", "Сензори"]),
+]
+SPEC_LABEL = {
+    "Дисплей размер": "Размер на дисплея", "Дисплей тип": "Тип дисплей", "Дисплей резолюция": "Резолюция",
+    "Дисплей защита": "Защита на дисплея", "Камера": "Основна камера", "Камера екстри": "Камери – детайли",
+    "Батерия 2": "Капацитет", "Батерия": "Тип батерия", "Размер": "Размери (мм)",
+    "Защита вода": "Защита от вода и прах", "Инфрачервен порт": "Инфрачервен порт", "Cellular": "Мобилна мрежа",
+}
+SKIP = {"Памет", "RAM", "Цвят", "Продуктов тип", "Представен"}
+
+
+def fmt_val(k, v):
+    v = v.strip()
+    if k == "Дисплей размер" and re.fullmatch(r"[\d.]+", v):
+        return v + "″"
+    if k in ("Камера", "Предна камера") and re.fullmatch(r"[\d.]+", v):
+        return v + " MP"
+    if k == "Батерия 2" and re.fullmatch(r"\d+", v):
+        return v + " mAh"
+    if k == "Тегло" and re.fullmatch(r"[\d.]+", v):
+        return v + " g"
+    return v
+
+
+def format_specs(features):
+    kv = {}
+    for f in features:
+        if ":" not in f:
+            continue
+        k, v = f.split(":", 1)
+        k = k.strip()
+        if k in SKIP or k.startswith("pa_") or not v.strip():
+            continue
+        kv[k] = fmt_val(k, v)
+    out, used = [], set()
+    for title, keys in SPEC_SECTIONS:
+        rows = [[SPEC_LABEL.get(k, k), kv[k]] for k in keys if k in kv]
+        used.update(k for k in keys if k in kv)
+        if rows:
+            out.append([title, rows])
+    rest = [[SPEC_LABEL.get(k, k), v] for k, v in kv.items() if k not in used]
+    if rest:
+        out.append(["Други", rest])
+    return out
 
 
 def parse_legal(text):

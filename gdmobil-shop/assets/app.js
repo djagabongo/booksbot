@@ -54,7 +54,7 @@
   for (const g of C.groups) {
     addProduct({
       kind: "g", slug: g.s, name: g.n, brand: g.b, cat: g.c, mk: g.mk, specs: g.sp || {},
-      variants: g.v.map((a) => ({ id: a[0], storage: a[1], ram: a[2], color: a[3], conn: a[4], base: a[5], img: a[6], code: a[7], disc: a[8], stock: a[9] })),
+      variants: g.v.map((a) => ({ id: a[0], storage: a[1], ram: a[2], color: a[3], conn: a[4], base: a[5], img: a[6], code: a[7], disc: a[8], stock: a[9], gal: a[10] || [] })),
     });
   }
   for (const i of C.items) {
@@ -140,6 +140,12 @@
     arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
     check: '<path d="m5 12 5 5L20 7"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
+    eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    bag: '<path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7a3 3 0 0 1 6 0"/>',
+    chevL: '<path d="m15 18-6-6 6-6"/>',
+    chevR: '<path d="m9 18 6-6-6-6"/>',
+    history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',
+    trend: '<path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
   };
   const icon = (n, cls = "ic") => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${IC[n]}</svg>`;
 
@@ -180,6 +186,7 @@
       <div class="card__tools">
         <button class="card__tool ${isFav(p.slug) ? "on" : ""}" data-fav="${p.slug}" aria-label="Любими" aria-pressed="${isFav(p.slug)}">${icon("heart")}</button>
         ${canCompare(p) ? `<button class="card__tool ${inCmp(p.slug) ? "on" : ""}" data-cmp="${p.slug}" aria-label="Сравни" title="Сравни">${icon("swap")}</button>` : ""}
+        <button class="card__tool card__tool--qv" data-qv="${p.slug}" aria-label="Бърз преглед на ${esc(p.name)}" title="Бърз преглед">${icon("eye")}</button>
       </div>
       <div class="card__body">
         <span class="card__brand">${esc(p.brand)}</span>
@@ -369,6 +376,10 @@
           <a class="btn btn--primary btn--block" href="${esc(S.maps)}" target="_blank" rel="noopener">${icon("pin")} Упътване в Google Maps</a>
           <a class="btn btn--ghost btn--block" href="#/inquiries">Изпрати запитване</a>
         </div>
+        <div class="map" id="map">
+          <div class="map__ph">${icon("pin")}<b>${esc(S.address)}</b><span class="muted">Картата се зарежда от Google Maps само при поискване.</span>
+            <button class="btn btn--primary btn--sm" data-loadmap>Покажи картата</button></div>
+        </div>
       </div>
     </section>`;
   }
@@ -376,6 +387,9 @@
 
   /* ================= КАТАЛОГ ================= */
   const PAGE = 24;
+  const moreObs = "IntersectionObserver" in window
+    ? new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting && cat) { moreObs.disconnect(); cat.shown += PAGE; refreshCatalog(); } }), { rootMargin: "400px" })
+    : { observe() {}, disconnect() {} };
   let cat = null;
 
   function pageCatalog(key, q) {
@@ -499,6 +513,8 @@
     const left = list.length - cat.shown;
     $("#more").innerHTML = left > 0 ? `<button class="btn btn--ghost" id="moreBtn">Покажи още ${Math.min(left, PAGE)} <small class="muted">(остават ${left})</small></button>` : "";
     $("#moreBtn")?.addEventListener("click", () => { cat.shown += PAGE; refreshCatalog(); });
+    moreObs.disconnect();
+    if ($("#moreBtn") && cat.shown < PAGE * 6) moreObs.observe($("#moreBtn"));
     const nf = cat.brands.size + cat.mem.size + (cat.sub ? 1 : 0) + (cat.model ? 1 : 0) + (cat.max ? 1 : 0);
     $("#fCount").textContent = nf ? `(${nf})` : "";
     $("#filterApply").textContent = `Покажи ${plural(list.length, "резултат", "резултата")}`;
@@ -540,25 +556,78 @@
   }
 
   /* ================= ПРОДУКТ ================= */
+  const galleryOf = (p, v) => [v.img, ...(v.gal || [])].filter(Boolean);
+  let specsPromise;
+  function loadSpecs() {
+    return (specsPromise ||= new Promise((res) => {
+      if (window.SPECS) return res(window.SPECS);
+      const s = document.createElement("script");
+      s.src = "assets/specs.js";
+      s.onload = () => res(window.SPECS || {});
+      s.onerror = () => res({});
+      document.head.appendChild(s);
+    }));
+  }
+
+  function pickVariant(p, cur, k, val) {
+    const prio = OPT_KEYS.filter((o) => o !== k);
+    const score = (v) => prio.reduce((s, o, i) => s + (v[o] === cur[o] ? 8 >> i : 0), 0);
+    return p.variants.filter((v) => v[k] === val).sort((a, b) => score(b) - score(a) || (a.price ?? 1e9) - (b.price ?? 1e9))[0] || cur;
+  }
+
+  function configHtml(p, cur, compact) {
+    if (p.kind !== "g") return "";
+    const keys = Object.keys(p.opts).filter((k) => p.opts[k].length > 1 || k === "color");
+    return `${compact ? "" : `<div class="config__head"><b>Конфигурация</b><small class="muted">${plural(p.variants.length, "вариант", "варианта")}</small></div>`}
+      ${keys.map((k) => `<div class="config__row">
+        <div class="config__label"><span>${OPT_LABEL[k]}</span><b>${esc(cur[k] || "—")}</b></div>
+        <div class="opts ${k === "color" ? "opts--color" : ""}">${p.opts[k].map((val) => {
+          const target = pickVariant(p, cur, k, val);
+          const exact = target[k] === val && OPT_KEYS.every((o) => o === k || target[o] === cur[o]);
+          const showPrice = k !== "color" && target.price != null;
+          return `<button class="opt ${cur[k] === val ? "active" : ""} ${exact ? "" : "opt--alt"}" data-opt="${k}" data-val="${esc(val)}" aria-pressed="${cur[k] === val}" ${exact ? "" : 'title="Ще смени и други опции"'}>
+            ${k === "color" ? `<i class="sw" style="background:${colorHex(val)}"></i>` : ""}<span>${esc(val)}</span>${showPrice ? `<small>${eur(target.price)}</small>` : ""}</button>`;
+        }).join("")}</div></div>`).join("")}
+      ${compact ? "" : `<div class="config__sel"><small class="muted">Избрана конфигурация</small><b>${esc(varLabel(cur) || "Стандартна")}</b></div>`}`;
+  }
+
+  function buyHtml(p, cur) {
+    return cur.price == null
+      ? `<div class="pd__price"><span class="price price--ask">Цена при запитване</span></div>
+         <a class="btn btn--primary btn--lg btn--block" href="#/inquiries?topic=${encodeURIComponent(p.name)}">Изпрати запитване</a>`
+      : `<div class="pd__price"><span class="price">${eur(cur.price, true)}</span><small class="muted">с ДДС</small>
+          ${cur.disc ? `<span class="old">${eur(cur.base, true)}</span>` : ""}</div>
+         <p class="stock ${cur.stock ? "" : "stock--no"}"><i></i>${cur.stock ? "В наличност · срокът се уточнява при потвърждение" : "По заявка"}</p>
+         <button class="btn btn--primary btn--lg btn--block" data-add="${cur.id}">${icon("bag")} Добави в количката</button>`;
+  }
+
   function pageProduct(slug, q) {
     const p = BY_SLUG.get(slug);
     if (!p) return pageNotFound();
     let cur = p.variants.find((v) => v.id === +q.get("v")) || p.def;
+    let gi = 0;
     setTitle(p.name);
     state.recent = [slug, ...state.recent.filter((s) => s !== slug)].slice(0, 12);
     saveState("recent");
     setProductLd(p);
 
-    const compatAcc = p.kind === "g" && p.mk ? PRODUCTS.filter((x) => (x.compat || []).includes(p.mk)) : [];
+    const compatAcc = p.kind === "g" && p.mk ? PRODUCTS.filter((x) => (x.compat || []).includes(p.mk) && x.min != null) : [];
     const similar = PRODUCTS.filter((x) => x !== p && x.cat === p.cat && (p.kind === "g" ? x.brand === p.brand : x.sub === p.sub && x.brand === p.brand))
       .sort((a, b) => Math.abs((a.min ?? 0) - (p.min ?? 0)) - Math.abs((b.min ?? 0) - (p.min ?? 0))).slice(0, 8);
+    const recent = state.recent.slice(1).map((s) => BY_SLUG.get(s)).filter(Boolean).slice(0, 8);
     const keySpecs = ["Дисплей", "Основна камера", "Батерия", "Процесор"].filter((k) => p.specs[k]);
 
     view.innerHTML = `<section class="container page">
       ${crumbs([[CAT_NAMES[p.cat], `#/c/${p.cat}`], [p.name]])}
       <div class="pd">
         <div class="pd__gallery">
-          <button class="pd__main" id="pdZoom" aria-label="Увеличи снимката"><img id="pdImg" alt="${esc(p.name)}"><span class="pd__zoom">Увеличи ${icon("zoom")}</span></button>
+          <div class="pd__main" id="pdMain">
+            <button class="pd__stage" id="pdZoom" aria-label="Увеличи снимката"><img id="pdImg" alt="${esc(p.name)}"></button>
+            <button class="pd__nav pd__nav--prev" data-gal="-1" aria-label="Предишна снимка">${icon("chevL")}</button>
+            <button class="pd__nav pd__nav--next" data-gal="1" aria-label="Следваща снимка">${icon("chevR")}</button>
+            <span class="pd__count" id="pdCount"></span>
+            <span class="pd__zoom">${icon("zoom")} Увеличи</span>
+          </div>
           <div class="pd__thumbs" id="pdThumbs"></div>
         </div>
         <div class="pd__info">
@@ -566,17 +635,20 @@
           <h1>${esc(p.name)}</h1>
           <p class="muted pd__codes" id="pdCodes"></p>
           ${p.desc ? `<p class="muted">${esc(p.desc)}</p>` : ""}
+          ${keySpecs.length ? `<div class="keyspecs">${keySpecs.map((k) => `<div><small>${esc(k)}</small><b>${esc(p.specs[k])}</b></div>`).join("")}</div>` : ""}
           <div class="config" id="config"></div>
           <div class="pd__buy" id="pdBuy"></div>
-          ${keySpecs.length ? `<div class="keyspecs">${keySpecs.map((k) => `<div><small>${esc(k)}</small><b>${esc(p.specs[k])}</b></div>`).join("")}<div><small>Памет</small><b id="ksMem"></b></div></div>` : ""}
           <div class="pd__tools">
             <button class="btn btn--ghost btn--sm" data-fav="${p.slug}" id="pdFav">${icon("heart")} <span></span></button>
             ${canCompare(p) ? `<button class="btn btn--ghost btn--sm" data-cmp="${p.slug}" id="pdCmp">${icon("swap")} <span></span></button>` : ""}
             <button class="btn btn--ghost btn--sm" id="pdShare">${icon("share")} Сподели</button>
           </div>
-          <div class="pd__store">${icon("store")}<span><b>GDMobil · ${esc(S.address)}</b><a href="tel:${tel}">${esc(S.phone)}</a></span></div>
-          <div class="acc">${window.PRODUCT_INFO.map((x, i) => `<details ${i === 1 ? "open" : ""}><summary>${esc(x.q)}</summary><p>${esc(x.a)}</p></details>`).join("")}
-            <p class="acc__links"><a href="#/legal/delivery">Доставка и плащане</a> · <a href="#/legal/returns">Гаранция и връщане</a> · <a href="#/service">Сервизно запитване</a></p></div>
+          <div class="pd__perks">
+            <div>${icon("store")}<span><b>Вземи от магазина</b><small>Без такса · ${esc(S.address)}</small></span></div>
+            <div>${icon("truck")}<span><b>Еконт или Спиди</b><small>До офис или адрес · наложен платеж</small></span></div>
+            <div>${icon("shield")}<span><b>Гаранция и 14 дни за отказ</b><small><a href="#/legal/returns">Условия</a></small></span></div>
+          </div>
+          <div class="acc">${window.PRODUCT_INFO.map((x) => `<details><summary>${esc(x.q)}</summary><p>${esc(x.a)}</p></details>`).join("")}</div>
         </div>
       </div>
 
@@ -585,70 +657,122 @@
       ${p.compat && p.compat.length ? `<div class="pd-section"><h2>Съвместими модели</h2><div class="tags">${p.compat.map((k) => `<a class="chip" href="#/c/accessories?model=${k}">${esc(MODEL_NAMES[k] || k)}</a>`).join("")}</div>
         <p class="muted small">Провери точния модел и съвместимостта преди покупка.</p></div>` : ""}
 
-      ${compatAcc.length ? `<div class="pd-section"><div class="section__head"><h2>Аксесоари за ${esc(p.name.replace(p.brand + " ", ""))}</h2>
-        <a class="link" href="#/c/accessories?model=${p.mk}">Всички ${compatAcc.length} →</a></div>
+      ${compatAcc.length ? `<div class="pd-section"><div class="section__head"><div><span class="eyebrow">Допълни</span><h2>Аксесоари за ${esc(p.name.replace(p.brand + " ", ""))}</h2></div>
+        <a class="link" href="#/c/accessories?model=${p.mk}">Всички ${compatAcc.length} ${icon("arrow")}</a></div>
         <div class="rail">${compatAcc.slice(0, 12).map(card).join("")}</div></div>` : ""}
 
-      ${similar.length ? `<div class="pd-section"><div class="section__head"><h2>Подобни продукти</h2></div><div class="rail">${similar.map(card).join("")}</div></div>` : ""}
+      ${similar.length ? `<div class="pd-section"><div class="section__head"><div><span class="eyebrow">Още от ${esc(p.brand)}</span><h2>Подобни продукти</h2></div></div><div class="rail">${similar.map(card).join("")}</div></div>` : ""}
+      ${recent.length ? `<div class="pd-section"><div class="section__head"><div><span class="eyebrow">За теб</span><h2>Последно разгледани</h2></div></div><div class="rail">${recent.map(card).join("")}</div></div>` : ""}
     </section>
     <div class="sticky-buy" id="stickyBuy"></div>`;
 
-    const draw = () => {
-      $("#pdImg").src = full(cur.img);
-      $("#pdCodes").innerHTML = `Артикул № ${cur.id}${cur.code ? ` · Каталожен номер (BrosBG): <b>${esc(cur.code)}</b>` : ""}`;
-      const imgs = [];
-      p.variants.forEach((v) => { if (v.img && !imgs.some((x) => x.img === v.img)) imgs.push(v); });
-      $("#pdThumbs").innerHTML = imgs.length > 1
-        ? imgs.map((v) => `<button class="${v.img === cur.img ? "on" : ""}" data-timg="${v.id}" aria-label="${esc(v.color || "Снимка")}">${imgTag(v.img, v.color || p.name)}</button>`).join("")
-        : "";
-      const keys = Object.keys(p.opts).filter((k) => p.opts[k].length > 1 || k === "color");
-      $("#config").innerHTML = p.kind === "g" ? `
-        <div class="config__head"><b>Конфигурация</b><small class="muted">${plural(p.variants.length, "конфигурация", "конфигурации")}</small></div>
-        ${keys.map((k) => `<div class="config__row">
-          <div class="config__label"><span>${OPT_LABEL[k]}</span><b>${esc(cur[k] || "—")}</b></div>
-          <div class="opts">${p.opts[k].map((val) => {
-            const exact = p.variants.some((v) => v[k] === val && OPT_KEYS.every((o) => o === k || v[o] === cur[o]));
-            return `<button class="opt ${cur[k] === val ? "active" : ""} ${exact ? "" : "opt--alt"}" data-opt="${k}" data-val="${esc(val)}" aria-pressed="${cur[k] === val}" ${exact ? "" : 'title="Ще смени и други опции"'}>${k === "color" ? `<i class="sw" style="background:${colorHex(val)}"></i>` : ""}${esc(val)}</button>`;
-          }).join("")}</div></div>`).join("")}
-        <div class="config__sel"><small class="muted">Избрана конфигурация</small><b>${esc(varLabel(cur) || "Стандартна")}</b></div>` : "";
-      $("#pdBuy").innerHTML = cur.price == null
-        ? `<div class="pd__price"><span class="price price--ask">Цена при запитване</span></div>
-           <a class="btn btn--primary btn--lg btn--block" href="#/inquiries?topic=${encodeURIComponent(p.name)}">Изпрати запитване</a>`
-        : `<div class="pd__price"><span class="price">${eur(cur.price, true)}</span><small class="muted">с ДДС</small>
-            ${cur.disc ? `<span class="old">${eur(cur.base, true)}</span>` : ""}</div>
-           <p class="stock ${cur.stock ? "" : "stock--no"}">${cur.stock ? "● В наличност" : "● По заявка"}</p>
-           <p class="muted small">Срокът за получаване се уточнява при потвърждение.</p>
-           <button class="btn btn--primary btn--lg btn--block" data-add="${cur.id}">Добави в количката</button>`;
-      $("#stickyBuy").innerHTML = cur.price == null ? "" : `<div><b>${eur(cur.price, true)}</b><small>${esc([cur.storage, cur.color].filter(Boolean).join(" · ") || p.name)}</small></div><button class="btn btn--primary" data-add="${cur.id}">В количката</button>`;
-      if ($("#ksMem")) $("#ksMem").textContent = cur.storage || p.specs["Памет"] || "—";
-      const rows = [
-        ...Object.entries(p.specs),
-        cur.storage && ["Вградена памет", cur.storage], cur.ram && ["RAM", cur.ram], cur.color && ["Цвят", cur.color], cur.conn && ["Свързаност", cur.conn],
-        ["Артикул №", cur.id], cur.code && ["Каталожен номер (BrosBG)", cur.code],
-      ].filter(Boolean);
-      $("#specsSec").innerHTML = `<h2>Технически характеристики</h2><table class="specs">${rows.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join("")}</table>`;
+    const drawGallery = () => {
+      const g = galleryOf(p, cur);
+      gi = Math.max(0, Math.min(gi, g.length - 1));
+      const img = $("#pdImg");
+      img.classList.remove("swap"); void img.offsetWidth; img.classList.add("swap");
+      img.src = full(g[gi]);
+      $("#pdCount").textContent = g.length > 1 ? `${gi + 1} / ${g.length}` : "";
+      $("#pdMain").classList.toggle("multi", g.length > 1);
+      if (g.length > 1) {
+        $("#pdThumbs").innerHTML = g.map((h, i) => `<button class="${i === gi ? "on" : ""}" data-gi="${i}" aria-label="Снимка ${i + 1}">${imgTag(h, "")}</button>`).join("");
+      } else {
+        const byColor = [];
+        p.variants.forEach((v) => { if (v.img && !byColor.some((x) => x.img === v.img)) byColor.push(v); });
+        $("#pdThumbs").innerHTML = byColor.length > 1
+          ? byColor.map((v) => `<button class="${v.img === cur.img ? "on" : ""}" data-timg="${v.id}" aria-label="${esc(v.color || "Снимка")}">${imgTag(v.img, v.color || p.name)}</button>`).join("")
+          : "";
+      }
+    };
+    const draw = (keepGallery) => {
+      if (!keepGallery) gi = 0;
+      drawGallery();
+      $("#pdCodes").innerHTML = `Артикул № ${cur.id}${cur.code ? ` · Каталожен номер: <b>${esc(cur.code)}</b>` : ""}`;
+      $("#config").innerHTML = configHtml(p, cur);
+      $("#pdBuy").innerHTML = buyHtml(p, cur);
+      $("#stickyBuy").innerHTML = cur.price == null ? "" : `<div><b>${eur(cur.price, true)}</b><small>${esc([cur.storage, cur.color].filter(Boolean).join(" · ") || p.name)}</small></div><button class="btn btn--primary" data-add="${cur.id}">${icon("bag")} В количката</button>`;
+      drawSpecs();
       syncProductTools(p);
       history.replaceState(null, "", `#/p/${p.slug}${cur !== p.def ? "?v=" + cur.id : ""}`);
       lastPath = routeKey();
     };
-
-    const pick = (k, val) => {
-      const prio = OPT_KEYS.filter((o) => o !== k);
-      const score = (v) => prio.reduce((s, o, i) => s + (v[o] === cur[o] ? 8 >> i : 0), 0);
-      const cands = p.variants.filter((v) => v[k] === val).sort((a, b) => score(b) - score(a));
-      cur = cands[0] || cur;
-      draw();
+    const drawSpecs = () => {
+      const base = [
+        cur.storage && ["Вградена памет", cur.storage], cur.ram && ["RAM", cur.ram], cur.color && ["Цвят", cur.color], cur.conn && ["Свързаност", cur.conn],
+        ["Артикул №", cur.id], cur.code && ["Каталожен номер (BrosBG)", cur.code],
+      ].filter(Boolean);
+      const render = (sections) => {
+        const secs = [["Избрана конфигурация", base], ...sections];
+        $("#specsSec").innerHTML = `<div class="section__head"><div><span class="eyebrow">Всичко за модела</span><h2>Технически характеристики</h2></div></div>
+          <div class="specgrid">${secs.map(([t, rows]) => `<section class="specbox"><h3>${esc(t)}</h3><dl>${rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl></section>`).join("")}</div>`;
+      };
+      if (p.kind !== "g") {
+        const rows = Object.entries(p.specs);
+        return render(rows.length ? [["Характеристики", rows]] : []);
+      }
+      render(Object.keys(p.specs).length ? [["Основни", Object.entries(p.specs)]] : []);
+      loadSpecs().then((all) => { if (all[p.slug] && $("#specsSec") && BY_SLUG.get(parseRoute().parts[1]) === p) render(all[p.slug]); });
     };
-    $("#config").addEventListener("click", (e) => { const b = e.target.closest("[data-opt]"); if (b) pick(b.dataset.opt, b.dataset.val); });
+
+    $("#config").addEventListener("click", (e) => { const b = e.target.closest("[data-opt]"); if (b) { cur = pickVariant(p, cur, b.dataset.opt, b.dataset.val); draw(); } });
     $("#pdThumbs").addEventListener("click", (e) => {
+      const t = e.target.closest("[data-gi]");
+      if (t) { gi = +t.dataset.gi; return drawGallery(); }
       const b = e.target.closest("[data-timg]");
       if (!b) return;
       const v = BY_ID.get(+b.dataset.timg).v;
-      if (v.color) pick("color", v.color); else { cur = v; draw(); }
+      cur = v.color ? pickVariant(p, cur, "color", v.color) : v;
+      draw();
     });
-    $("#pdZoom").addEventListener("click", () => openModal(`<button class="icon-btn modal__close" data-close aria-label="Затвори">${icon("close")}</button><div class="zoom"><img src="${esc(full(cur.img))}" alt="${esc(p.name)}"></div>`, "modal__box--img"));
+    const step = (d) => { const n = galleryOf(p, cur).length; if (n > 1) { gi = (gi + d + n) % n; drawGallery(); } };
+    $$("[data-gal]").forEach((b) => b.addEventListener("click", () => step(+b.dataset.gal)));
+    let sx = null;
+    $("#pdMain").addEventListener("pointerdown", (e) => { sx = e.clientX; });
+    $("#pdMain").addEventListener("pointerup", (e) => { if (sx != null && Math.abs(e.clientX - sx) > 40) { step(e.clientX < sx ? 1 : -1); $("#pdMain").dataset.swiped = "1"; } sx = null; });
+    $("#pdZoom").addEventListener("click", () => {
+      if ($("#pdMain").dataset.swiped) { delete $("#pdMain").dataset.swiped; return; }
+      openZoom(galleryOf(p, cur), gi, p.name);
+    });
     $("#pdShare").addEventListener("click", () => share(p));
     draw();
+  }
+
+  function openZoom(list, start, alt) {
+    let i = start;
+    const render = () => {
+      $("#zoomImg").src = full(list[i]);
+      $("#zoomCount").textContent = list.length > 1 ? `${i + 1} / ${list.length}` : "";
+    };
+    openModal(`<button class="icon-btn modal__close" data-close aria-label="Затвори">${icon("close")}</button>
+      <div class="zoom"><img id="zoomImg" alt="${esc(alt)}">
+      ${list.length > 1 ? `<button class="pd__nav pd__nav--prev" data-z="-1" aria-label="Предишна">${icon("chevL")}</button><button class="pd__nav pd__nav--next" data-z="1" aria-label="Следваща">${icon("chevR")}</button>` : ""}
+      <span class="pd__count" id="zoomCount"></span></div>`, "modal__box--img");
+    render();
+    $("#modalBox").onclick = (e) => { const b = e.target.closest("[data-z]"); if (b) { i = (i + +b.dataset.z + list.length) % list.length; render(); } };
+    $("#modalBox").onkeydown = (e) => { if (e.key === "ArrowRight" || e.key === "ArrowLeft") { i = (i + (e.key === "ArrowRight" ? 1 : -1) + list.length) % list.length; render(); } };
+  }
+
+  /* ---------- бърз преглед ---------- */
+  function openQuick(slug) {
+    const p = BY_SLUG.get(slug);
+    if (!p) return;
+    let cur = p.def;
+    const render = () => {
+      $("#modalBox").innerHTML = `<button class="icon-btn modal__close" data-close aria-label="Затвори">${icon("close")}</button>
+        <div class="qv">
+          <div class="qv__media"><img src="${esc(full(cur.img))}" alt="${esc(p.name)}" id="qvImg"></div>
+          <div class="qv__info">
+            <span class="card__brand">${esc(p.brand)}</span>
+            <h2>${esc(p.name)}</h2>
+            ${p.kind === "g" ? `<div class="config config--compact">${configHtml(p, cur, true)}</div>` : `<p class="muted">${esc(p.sub || CAT_NAMES[p.cat])}</p>`}
+            <div class="pd__buy">${buyHtml(p, cur)}</div>
+            <a class="link" href="#/p/${p.slug}${cur !== p.def ? "?v=" + cur.id : ""}">Всички детайли и характеристики ${icon("arrow")}</a>
+          </div>
+        </div>`;
+    };
+    openModal("", "modal__box--wide");
+    render();
+    $("#modalBox").onclick = (e) => { const b = e.target.closest("[data-opt]"); if (b) { cur = pickVariant(p, cur, b.dataset.opt, b.dataset.val); render(); } };
   }
 
   function syncProductTools(p) {
@@ -669,18 +793,21 @@
     const items = state.compare.map((s) => BY_SLUG.get(s)).filter(Boolean);
     const keys = [...new Set(items.flatMap((p) => Object.keys(p.specs)))];
     view.innerHTML = `<section class="container page">${crumbs([["Сравнение"]])}
-      <div class="cat-head"><h1>Сравнение</h1><p class="muted">${items.length ? `${items.length} от 4 модела` : ""}</p></div>
+      <div class="cat-head"><h1>Сравнение</h1><p class="muted">${items.length ? `${items.length} от 4 модела` : ""}</p>
+        ${items.length > 1 ? `<label class="switch"><input type="checkbox" id="diffOnly"><span></span>Само разликите</label>` : ""}</div>
       ${items.length ? `<div class="cmp-wrap"><table class="cmp">
         <tr><th></th>${items.map((p) => `<td><button class="icon-btn icon-btn--sm cmp__rm" data-cmp="${p.slug}" aria-label="Премахни ${esc(p.name)}">${icon("close")}</button>
           <a href="#/p/${p.slug}">${imgTag(p.img, p.name, "cmp__img")}<b>${esc(p.name)}</b></a></td>`).join("")}</tr>
         <tr><th>Цена</th>${items.map((p) => `<td>${priceHtml(p)}</td>`).join("")}</tr>
         <tr><th>Памет</th>${items.map((p) => `<td>${esc((p.opts.storage || []).join(" / ") || "—")}</td>`).join("")}</tr>
         <tr><th>Цветове</th>${items.map((p) => `<td><div class="dots">${(p.opts.color || []).map((c) => `<i title="${esc(c)}" style="background:${colorHex(c)}"></i>`).join("")}</div></td>`).join("")}</tr>
-        ${keys.map((k) => `<tr><th>${esc(k)}</th>${items.map((p) => `<td>${esc(p.specs[k] || "—")}</td>`).join("")}</tr>`).join("")}
+        ${keys.map((k) => { const vals = items.map((p) => p.specs[k] || "—"); return `<tr ${new Set(vals).size === 1 ? 'data-same="1"' : ""}><th>${esc(k)}</th>${vals.map((v) => `<td>${esc(v)}</td>`).join("")}</tr>`; }).join("")}
         <tr><th></th>${items.map((p) => `<td><a class="btn btn--primary btn--sm" href="#/p/${p.slug}">Избери вариант</a></td>`).join("")}</tr>
       </table></div>` : `<div class="empty"><p>Няма добавени модели за сравнение.</p><a class="btn btn--primary" href="#/c/phones">Към телефоните</a></div>`}
     </section>`;
   }
+
+  document.addEventListener("change", (e) => { if (e.target.id === "diffOnly") $(".cmp")?.classList.toggle("diff", e.target.checked); });
 
   /* ================= СЕРВИЗ ================= */
   function pageService(anchor) {
@@ -827,14 +954,27 @@
   const cartLines = () => state.cart.filter((l) => lineInfo(l) && lineInfo(l).v.price != null);
   const subtotal = () => cartLines().reduce((s, l) => s + lineInfo(l).v.price * l.qty, 0);
 
-  function addToCart(id) {
+  function flyToCart(src) {
+    const img = src && (src.closest(".card")?.querySelector(".card__media img") || src.closest(".qv")?.querySelector("#qvImg") || (src.closest("#pdBuy,#stickyBuy") && $("#pdImg")));
+    const target = [$("#cartBtn"), $("#tabCart")].find((el) => el && el.offsetParent !== null);
+    if (!img || !target || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const a = img.getBoundingClientRect(), b = target.getBoundingClientRect();
+    const f = img.cloneNode();
+    Object.assign(f.style, { position: "fixed", left: a.left + "px", top: a.top + "px", width: a.width + "px", height: a.height + "px", zIndex: 300, pointerEvents: "none", objectFit: "contain", mixBlendMode: "multiply", borderRadius: "20px" });
+    document.body.appendChild(f);
+    const dx = b.left + b.width / 2 - (a.left + a.width / 2), dy = b.top + b.height / 2 - (a.top + a.height / 2);
+    f.animate([{ transform: "translate(0,0) scale(1)", opacity: 1 }, { transform: `translate(${dx * 0.6}px, ${dy * 0.35 - 80}px) scale(.55)`, opacity: 1, offset: 0.55 }, { transform: `translate(${dx}px, ${dy}px) scale(.08)`, opacity: 0.4 }],
+      { duration: 750, easing: "cubic-bezier(.5,0,.2,1)" }).onfinish = () => { f.parentNode && f.parentNode.removeChild(f); bump(target === $("#cartBtn") ? "#cartBtn" : "#tabCart"); };
+  }
+
+  function addToCart(id, src) {
     const info = BY_ID.get(+id);
     if (!info || info.v.price == null) return;
+    flyToCart(src);
     const l = state.cart.find((x) => x.id === +id);
     if (l) l.qty++; else state.cart.push({ id: +id, qty: 1 });
     saveState("cart"); renderCart();
     toast(`✓ ${info.p.name} е добавен в количката`, "#cart", "Виж количката");
-    bump("#cartBtn");
   }
 
   function renderCart() {
@@ -855,6 +995,18 @@
         <div class="line__right"><b>${eur(v.price * l.qty, true)}</b><button class="link-btn" data-rm="${l.id}">Премахни</button></div>
       </div>`;
     }).join("");
+    const mks = new Set(lines.map((l) => lineInfo(l).p.mk).filter(Boolean));
+    const inCart = new Set(lines.map((l) => lineInfo(l).p));
+    if (mks.size) {
+      const pool = PRODUCTS.filter((x) => x.min != null && !inCart.has(x) && (x.compat || []).some((k) => mks.has(k)));
+      const bySub = new Map();
+      pool.sort((a, b) => a.min - b.min).forEach((x) => { if (!bySub.has(x.sub)) bySub.set(x.sub, x); });
+      const picks = [...bySub.values()].slice(0, 6);
+      if (picks.length) $("#cartItems").insertAdjacentHTML("beforeend", `<div class="xsell"><h4>Добави към поръчката</h4>
+        <div class="xsell__list">${picks.map((x) => `<div class="xsell__item"><a href="#/p/${x.slug}" class="xsell__img">${imgTag(x.img, x.name)}</a>
+          <a href="#/p/${x.slug}" class="xsell__name">${esc(x.sub)}<small>${esc(x.name)}</small></a><b>${eur(x.min)}</b>
+          <button class="icon-btn icon-btn--sm" data-add="${x.def.id}" aria-label="Добави ${esc(x.name)}">${icon("plus")}</button></div>`).join("")}</div></div>`);
+    }
     $("#cartFoot").innerHTML = `
       <div class="row"><span class="muted">Стоки (${n})</span><b>${eur(subtotal(), true)}</b></div>
       <p class="muted small">Вземане от магазина е без такса. За куриер таксата се уточнява преди потвърждение.</p>
@@ -1011,12 +1163,23 @@
   }
 
   /* ---------- търсене с подсказки ---------- */
+  function saveSearch(q) { store.set("searches", [q, ...store.get("searches", []).filter((x) => x.toLowerCase() !== q.toLowerCase())].slice(0, 6)); }
   function initSearch() {
     const inp = $("#searchInput"), box = $("#suggest");
     let idx = -1;
+    const POPULAR = ["iPhone 17 Pro", "Galaxy S26 Ultra", "Pixel 11", "Redmi Note 15", "калъф", "протектор", "зарядно", "слушалки"];
     const render = () => {
       const toks = tokens(inp.value);
-      if (!toks.length) { box.hidden = true; return; }
+      if (!toks.length) {
+        if (document.activeElement !== inp) { box.hidden = true; return; }
+        const rec = store.get("searches", []);
+        box.innerHTML = `${rec.length ? `<div class="sug__h">${icon("history")} Последни търсения <button type="button" class="link-btn" data-clear-s>Изчисти</button></div>
+          <div class="sug__chips">${rec.map((q) => `<a class="chip" href="#/c/all?q=${encodeURIComponent(q)}">${esc(q)}</a>`).join("")}</div>` : ""}
+          <div class="sug__h">${icon("trend")} Популярни</div>
+          <div class="sug__chips">${POPULAR.map((q) => `<a class="chip" href="#/c/all?q=${encodeURIComponent(q)}">${esc(q)}</a>`).join("")}</div>`;
+        box.hidden = false;
+        return;
+      }
       const res = PRODUCTS.filter((p) => matches(p, toks)).sort((a, b) => (a.cat === "accessories") - (b.cat === "accessories") || (b.min ?? 0) - (a.min ?? 0));
       idx = -1;
       box.innerHTML = res.length
@@ -1037,9 +1200,16 @@
       else if (e.key === "Escape") box.hidden = true;
     });
     document.addEventListener("click", (e) => { if (!e.target.closest("#searchForm")) box.hidden = true; });
+    box.addEventListener("mousedown", (e) => e.preventDefault());
+    box.addEventListener("click", (e) => {
+      if (e.target.closest("[data-clear-s]")) { store.set("searches", []); render(); return; }
+      if (e.target.closest("a") && inp.value.trim()) saveSearch(inp.value.trim());
+      if (e.target.closest("a")) { box.hidden = true; inp.blur(); }
+    });
     $("#searchForm").addEventListener("submit", (e) => {
       e.preventDefault();
       const q = inp.value.trim();
+      if (q) saveSearch(q);
       box.hidden = true; inp.blur();
       go(q ? `#/c/all?q=${encodeURIComponent(q)}` : "#/c/all");
     });
@@ -1051,6 +1221,7 @@
     lastFocus = document.activeElement;
     const box = $("#modalBox");
     box.className = "modal__box " + cls;
+    box.onclick = null; box.onkeydown = null;
     box.innerHTML = html;
     $("#modal").classList.add("open"); $("#modal").setAttribute("aria-hidden", "false");
     document.body.classList.add("lock");
@@ -1135,10 +1306,22 @@
     }
     if (!anchor && parts[0] !== "contact") window.scrollTo(0, 0);
     lastPath = routeKey();
+    reveal();
     const active = parts[0] === "p" ? BY_SLUG.get(parts[1])?.cat : parts[0] === "c" ? parts[1] : parts[0] || "";
     $$("[data-nav]").forEach((a) => a.classList.toggle("active", a.dataset.nav === active));
     const tab = !parts[0] ? "home" : parts[0] === "c" || parts[0] === "p" ? "c" : parts[0];
     $$("[data-tab]").forEach((a) => a.classList.toggle("active", a.dataset.tab === tab));
+  }
+
+  /* ---------- плавна поява при скрол ---------- */
+  const revealObs = "IntersectionObserver" in window && !matchMedia("(prefers-reduced-motion: reduce)").matches
+    ? new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add("in"); revealObs.unobserve(e.target); } }), { rootMargin: "0px 0px -6% 0px" })
+    : null;
+  function reveal() {
+    if (!revealObs) return;
+    $$("#view .section, #view .band, #view .pd-section, #view .why__item, #view .repair").forEach((el) => {
+      if (el.getBoundingClientRect().top > innerHeight) { el.classList.add("rv"); revealObs.observe(el); }
+    });
   }
 
   /* ---------- статични части ---------- */
@@ -1186,7 +1369,11 @@
   function bind() {
     document.addEventListener("click", (e) => {
       if (e.target.closest("[data-opencart]")) { e.preventDefault(); return openDrawer("cartDrawer"); }
-      const t = e.target.closest("[data-add],[data-fav],[data-cmp],[data-inc],[data-dec],[data-rm],[data-close],[data-reset],[data-unf],[data-expand],#checkoutBtn");
+      if (e.target.closest("[data-loadmap]")) {
+        $("#map").innerHTML = `<iframe title="Карта – GDMobil, ${esc(S.address)}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://maps.google.com/maps?q=${encodeURIComponent("GDMobil, " + S.address)}&z=16&output=embed"></iframe>`;
+        return;
+      }
+      const t = e.target.closest("[data-add],[data-qv],[data-fav],[data-cmp],[data-inc],[data-dec],[data-rm],[data-close],[data-reset],[data-unf],[data-expand],#checkoutBtn");
       if (!t) {
         if (e.target.closest(".drawer a[href^='#/']")) closeDrawers();
         return;
@@ -1194,7 +1381,8 @@
       const d = t.dataset;
       if (t.id === "checkoutBtn") return openCheckout();
       if (d.close !== undefined) { closeModal(); closeDrawers(); return; }
-      if (d.add) return addToCart(d.add);
+      if (d.add) return addToCart(d.add, t);
+      if (d.qv) return openQuick(d.qv);
       if (d.fav) return toggleFav(d.fav);
       if (d.cmp) return toggleCompare(d.cmp);
       if (d.expand !== undefined) { t.closest(".fgroup").classList.remove("fgroup--clip"); t.remove(); return; }
@@ -1252,4 +1440,7 @@
   setCount("#cmpCount", state.compare.length);
   bind();
   router();
+  if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+    addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+  }
 })();
