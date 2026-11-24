@@ -59,7 +59,6 @@ window.CATEGORIES = [
   { key: "phones", name: "Телефони", sub: "Смартфони", img: "assets/img/iphone.png" },
   { key: "accessories", name: "Аксесоари", sub: "Слушалки, калъфи и зарядни", img: "assets/img/airpods.png" },
   { key: "tablets", name: "Таблети", sub: "За работа и забавление", img: "assets/img/ipad.png" },
-  { key: "cameras", name: "Камери", sub: "Камери за наблюдение", img: "assets/img/camera.svg" },
 ];
 
 window.REPAIRS = [

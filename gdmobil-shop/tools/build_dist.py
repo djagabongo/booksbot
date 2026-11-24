@@ -195,7 +195,7 @@ def main():
     ld = {"@context": "https://schema.org", "@type": "MobilePhoneStore", "name": "GDMobil", "url": site + "/", "telephone": store.get("phoneIntl"), "email": store.get("email"),
           "address": {"@type": "PostalAddress", "streetAddress": "ул. „Солун“ 21", "addressLocality": "Гоце Делчев", "postalCode": store.get("postcode", "2900"), "addressCountry": "BG"},
           "openingHours": ["Mo-Fr 09:30-18:00", "Sa 10:00-14:00"], "sameAs": [v for v in store.get("social", {}).values() if v]}
-    home = page("/", "GDMobil — Телефони, аксесоари и сервиз в Гоце Делчев", "Телефони, таблети, аксесоари и камери с цени в евро. Поръчай онлайн или вземи от GDMobil в Гоце Делчев. Сервиз за телефони и таблети.", body, ld)
+    home = page("/", "GDMobil — Телефони, аксесоари и сервиз в Гоце Делчев", "Телефони, таблети и аксесоари с цени в евро. Поръчай онлайн или вземи от GDMobil в Гоце Делчев. Сервиз за телефони и таблети.", body, ld)
     urls.insert(0, home)
 
     # ---------- sitemap и robots ----------

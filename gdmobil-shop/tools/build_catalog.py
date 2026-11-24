@@ -40,6 +40,7 @@ ACCESSORIES_FILE = sys.argv[sys.argv.index("--accessories") + 1] if "--accessori
 # Корекции на правните текстове, за да отговарят на новия сайт (без лична връзка за проследяване,
 # без база данни и броячи; хостинг Netlify; шрифтове и снимки от самия сайт; карта при поискване).
 LEGAL_FIXES = [
+    ("Магазинът предлага телефони, таблети, аксесоари и камери.", "Магазинът предлага телефони, таблети и аксесоари."),
     ("Не изискваме ЕГН,",
      "При абонамент за бюлетина: имейл адрес и момент на даване на съгласието. Не изискваме ЕГН,"),
     ("Не Ви записваме автоматично за реклама или бюлетин.",
@@ -133,6 +134,8 @@ def build_catalog(src):
         if cat == "accessories" and not KEEP_LEGACY and LEGACY.search(x["name"]):
             legacy_hidden += 1
             continue
+        if cat == "cameras":
+            continue  # категорията „Камери“ е премахната
         if cat in ("phones", "tablets") and (x.get("brand") or "").lower() in EXCLUDE_BRANDS:
             too_old += 1
             continue
@@ -175,6 +178,14 @@ def build_catalog(src):
             })
 
     size_order = lambda s: (0 if not s else 1, float(re.sub(r"[^\d.]", "", s) or 0) * (1024 if "TB" in s else 1 if "GB" in s else 1 / 1024))
+    by_name = {g["n"]: g for g in groups.values()}
+    for slug, g in list(groups.items()):
+        m = re.match(r"^(.*?)\s+\d+\s*[TТ][BВ]$", g["n"])
+        if m and m.group(1) in by_name and by_name[m.group(1)] is not g:
+            by_name[m.group(1)]["v"].extend(g["v"])
+            del groups[slug]
+            print(f"сливане: {g['n']} → {m.group(1)}")
+
     specs = {}
     for g in groups.values():
         g["v"].sort(key=lambda v: (size_order(v[1]), v[5] or 0))
@@ -203,6 +214,10 @@ def build_catalog(src):
             e = merged.setdefault(k, {"key": k, "name": m["name"], "brand": m["brand"], "count": 0})
             e["count"] += m["count"]
         models = sorted(merged.values(), key=lambda m: (m["brand"], m["name"]))
+        non_phone = re.compile(r"чанта|\bbag\b|handbag|портфейл|раница|backpack|несесер|purse|tote|клъч|куфар", re.I)
+        dropped = [it for it in cs["items"] if (it["sc"] == "Други аксесоари" and non_phone.search(it["n"])) or not it.get("im")]
+        cs["items"] = [it for it in cs["items"] if it not in dropped]
+        print(f"casestore.bg: махнати {len(dropped)} чанти, портфейли, раници и продукти без снимка")
         for it in cs["items"]:
             it["cm"] = [remap(k) for k in it["cm"]]
             it.pop("src", None)
