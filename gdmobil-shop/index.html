@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>GDMobil — Телефони, аксесоари и сервиз в Гоце Делчев</title>
   <meta name="description" content="Телефони, таблети, аксесоари и камери. Избери памет и цвят, поръчай онлайн или вземи от GDMobil в Гоце Делчев. Сервиз за телефони и таблети." />
-  <meta name="theme-color" content="#e2492a" />
+  <meta name="theme-color" content="#0d0d0f" />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="GDMobil" />
   <meta property="og:title" content="GDMobil — Телефони, аксесоари и сервиз" />
@@ -15,7 +15,7 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23e2492a'/%3E%3Ctext x='32' y='42' font-family='Arial' font-weight='800' font-size='26' text-anchor='middle' fill='white'%3EGD%3C/text%3E%3C/svg%3E" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="assets/styles.css" />
 </head>
 <body>
@@ -23,33 +23,40 @@
 
   <div class="topbar">
     <div class="container topbar__inner">
-      <a data-maps class="topbar__loc" target="_blank" rel="noopener">📍 Магазин в Гоце Делчев · <span data-addr></span></a>
-      <span class="topbar__right">
-        <a href="#/legal/delivery">Доставка и плащане</a>
-        <a data-tel class="topbar__tel"></a>
-      </span>
+      <a data-maps target="_blank" rel="noopener" class="topbar__item">◉ <span data-addr></span></a>
+      <span class="topbar__item hide-sm">Вземане от магазина без такса</span>
+      <span class="topbar__item hide-sm">Еконт и Спиди до офис или адрес</span>
+      <a data-tel class="topbar__item topbar__tel"></a>
     </div>
   </div>
 
   <header class="header" id="header">
     <div class="container header__inner">
       <button class="icon-btn burger" id="burger" aria-label="Меню">
-        <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        <svg viewBox="0 0 24 24"><path d="M4 8h16M4 16h10"/></svg>
       </button>
       <a href="#/" class="logo" aria-label="GDMobil начало"><img src="assets/img/logo.webp" alt="GDMobil" width="174" height="50" /></a>
 
+      <nav class="mainnav" aria-label="Категории">
+        <a href="#/c/phones" data-nav="phones">Телефони</a>
+        <a href="#/c/accessories" data-nav="accessories">Аксесоари</a>
+        <a href="#/c/tablets" data-nav="tablets">Таблети</a>
+        <a href="#/c/cameras" data-nav="cameras">Камери</a>
+        <a href="#/service" data-nav="service">Сервиз</a>
+      </nav>
+
       <form class="search" id="searchForm" role="search" autocomplete="off">
         <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
-        <input type="search" id="searchInput" placeholder="Търси модел, марка или аксесоар" aria-label="Търсене" />
-        <button class="btn btn--primary btn--sm search__btn" type="submit">Търси</button>
+        <input type="search" id="searchInput" placeholder="Търси iPhone, Galaxy, калъф…" aria-label="Търсене" />
+        <kbd class="search__kbd" aria-hidden="true">/</kbd>
         <div class="suggest" id="suggest" hidden></div>
       </form>
 
       <div class="header__actions">
-        <button class="icon-btn hide-xs" id="themeToggle" aria-label="Смяна на тема" title="Тъмна/светла тема">
+        <button class="icon-btn hide-md" id="themeToggle" aria-label="Смяна на тема" title="Тъмна/светла тема">
           <svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
         </button>
-        <a class="icon-btn hide-xs" href="#/compare" aria-label="Сравнение" title="Сравнение">
+        <a class="icon-btn hide-md" href="#/compare" aria-label="Сравнение" title="Сравнение">
           <svg viewBox="0 0 24 24"><path d="M7 4 3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/></svg>
           <span class="count" id="cmpCount" data-zero="true">0</span>
         </a>
@@ -64,19 +71,6 @@
         </button>
       </div>
     </div>
-
-    <nav class="catnav" aria-label="Категории">
-      <div class="container catnav__inner">
-        <a href="#/c/phones" data-nav="phones">Телефони</a>
-        <a href="#/c/accessories" data-nav="accessories">Аксесоари</a>
-        <a href="#/c/tablets" data-nav="tablets">Таблети</a>
-        <a href="#/c/cameras" data-nav="cameras">Камери</a>
-        <span class="catnav__sp"></span>
-        <a href="#/service" data-nav="service" class="catnav__service">🔧 Сервиз</a>
-        <a href="#/inquiries" data-nav="inquiries">Запитвания</a>
-        <a href="#/contact" data-nav="contact">Контакти</a>
-      </div>
-    </nav>
   </header>
 
   <main id="view" tabindex="-1"></main>
@@ -152,6 +146,14 @@
   <div class="modal" id="modal" aria-hidden="true" role="dialog" aria-modal="true">
     <div class="modal__box" id="modalBox"></div>
   </div>
+
+  <nav class="tabbar" aria-label="Бърза навигация">
+    <a href="#/" data-tab="home"><svg viewBox="0 0 24 24"><path d="M3 11 12 4l9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg><span>Начало</span></a>
+    <a href="#/c/all" data-tab="c"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg><span>Каталог</span></a>
+    <button type="button" id="tabSearch"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><span>Търси</span></button>
+    <a href="#/service" data-tab="service"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0 5 5L22 14l-8 8-2.3-2.3a4 4 0 0 0-5-5L2 10l8-8z"/></svg><span>Сервиз</span></a>
+    <button type="button" id="tabCart"><svg viewBox="0 0 24 24"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg><span>Количка</span><span class="count" id="cartCount2" data-zero="true">0</span></button>
+  </nav>
 
   <div class="fab" id="fab"></div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>

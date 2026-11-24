@@ -139,6 +139,7 @@
     wrench: '<path d="M14.7 6.3a4 4 0 0 0 5 5L22 14l-8 8-2.3-2.3a4 4 0 0 0-5-5L2 10l8-8z"/>',
     arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
     check: '<path d="m5 12 5 5L20 7"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
   };
   const icon = (n, cls = "ic") => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${IC[n]}</svg>`;
 
@@ -159,30 +160,32 @@
     if (p.kind === "g") {
       const st = p.opts.storage || [];
       const cols = p.opts.color || [];
-      opts = `${st.length ? `<div class="chips-sm">${st.slice(0, 3).map((s) => `<span>${esc(s)}</span>`).join("")}${st.length > 3 ? `<span>+${st.length - 3}</span>` : ""}</div>` : ""}
-        ${cols.length ? `<div class="dots" title="${esc(cols.join(", "))}">${cols.slice(0, 6).map((c) => `<i style="background:${colorHex(c)}"></i>`).join("")}<span>${plural(cols.length, "цвят", "цвята")}</span></div>` : ""}`;
+      opts = `<div class="card__opts">
+        ${cols.length ? `<span class="dots" title="${esc(cols.join(", "))}">${cols.slice(0, 5).map((c) => `<i style="background:${colorHex(c)}"></i>`).join("")}${cols.length > 5 ? `<em>+${cols.length - 5}</em>` : ""}</span>` : ""}
+        ${st.length ? `<span class="card__mem">${esc(st[0])}${st.length > 1 ? ` – ${esc(st[st.length - 1])}` : ""}</span>` : ""}
+      </div>`;
     } else {
-      opts = `<div class="card__sub">${esc(p.sub || CAT_NAMES[p.cat] || "")}${p.compat && p.compat.length ? ` · за ${esc(MODEL_NAMES[p.compat[0]] || "")}${p.compat.length > 1 ? ` +${p.compat.length - 1}` : ""}` : ""}</div>`;
+      opts = `<div class="card__sub">${esc(p.sub || CAT_NAMES[p.cat] || "")}${p.compat && p.compat.length ? ` · ${esc(MODEL_NAMES[p.compat[0]] || "")}${p.compat.length > 1 ? ` +${p.compat.length - 1}` : ""}` : ""}</div>`;
     }
+    const href = `#/p/${p.slug}`;
     const action =
       p.kind === "g" && p.variants.length > 1
-        ? `<a class="btn btn--primary btn--sm" href="#/p/${p.slug}">Избери вариант</a>`
+        ? `<a class="card__go" href="${href}" aria-label="Избери вариант на ${esc(p.name)}">${icon("arrow")}</a>`
         : p.min == null
-          ? `<a class="btn btn--ghost btn--sm" href="#/inquiries?topic=${encodeURIComponent(p.name)}">Запитване</a>`
-          : `<button class="btn btn--primary btn--sm" data-add="${p.def.id}">В количката</button>`;
+          ? `<a class="card__go" href="#/inquiries?topic=${encodeURIComponent(p.name)}" aria-label="Запитване за ${esc(p.name)}">${icon("mail")}</a>`
+          : `<button class="card__go card__go--add" data-add="${p.def.id}" aria-label="Добави ${esc(p.name)} в количката">${icon("plus")}</button>`;
     return `<article class="card">
-      ${p.disc ? `<span class="badge badge--sale">-${p.disc}%</span>` : ""}
-      <button class="card__fav ${isFav(p.slug) ? "on" : ""}" data-fav="${p.slug}" aria-label="Любими" aria-pressed="${isFav(p.slug)}">${icon("heart")}</button>
-      <a class="card__media" href="#/p/${p.slug}" tabindex="-1" aria-hidden="true">${imgTag(p.img, p.name)}</a>
+      <a class="card__media" href="${href}" tabindex="-1" aria-hidden="true">${imgTag(p.img, p.name)}</a>
+      ${p.disc ? `<span class="badge">-${p.disc}%</span>` : ""}
+      <div class="card__tools">
+        <button class="card__tool ${isFav(p.slug) ? "on" : ""}" data-fav="${p.slug}" aria-label="Любими" aria-pressed="${isFav(p.slug)}">${icon("heart")}</button>
+        ${canCompare(p) ? `<button class="card__tool ${inCmp(p.slug) ? "on" : ""}" data-cmp="${p.slug}" aria-label="Сравни" title="Сравни">${icon("swap")}</button>` : ""}
+      </div>
       <div class="card__body">
         <span class="card__brand">${esc(p.brand)}</span>
-        <a class="card__title" href="#/p/${p.slug}">${esc(p.name)}</a>
+        <a class="card__title" href="${href}">${esc(p.name.replace(new RegExp("^" + p.brand.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s+", "i"), ""))}</a>
         ${opts}
-        <div class="card__price">${priceHtml(p)}</div>
-        <div class="card__actions">
-          ${action}
-          ${canCompare(p) ? `<button class="icon-btn icon-btn--sm ${inCmp(p.slug) ? "on" : ""}" data-cmp="${p.slug}" aria-label="Сравни" title="Сравни">${icon("swap")}</button>` : ""}
-        </div>
+        <div class="card__foot"><div class="card__price">${priceHtml(p)}</div>${action}</div>
       </div>
     </article>`;
   }
@@ -197,118 +200,144 @@
   function pageHome(scrollTo) {
     setTitle("");
     const hero = BY_SLUG.get(S.heroSlug);
+    const second = BY_SLUG.get(S.featured[1]);
     const counts = Object.fromEntries(window.CATEGORIES.map((c) => [c.key, PRODUCTS.filter((p) => p.cat === c.key).length]));
     const brandCounts = {};
     PRODUCTS.filter((p) => p.cat === "phones").forEach((p) => (brandCounts[p.brand] = (brandCounts[p.brand] || 0) + 1));
-    const brands = Object.entries(brandCounts).sort((a, b) => b[1] - a[1]).filter(([b]) => C.logos[b]);
+    const brands = Object.entries(brandCounts).sort((a, b) => b[1] - a[1]).filter(([b]) => C.logos[b]).slice(0, 12);
     const recent = state.recent.map((s) => BY_SLUG.get(s)).filter(Boolean);
+    const topTabs = ["Всички", "Apple", "Samsung", "Google", "Xiaomi", "Motorola"];
 
     view.innerHTML = `
-    <section class="hero">
-      <div class="hero__bg"></div>
-      <div class="container hero__inner">
-        <div class="hero__copy">
-          <span class="pill">${icon("store")} Магазин и сервиз в Гоце Делчев</span>
-          <h1>Телефони, аксесоари и сервиз. <span class="grad">На едно място.</span></h1>
-          <p>Избери памет и цвят, поръчай онлайн с доставка до офис или адрес, или вземи от магазина без такса.</p>
-          <div class="hero__cta">
-            <a href="#/c/phones" class="btn btn--primary">Разгледай телефоните ${icon("arrow")}</a>
-            <a href="#/service" class="btn btn--ghost">${icon("wrench")} Запитване за ремонт</a>
-          </div>
-          <div class="hero__stats">
-            <div><b>${counts.phones}</b><span>модела телефони</span></div>
-            <div><b>${counts.accessories.toLocaleString("bg-BG")}</b><span>аксесоара</span></div>
-            <div><b>0 €</b><span>вземане от магазина</span></div>
+    <section class="container bento">
+      ${hero ? `<a class="tile tile--hero" href="#/p/${hero.slug}">
+        <div class="tile__glow"></div>
+        <div class="tile__copy">
+          <span class="eyebrow eyebrow--dark">Магазин и сервиз · Гоце Делчев</span>
+          <h1 class="display">Следващият ти телефон <em>е тук.</em></h1>
+          <p>${esc(hero.name)} – избери конфигурация и цвят. Вземи от магазина без такса или с доставка до теб.</p>
+          <div class="tile__row">
+            <span class="btn btn--ember">Виж модела ${icon("arrow")}</span>
+            <span class="tile__price"><small>от</small> ${eur(hero.min)}</span>
           </div>
         </div>
-        ${hero ? `<a class="hero__card" href="#/p/${hero.slug}">
-          <span class="hero__brand">${esc(hero.brand)}</span>
-          <img src="${esc(S.heroImage || full(hero.img))}" alt="${esc(hero.name)}" class="hero__img" width="630" height="640" fetchpriority="high">
-          <span class="hero__card-info">
-            <b>${esc(hero.name.replace(hero.brand + " ", ""))}</b>
-            <span class="muted">Избери конфигурация и цвят.</span>
-            <span class="hero__price"><small>от</small> ${eur(hero.min)} <small>с ДДС</small></span>
-            <span class="btn btn--primary btn--sm">Виж модела ${icon("arrow")}</span>
-          </span>
-        </a>` : ""}
+        <img src="${esc(S.heroImage || full(hero.img))}" alt="${esc(hero.name)}" class="tile__phone" width="630" height="640" fetchpriority="high">
+      </a>` : ""}
+      ${second ? `<a class="tile tile--light tile--wide" href="#/p/${second.slug}">
+        <div class="tile__copy">
+          <span class="eyebrow">Ново · ${esc(second.brand)}</span>
+          <h2>${esc(second.name.replace(second.brand + " ", ""))}</h2>
+          <p class="muted">${plural((second.opts.color || []).length, "цвят", "цвята")} · ${esc((second.opts.storage || []).join(" / "))}</p>
+          <span class="tile__price"><small>от</small> ${eur(second.min)}</span>
+        </div>
+        <span class="plinth"><img src="${esc(full(second.img))}" alt="${esc(second.name)}"></span>
+      </a>` : ""}
+      <a class="tile tile--ember" href="#/service">
+        <span class="eyebrow eyebrow--dark">Сервиз</span>
+        <h3>Счупен екран? Слаба батерия?</h3>
+        <p>Ремонт от <b>15 €</b> · диагностика и оферта преди ремонта</p>
+        <span class="tile__cta">Запитване за ремонт ${icon("arrow")}</span>
+      </a>
+      <a class="tile tile--ink" href="#/c/accessories">
+        <span class="eyebrow eyebrow--dark">Аксесоари</span>
+        <h3>${counts.accessories.toLocaleString("bg-BG")} аксесоара</h3>
+        <p>Калъфи, протектори, зарядни, слушалки</p>
+        <img src="assets/img/airpods.png" alt="" class="tile__acc" loading="lazy">
+      </a>
+    </section>
+
+    <section class="container">
+      <div class="ticker">
+        <span>${icon("store")} Вземане от магазина <b>без такса</b></span>
+        <span>${icon("truck")} Еконт и Спиди до <b>офис или адрес</b></span>
+        <span>${icon("shield")} <b>Преглед</b> при получаване</span>
+        <span>${icon("wrench")} Сервиз <b>на място</b></span>
       </div>
     </section>
 
     <section class="container section">
-      <div class="section__head"><h2>Пазарувай по категория</h2><a href="#/c/all" class="link">Целият каталог →</a></div>
+      <div class="section__head"><div><span class="eyebrow">Категории</span><h2>Какво търсиш?</h2></div><a href="#/c/all" class="link">Целият каталог ${icon("arrow")}</a></div>
       <div class="cats">
         ${window.CATEGORIES.map((c) => `<a class="cat" href="#/c/${c.key}">
-          <span><b>${esc(c.name)}</b><small>${esc(c.sub)}</small><em>${plural(counts[c.key], "продукт", "продукта")}</em></span>
-          <img src="${esc(c.img)}" alt="" loading="lazy"></a>`).join("")}
+          <span class="cat__img"><img src="${esc(c.img)}" alt="" loading="lazy"></span>
+          <b>${esc(c.name)}</b><small>${plural(counts[c.key], "продукт", "продукта")}</small></a>`).join("")}
       </div>
     </section>
 
     <section class="container section">
-      <div class="section__head"><h2>Подбрани смартфони</h2><a href="#/c/phones" class="link">Всички телефони →</a></div>
-      <div class="grid grid--4">${FEATURED.map(card).join("")}</div>
+      <div class="section__head"><div><span class="eyebrow">Топ модели</span><h2>Подбрани смартфони</h2></div>
+        <div class="seg seg--tabs" role="tablist" id="topTabs">${topTabs.map((t, i) => `<button role="tab" aria-selected="${i === 0}" data-top="${t}">${t}</button>`).join("")}</div>
+      </div>
+      <div class="grid grid--4" id="topGrid"></div>
+      <div class="more"><a class="btn btn--ghost" id="topMore" href="#/c/phones">Всички телефони ${icon("arrow")}</a></div>
     </section>
 
     ${recent.length ? `<section class="container section">
-      <div class="section__head"><h2>Последно разгледани</h2></div>
+      <div class="section__head"><div><span class="eyebrow">За теб</span><h2>Последно разгледани</h2></div></div>
       <div class="rail">${recent.slice(0, 8).map(card).join("")}</div></section>` : ""}
 
-    <section class="section brands-sec">
-      <div class="container section__head"><h2>Пазарувай по марка</h2>
-        <button class="btn btn--ghost btn--sm" id="marqueeToggle" aria-pressed="false">Пауза</button></div>
-      <div class="marquee" id="marquee"><div class="marquee__track">
-        ${[0, 1].map((k) => brands.map(([b, n]) => `<a class="brand" href="#/c/phones?brand=${encodeURIComponent(b)}" ${k ? 'aria-hidden="true" tabindex="-1"' : ""}>
-          <img src="${esc(C.logos[b])}" alt="${esc(b)}" loading="lazy"><span>${esc(b)}<small>${plural(n, "модел", "модела")}</small></span></a>`).join("")).join("")}
-      </div></div>
+    <section class="band">
+      <div class="container band__inner">
+        <div class="band__copy">
+          <span class="eyebrow eyebrow--dark">Сервиз GDMobil</span>
+          <h2>Ремонт с ясна цена – още преди да започнем.</h2>
+          <p>Изпрати модел и описание на проблема. Получаваш ориентировъчна цена и срок, а крайната оферта потвърждаваш след преглед.</p>
+          <div class="tile__row"><a class="btn btn--ember" href="#/service#form">Запитване за ремонт ${icon("arrow")}</a><a class="btn btn--glass" href="#/service#prices">Всички цени</a></div>
+        </div>
+        <ul class="band__prices">${window.REPAIRS.slice(0, 6).map((r) => `<li><span class="band__ic">${icon(r.icon)}</span><span>${esc(r.title)}</span><b>${esc(r.price)}</b></li>`).join("")}</ul>
+      </div>
     </section>
 
     <section class="container section">
-      <div class="service-teaser">
-        <div class="service-teaser__img"><img src="assets/img/repair-workbench.jpg" alt="Работно място в сервиза" loading="lazy"><small>Илюстративна снимка</small></div>
-        <div class="service-teaser__body">
-          <span class="pill">${icon("wrench")} Сервиз</span>
-          <h2>Сервиз за телефони и таблети</h2>
-          <p class="muted">Изпрати модел и описание на проблема, за да уточним ориентировъчна цена и срок за ремонта.</p>
-          <ul class="price-list">${window.REPAIRS.slice(0, 4).map((r) => `<li><span>${icon(r.icon)}${esc(r.title)}</span><b>${esc(r.price)}</b></li>`).join("")}</ul>
-          <div class="hero__cta"><a class="btn btn--primary" href="#/service#form">Запитване за ремонт</a><a class="btn btn--ghost" href="#/service#prices">Ориентировъчни цени</a></div>
-        </div>
+      <div class="section__head"><div><span class="eyebrow">Марки</span><h2>Пазарувай по марка</h2></div></div>
+      <div class="brands">
+        ${brands.map(([b, n]) => `<a class="brand" href="#/c/phones?brand=${encodeURIComponent(b)}"><img src="${esc(C.logos[b])}" alt="" loading="lazy"><span>${esc(b)}<small>${plural(n, "модел", "модела")}</small></span></a>`).join("")}
       </div>
     </section>
 
     <section class="container section">
       <div class="finder">
-        <div>
+        <div class="finder__copy">
+          <span class="eyebrow">Съвместимост</span>
           <h2>Аксесоари за твоя модел</h2>
           <p class="muted">Избери модел и разгледай калъфи, протектори и други предложения, в чието описание е посочен твоят телефон.</p>
         </div>
         <form class="finder__form" id="finderForm">
           <label class="lbl" for="finderModel">Твоят модел</label>
           ${modelSelect("finderModel", "")}
-          <button class="btn btn--primary" type="submit">Покажи аксесоарите</button>
+          <button class="btn btn--primary btn--block" type="submit">Покажи аксесоарите ${icon("arrow")}</button>
           <small class="muted">Провери точния модел и съвместимостта преди покупка.</small>
         </form>
       </div>
     </section>
 
     <section class="container section">
-      <div class="perks">
-        <a href="#/legal/delivery" class="perk">${icon("store")}<span><b>Вземи от магазина</b><small>Без такса · Гоце Делчев</small></span></a>
-        <a href="#/legal/delivery" class="perk">${icon("truck")}<span><b>Доставка и плащане</b><small>До офис на Еконт, Спиди или адрес</small></span></a>
-        <a href="#/legal/returns" class="perk">${icon("shield")}<span><b>Гаранция и връщане</b><small>Условия и съдействие</small></span></a>
+      <div class="why">
+        <a href="#/legal/delivery" class="why__item"><span class="why__ic">${icon("store")}</span><b>Вземи от магазина</b><small>Без такса, след потвърждение, че конфигурацията е готова.</small></a>
+        <a href="#/legal/delivery" class="why__item"><span class="why__ic">${icon("truck")}</span><b>Доставка до теб</b><small>Еконт или Спиди – до офис или адрес, с наложен платеж.</small></a>
+        <a href="#/legal/returns" class="why__item"><span class="why__ic">${icon("shield")}</span><b>Гаранция и връщане</b><small>Законова гаранция и 14 дни за отказ при покупка онлайн.</small></a>
+        <a href="#/inquiries" class="why__item"><span class="why__ic">${icon("mail")}</span><b>Питай ни</b><small>Цена, наличност или съвместимост – отговаряме по телефона.</small></a>
       </div>
     </section>
 
     ${contactBlock()}`;
+
+    const drawTop = (brand) => {
+      const list = brand === "Всички" ? FEATURED
+        : PRODUCTS.filter((p) => p.cat === "phones" && p.brand === brand && p.min != null).sort((a, b) => (featuredRank.get(a) ?? 99) - (featuredRank.get(b) ?? 99) || b.min - a.min).slice(0, 8);
+      $("#topGrid").innerHTML = list.map(card).join("");
+      $("#topMore").href = brand === "Всички" ? "#/c/phones" : `#/c/phones?brand=${encodeURIComponent(brand)}`;
+      $("#topMore").innerHTML = `${brand === "Всички" ? "Всички телефони" : "Всички " + esc(brand)} ${icon("arrow")}`;
+      $$("#topTabs [data-top]").forEach((b) => b.setAttribute("aria-selected", b.dataset.top === brand));
+    };
+    $("#topTabs").addEventListener("click", (e) => { const b = e.target.closest("[data-top]"); if (b) drawTop(b.dataset.top); });
+    drawTop("Всички");
 
     $("#finderForm").addEventListener("submit", (e) => {
       e.preventDefault();
       const v = $("#finderModel").value;
       if (!v) return toast("Избери модел");
       go(`#/c/accessories?model=${encodeURIComponent(v)}`);
-    });
-    const mq = $("#marquee"), mt = $("#marqueeToggle");
-    mt.addEventListener("click", () => {
-      const paused = mq.classList.toggle("paused");
-      mt.textContent = paused ? "Пусни" : "Пауза"; mt.setAttribute("aria-pressed", paused);
     });
     if (scrollTo) requestAnimationFrame(() => $("#" + scrollTo)?.scrollIntoView({ behavior: "smooth" }));
   }
@@ -325,8 +354,8 @@
     return `<section class="container section" id="contact">
       <div class="contact">
         <div class="contact__info">
-          <span class="pill">${icon("pin")} Магазин в Гоце Делчев</span>
-          <h2>Заповядай в магазина</h2>
+          <span class="eyebrow">Магазин в Гоце Делчев</span>
+          <h2>Заповядай при нас</h2>
           <p class="muted">${esc(S.tagline)} Вземане на поръчки без такса, консултация и сервиз на място.</p>
           <ul class="contact__list">
             <li><span class="ic-box">${icon("phone")}</span><div><small>Телефон</small><a href="tel:${tel}"><b>${esc(S.phone)}</b></a></div></li>
@@ -660,7 +689,7 @@
       ${crumbs([["Сервиз"]])}
       <div class="svc-hero">
         <div>
-          <span class="pill">${icon("wrench")} Сервиз</span>
+          <span class="eyebrow">Сервиз GDMobil</span>
           <h1>Сервиз за телефони и таблети</h1>
           <p class="muted">Смяна на дисплеи и батерии, ремонти на букси за зареждане и диагностика. Избери услуга за ориентировъчна цена или опиши проблема.</p>
           <div class="hero__cta"><a class="btn btn--primary" href="#/service#prices">Виж ремонти и цени</a><a class="btn btn--ghost" href="#/service#form">Опиши проблема</a></div>
@@ -977,7 +1006,9 @@
         </div>`).join("")
       : `<div class="drawer__empty"><div class="big">♡</div><p>Още нямаш любими продукти.</p></div>`;
   }
-  function setCount(sel, n) { const c = $(sel); c.textContent = n; c.dataset.zero = n === 0; }
+  function setCount(sel, n) {
+    [sel, sel === "#cartCount" ? "#cartCount2" : null].filter(Boolean).forEach((x) => { const c = $(x); if (c) { c.textContent = n; c.dataset.zero = n === 0; } });
+  }
 
   /* ---------- търсене с подсказки ---------- */
   function initSearch() {
@@ -1106,6 +1137,8 @@
     lastPath = routeKey();
     const active = parts[0] === "p" ? BY_SLUG.get(parts[1])?.cat : parts[0] === "c" ? parts[1] : parts[0] || "";
     $$("[data-nav]").forEach((a) => a.classList.toggle("active", a.dataset.nav === active));
+    const tab = !parts[0] ? "home" : parts[0] === "c" || parts[0] === "p" ? "c" : parts[0];
+    $$("[data-tab]").forEach((a) => a.classList.toggle("active", a.dataset.tab === tab));
   }
 
   /* ---------- статични части ---------- */
@@ -1188,6 +1221,11 @@
     document.addEventListener("submit", (e) => { if (e.target.id === "inqForm") { e.preventDefault(); submitInquiry(e.target); } });
 
     $("#cartBtn").addEventListener("click", () => openDrawer("cartDrawer"));
+    $("#tabCart").addEventListener("click", () => openDrawer("cartDrawer"));
+    $("#tabSearch").addEventListener("click", () => { closeDrawers(); scrollTo({ top: 0, behavior: "smooth" }); $("#searchInput").focus(); });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "/" && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); $("#searchInput").focus(); }
+    });
     $("#favBtn").addEventListener("click", () => openDrawer("favDrawer"));
     $("#burger").addEventListener("click", () => openDrawer("menuDrawer"));
     $("#overlay").addEventListener("click", () => closeDrawers());
