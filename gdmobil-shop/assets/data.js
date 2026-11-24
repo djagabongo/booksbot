@@ -23,6 +23,8 @@ window.STORE = {
   social: {
     facebook: "https://www.facebook.com/110226218023637/",
     instagram: "https://www.instagram.com/gdmobil_gsm/",
+    messenger: "https://m.me/110226218023637", // чат във Facebook Messenger
+    tiktok: "", // напр. "https://www.tiktok.com/@gdmobil" – празно = не се показва
   },
   maps: "https://www.google.com/maps/search/?api=1&query=GDMobil+%D0%A1%D0%BE%D0%BB%D1%83%D0%BD+21+%D0%93%D0%BE%D1%86%D0%B5+%D0%94%D0%B5%D0%BB%D1%87%D0%B5%D0%B2",
   viber: "", // напр. "359893933338" – ако е празно, бутонът за Viber не се показва

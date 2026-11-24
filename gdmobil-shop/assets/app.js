@@ -343,6 +343,8 @@
       </div>
     </section>
 
+    ${newsletterBlock()}
+
     ${contactBlock()}`;
 
     const drawTop = (brand) => {
@@ -392,6 +394,7 @@
           <dl class="hours">${hoursHtml()}</dl>
           <a class="btn btn--primary btn--block" href="${esc(S.maps)}" target="_blank" rel="noopener">${icon("pin")} Упътване в Google Maps</a>
           <a class="btn btn--ghost btn--block" href="#/inquiries">Изпрати запитване</a>
+          <button class="btn btn--ghost btn--block" data-open-chat>Попитай асистента</button>
         </div>
         <div class="map" id="map">
           <div class="map__ph">${icon("pin")}<b>${esc(S.address)}</b><span class="muted">Картата се зарежда от Google Maps само при поискване.</span>
@@ -759,7 +762,7 @@
       if ($("#pdMain").dataset.swiped) { delete $("#pdMain").dataset.swiped; return; }
       openZoom(galleryOf(p, cur), gi, p.name);
     });
-    $("#pdShare").addEventListener("click", () => share(p));
+    $("#pdShare").addEventListener("click", (e) => { e.stopPropagation(); shareMenu(p, e.currentTarget); });
     draw();
   }
 
@@ -837,49 +840,370 @@
   document.addEventListener("change", (e) => { if (e.target.id === "diffOnly") $(".cmp")?.classList.toggle("diff", e.target.checked); });
 
   /* ================= СЕРВИЗ ================= */
-  function pageService(anchor) {
+  // Илюстрации на ремонтите (вградени SVG)
+  function repairArt(type) {
+    const body = '<rect x="34" y="8" width="52" height="104" rx="11" class="ra-body"/>';
+    const screen = '<rect x="39" y="15" width="42" height="90" rx="6" class="ra-screen"/>';
+    const art = {
+      screen: `${body}${screen}<path class="ra-crack" d="M52 15 58 40 49 52 62 66 55 84 63 105M58 40l14 8 9-6M62 66l19 4M49 52 39 58"/>`,
+      battery: `${body}${screen}<rect x="48" y="44" width="24" height="40" rx="4" class="ra-line"/><rect x="55" y="40" width="10" height="4" rx="1" class="ra-fill"/><rect x="51" y="72" width="18" height="9" rx="2" class="ra-warn"/><path class="ra-bolt" d="M61 50 54 62h6l-2 8 8-12h-6z"/>`,
+      plug: `${body}${screen}<rect x="52" y="104" width="16" height="5" rx="2" class="ra-fill"/><path class="ra-line" d="M60 112v4c0 4-3 6-8 6"/><rect x="55" y="116" width="10" height="6" rx="2" class="ra-fill" transform="translate(0 0)"/><path class="ra-spark" d="M46 98l-6-4M74 98l6-4M60 96v-6"/>`,
+      back: `${body}<rect x="40" y="14" width="22" height="26" rx="6" class="ra-screen"/><circle cx="47" cy="21" r="3.5" class="ra-lens"/><circle cx="47" cy="32" r="3.5" class="ra-lens"/><circle cx="56" cy="26" r="3.5" class="ra-lens"/><path class="ra-crack" d="M86 60 70 66 74 80 58 90 64 112M70 66 60 58M74 80l12 6"/>`,
+      camera: `${body}<rect x="40" y="14" width="40" height="40" rx="10" class="ra-screen"/><circle cx="60" cy="34" r="12" class="ra-lens"/><circle cx="60" cy="34" r="5" class="ra-fill"/><path class="ra-spark" d="M20 50c-4 6-4 14 0 20M12 44c-7 10-7 22 0 32M100 50c4 6 4 14 0 20M108 44c7 10 7 22 0 32"/>`,
+      buttons: `${body}${screen}<rect x="86" y="30" width="5" height="16" rx="2" class="ra-warn"/><rect x="86" y="52" width="5" height="10" rx="2" class="ra-fill"/><rect x="29" y="34" width="5" height="12" rx="2" class="ra-fill"/><path class="ra-spark" d="M96 34l7-4M96 42l7 4"/>`,
+      software: `${body}${screen}<circle cx="60" cy="60" r="13" class="ra-line"/><path class="ra-line" d="M60 41v-5M60 84v-5M41 60h-5M84 60h-5M47 47l-4-4M77 77l-4-4M73 47l4-4M43 77l4-4"/><circle cx="60" cy="60" r="5" class="ra-fill"/>`,
+      chip: `<rect x="26" y="22" width="68" height="76" rx="8" class="ra-board"/><rect x="44" y="42" width="32" height="32" rx="4" class="ra-chip"/><path class="ra-trace" d="M44 50H32M44 58H32M44 66H32M76 50h12M76 58h12M76 66h12M52 42V30M60 42V30M68 42V30M52 74v12M60 74v12M68 74v12"/><path class="ra-bolt" d="M62 48 54 60h6l-2 8 8-12h-6z"/>`,
+    };
+    return `<svg class="ra" viewBox="0 0 120 128" aria-hidden="true">${art[type] || art.screen}</svg>`;
+  }
+
+  const REPAIR_KEY = (t) => (window.REPAIRS.find((r) => r.title === t) || {}).icon;
+
+  function pageService(anchor, q = new URLSearchParams()) {
     setTitle("Сервиз за телефони и таблети");
+    const repBrands = ["Apple", "Samsung", "Xiaomi", "Google", "Huawei", "Motorola", "Honor", "OPPO", "OnePlus", "Nokia", "Realme", "Nothing"].filter((b) => C.logos[b]);
+    const phoneBrands = [...new Set(PRODUCTS.filter((p) => p.cat === "phones" || p.cat === "tablets").map((p) => p.brand))].sort((a, b) => a.localeCompare(b));
     view.innerHTML = `<section class="container page">
       ${crumbs([["Сервиз"]])}
       <div class="svc-hero">
         <div>
-          <span class="eyebrow">Сервиз GDMobil</span>
-          <h1>Сервиз за телефони и таблети</h1>
-          <p class="muted">Смяна на дисплеи и батерии, ремонти на букси за зареждане и диагностика. Избери услуга за ориентировъчна цена или опиши проблема.</p>
-          <div class="hero__cta"><a class="btn btn--primary" href="#/service#prices">Виж ремонти и цени</a><a class="btn btn--ghost" href="#/service#form">Опиши проблема</a></div>
+          <span class="eyebrow eyebrow--dark">Сервиз GDMobil · Гоце Делчев</span>
+          <h1>Ремонт на телефони и таблети – с ясна цена преди започване.</h1>
+          <p class="muted">Смяна на дисплеи и батерии, ремонт на букси за зареждане, камери и бутони, софтуер и диагностика на платки. Избери проблема за ориентировъчна цена или ни пиши.</p>
+          <div class="hero__cta"><a class="btn btn--primary" href="#/service#calc">Колко ще струва?</a><a class="btn btn--ghost" href="#/service#form">Опиши проблема</a></div>
+          <ul class="svc-facts">
+            <li><b>8</b><span>вида ремонти</span></li>
+            <li><b>от 15 €</b><span>ориентировъчно</span></li>
+            <li><b>0 €</b><span>за запитване</span></li>
+          </ul>
         </div>
         <figure><img src="assets/img/repair-workbench.jpg" alt="Работно място в сервиза"><figcaption>Илюстративна снимка</figcaption></figure>
       </div>
 
+      <div class="svc-brands">
+        <span>Ремонтираме устройства на</span>
+        <div>${repBrands.map((b) => `<img src="${esc(C.logos[b])}" alt="${esc(b)}" title="${esc(b)}" loading="lazy">`).join("")}</div>
+      </div>
+
       <div class="section" id="prices">
-        <div class="section__head"><div><h2>Какъв е проблемът?</h2><p class="muted">Цените са ориентировъчни. Уточняваме крайната сума, частите и срока след преглед.</p></div></div>
+        <div class="section__head"><div><span class="eyebrow">Цени</span><h2>Какъв е проблемът?</h2><p class="muted">Цените са ориентировъчни. Уточняваме крайната сума, частите и срока след преглед.</p></div></div>
         <div class="repairs">${window.REPAIRS.map((r) => `<button class="repair" data-repair="${esc(r.title)}">
-          <span class="repair__ic">${icon(r.icon)}</span><b>${esc(r.title)}</b><span class="muted">${esc(r.text)}</span>
-          <span class="repair__price">${esc(r.price)}</span><span class="repair__pick">Избери →</span></button>`).join("")}</div>
+          <span class="repair__art">${repairArt(r.icon)}</span><b>${esc(r.title)}</b><span class="muted">${esc(r.text)}</span>
+          <span class="repair__foot"><span class="repair__price">${esc(r.price)}</span><span class="repair__pick">Избери ${icon("arrow")}</span></span></button>`).join("")}</div>
+      </div>
+
+      <div class="section" id="calc">
+        <div class="calc">
+          <div class="calc__copy">
+            <span class="eyebrow">Бърза оценка</span>
+            <h2>Ориентировъчна цена за 20 секунди</h2>
+            <p class="muted">Избери устройство, марка и проблем. Ще видиш ценовия диапазон и можеш веднага да поискаш точна оферта.</p>
+          </div>
+          <form class="calc__form" id="calcForm">
+            <div class="seg" role="radiogroup" aria-label="Устройство">
+              <label><input type="radio" name="dev" value="Телефон" checked><span>Телефон</span></label>
+              <label><input type="radio" name="dev" value="Таблет"><span>Таблет</span></label>
+            </div>
+            <div class="two">
+              <label class="field"><span>Марка</span><select class="select" name="brand">${phoneBrands.map((b) => `<option ${b === "Apple" ? "selected" : ""}>${esc(b)}</option>`).join("")}<option>Друга</option></select></label>
+              <label class="field"><span>Модел (по желание)</span><input class="input" name="model" placeholder="напр. iPhone 13"></label>
+            </div>
+            <div class="field"><span>Проблем</span>
+              <div class="calc__chips">${window.REPAIRS.map((r, i) => `<label><input type="radio" name="rep" value="${i}" ${i === 0 ? "checked" : ""}><span>${icon(r.icon)}${esc(r.title)}</span></label>`).join("")}</div>
+            </div>
+            <div class="calc__result" id="calcRes" aria-live="polite"></div>
+          </form>
+        </div>
       </div>
 
       <div class="section svc-grid">
-        <div id="form">${inquiryForm("service")}</div>
+        <div id="form">${inquiryForm("service", q.get("model") || "", q.get("msg") || "")}</div>
         <div>
+          <span class="eyebrow">Как работим</span>
           <h2>Как протича ремонтът</h2>
           <ol class="steps">${window.REPAIR_STEPS.map((s, i) => `<li><span>${i + 1}</span><div><b>${esc(s.title)}</b><p class="muted">${esc(s.text)}</p></div></li>`).join("")}</ol>
+          <div class="svc-gets">
+            <h3>Какво получаваш</h3>
+            <ul>
+              <li>${icon("check")}<span><b>Оферта преди ремонта</b> – ремонтираме само след като потвърдиш цената и срока.</span></li>
+              <li>${icon("check")}<span><b>Без ангажимент</b> – запитването не те задължава с ремонт или платена диагностика.</span></li>
+              <li>${icon("check")}<span><b>Сервиз на място</b> – в магазина на ${esc(S.address)}.</span></li>
+              <li>${icon("check")}<span><b>Законова гаранция</b> – правата ти при несъответствие не се ограничават.</span></li>
+            </ul>
+          </div>
           <h3>Преди да донесеш устройството</h3>
           <div class="acc">${window.SERVICE_FAQ.map((x) => `<details><summary>${esc(x.q)}</summary><p>${esc(x.a)}</p></details>`).join("")}</div>
         </div>
       </div>
+
+      <div class="section">
+        <div class="svc-contact">
+          <div>${icon("pin")}<span><small>Сервиз и магазин</small><b>${esc(S.address)}</b></span></div>
+          <div>${icon("clock")}<span><small>Работно време</small><b data-today3></b></span></div>
+          <div>${icon("phone")}<span><small>Телефон</small><a href="tel:${tel}"><b>${esc(S.phone)}</b></a></span></div>
+          <a class="btn btn--primary" href="${esc(S.maps)}" target="_blank" rel="noopener">${icon("pin")} Упътване</a>
+        </div>
+      </div>
     </section>`;
-    $("#prices").addEventListener("click", (e) => {
-      const b = e.target.closest("[data-repair]");
-      if (!b) return;
+    $("[data-today3]").innerHTML = todayText();
+
+    const fillForm = (repairTitle, model) => {
       const f = $("#inqForm");
       if (!f) return;
       f.querySelector("[name=type]").value = "Ремонт";
+      if (model) f.querySelector("[name=model]").value = model;
       const ta = f.querySelector("[name=msg]");
-      if (!ta.value.startsWith(b.dataset.repair)) ta.value = `${b.dataset.repair}: ${ta.value}`;
+      if (repairTitle && !ta.value.startsWith(repairTitle)) ta.value = `${repairTitle}: ${ta.value}`;
       $("#form").scrollIntoView({ behavior: "smooth" });
-      setTimeout(() => f.querySelector("[name=model]").focus({ preventScroll: true }), 450);
+      setTimeout(() => f.querySelector(model ? "[name=msg]" : "[name=model]").focus({ preventScroll: true }), 450);
+    };
+    $("#prices").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-repair]");
+      if (b) fillForm(b.dataset.repair);
     });
+    const calc = $("#calcForm");
+    const drawCalc = () => {
+      const r = window.REPAIRS[+calc.rep.value];
+      const dev = calc.dev.value, brand = calc.brand.value, model = calc.model.value.trim();
+      $("#calcRes").innerHTML = `<div><small class="muted">${esc(dev)} · ${esc(model || brand)} · ${esc(r.title)}</small>
+        <b class="calc__price">${esc(r.price)}</b><small class="muted">Ориентировъчно. Точната цена – след преглед.</small></div>
+        <button type="button" class="btn btn--primary" id="calcGo">Поискай точна оферта ${icon("arrow")}</button>`;
+      $("#calcGo").onclick = () => {
+        const f = $("#inqForm");
+        if (f) f.querySelector("[name=device]").value = dev;
+        fillForm(r.title, model || (brand === "Друга" ? "" : brand + " "));
+      };
+    };
+    calc.addEventListener("change", drawCalc);
+    calc.addEventListener("input", drawCalc);
+    calc.addEventListener("submit", (e) => e.preventDefault());
+    drawCalc();
+    if (q.get("repair")) {
+      const i = window.REPAIRS.findIndex((r) => r.title === q.get("repair"));
+      if (i > -1) { calc.rep.value = i; drawCalc(); }
+    }
     if (anchor) requestAnimationFrame(() => $("#" + anchor)?.scrollIntoView());
+  }
+
+  /* ================= БЮЛЕТИН И СОЦИАЛНИ МРЕЖИ ================= */
+  const SOCIAL = () => [
+    S.social.facebook && ["facebook", "Facebook", S.social.facebook],
+    S.social.instagram && ["instagram", "Instagram", S.social.instagram],
+    S.social.messenger && ["messenger", "Messenger", S.social.messenger],
+    S.social.tiktok && ["tiktok", "TikTok", S.social.tiktok],
+  ].filter(Boolean);
+  const SOC_IC = {
+    facebook: '<path d="M14 8h3V4h-3a4 4 0 0 0-4 4v3H7v4h3v9h4v-9h3l1-4h-4V8z"/>',
+    instagram: '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/>',
+    messenger: '<path d="M12 2.5c-5.3 0-9.5 3.9-9.5 9 0 2.8 1.3 5.3 3.4 7v3.5l3.2-1.8c.9.3 1.9.4 2.9.4 5.3 0 9.5-3.9 9.5-9s-4.2-9.1-9.5-9.1z"/><path d="m6.5 14.5 4-4.2 2.4 2.4 4.6-2.6-4 4.2-2.5-2.4z"/>',
+    tiktok: '<path d="M14 3v11.5a3.5 3.5 0 1 1-3.5-3.5"/><path d="M14 3c.5 2.8 2.4 4.6 5 5"/>',
+    whatsapp: '<path d="M4 20l1.3-4A8.5 8.5 0 1 1 8.4 19z"/><path d="M9 8.5c0 3.5 3 6.5 6.5 6.5l1-1.6-2-1-1 .8a5 5 0 0 1-2.7-2.7l.8-1-1-2z"/>',
+    viber: '<path d="M12 2C6.5 2 3 4.6 3 10.5c0 3.2 1.1 5.4 3 6.7V21l3.2-2.6c.9.1 1.8.2 2.8.2 5.5 0 9-2.6 9-8.1S17.5 2 12 2z"/>',
+    link: '<path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>',
+  };
+  const socIcon = (n) => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${SOC_IC[n]}</svg>`;
+  const socialButtons = (cls = "soc") => `<div class="${cls}">${SOCIAL().map(([k, n, u]) => `<a class="${cls}__btn ${cls}__btn--${k}" href="${esc(u)}" target="_blank" rel="noopener" aria-label="${n}">${socIcon(k)}<span>${n}</span></a>`).join("")}</div>`;
+
+  function newsletterBlock() {
+    const done = store.get("newsletter", false);
+    return `<section class="container section">
+      <div class="news">
+        <div class="news__copy">
+          <span class="eyebrow eyebrow--dark">Бюлетин GDMobil</span>
+          <h2>Научавай първи за новите модели и офертите.</h2>
+          <p>Само полезни новини от магазина – без спам. Можеш да се отпишеш по всяко време.</p>
+          <div class="news__follow"><small>Последвай ни</small>${socialButtons()}</div>
+        </div>
+        ${done ? `<div class="news__done">${icon("check")}<b>Вече си абониран.</b><span>Благодарим!</span></div>` : newsForm("news__form")}
+      </div>
+    </section>`;
+  }
+  const newsForm = (cls) => `<form class="news-form ${cls}" novalidate>
+      <label class="news-form__row"><span class="sr">Имейл</span>
+        <input class="input" type="email" name="email" required placeholder="твоят@имейл.bg" autocomplete="email">
+        <button class="btn btn--ember" type="submit">Абонирай ме</button></label>
+      <label class="check check--consent"><input type="checkbox" name="ok" required><span>Съгласен/на съм да получавам новини и оферти от GDMobil. <a href="#/legal/privacy">Поверителност</a></span></label>
+      <p class="news-form__msg" aria-live="polite"></p>
+    </form>`;
+
+  async function submitNewsletter(form) {
+    const email = form.email.value.trim(), msg = form.querySelector(".news-form__msg");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { msg.textContent = "Въведи валиден имейл адрес."; form.email.focus(); return; }
+    if (!form.ok.checked) { msg.textContent = "Моля, потвърди съгласието си."; return; }
+    const btn = form.querySelector("[type=submit]");
+    btn.disabled = true;
+    const text = `Моля, абонирайте ме за бюлетина на GDMobil.\nИмейл: ${email}\nСъгласие: да (${new Date().toLocaleString("bg-BG")})`;
+    const sent = await sendToStore("Абонамент за бюлетин", text, { email, type: "newsletter" });
+    store.set("newsletter", true);
+    form.outerHTML = sent
+      ? `<div class="news__done">${icon("check")}<b>Готово – абониран си!</b><span>Ще получаваш новините на ${esc(email)}.</span></div>`
+      : `<div class="news__done">${icon("mail")}<b>Остава една стъпка</b><span>Изпрати потвърждението до магазина:</span>
+          <a class="btn btn--ember btn--sm" href="${mailto("Абонамент за бюлетин", text)}">Изпрати потвърждение</a></div>`;
+  }
+
+  function shareMenu(p, anchor) {
+    const url = location.href, text = `${p.name} – GDMobil`;
+    const enc = encodeURIComponent;
+    const items = [
+      ["facebook", "Facebook", `https://www.facebook.com/sharer/sharer.php?u=${enc(url)}`],
+      ["messenger", "Messenger", `fb-messenger://share/?link=${enc(url)}`],
+      ["viber", "Viber", `viber://forward?text=${enc(text + " " + url)}`],
+      ["whatsapp", "WhatsApp", `https://wa.me/?text=${enc(text + " " + url)}`],
+    ];
+    $(".share-pop")?.remove();
+    anchor.insertAdjacentHTML("afterend", `<div class="share-pop" role="menu">
+      ${navigator.share ? `<button role="menuitem" data-native>${icon("share")} Сподели…</button>` : ""}
+      ${items.map(([k, n, u]) => `<a role="menuitem" href="${u}" target="_blank" rel="noopener">${socIcon(k)} ${n}</a>`).join("")}
+      <button role="menuitem" data-copy>${socIcon("link")} Копирай линка</button></div>`);
+    const pop = $(".share-pop");
+    pop.addEventListener("click", (e) => {
+      if (e.target.closest("[data-native]")) navigator.share({ title: p.name, text, url }).catch(() => {});
+      if (e.target.closest("[data-copy]")) navigator.clipboard?.writeText(url).then(() => toast("🔗 Линкът е копиран"), () => toast(url));
+      pop.remove();
+    });
+    setTimeout(() => document.addEventListener("click", function off(e) { if (!e.target.closest(".share-pop")) { pop.remove(); document.removeEventListener("click", off); } }), 0);
+  }
+
+  /* ================= ЧАТ АСИСТЕНТ ================= */
+  function initChat() {
+    document.body.insertAdjacentHTML("beforeend", `
+      <button class="chat-fab" id="chatFab" aria-label="Отвори чат с асистента" aria-expanded="false">
+        <svg class="ic" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M8.5 11h.01M12 11h.01M15.5 11h.01" stroke-width="2.6"/></svg>
+        <span>Помощ</span></button>
+      <section class="chat" id="chat" aria-label="Асистент GDMobil" hidden>
+        <header class="chat__head">
+          <span class="chat__ava">GD</span>
+          <span><b>Асистент GDMobil</b><small><i class="dot dot--on"></i>Отговаря веднага · ${esc(S.phone)}</small></span>
+          <button class="icon-btn" id="chatClose" aria-label="Затвори чата">${icon("close")}</button>
+        </header>
+        <div class="chat__log" id="chatLog" aria-live="polite"></div>
+        <div class="chat__chips" id="chatChips"></div>
+        <form class="chat__form" id="chatForm" autocomplete="off">
+          <input class="input" id="chatInput" placeholder="Напиши въпрос…" aria-label="Въпрос към асистента" maxlength="300">
+          <button class="icon-btn" type="submit" aria-label="Изпрати"><svg viewBox="0 0 24 24"><path d="M4 12 20 4l-6 16-3-7z"/></svg></button>
+        </form>
+        <p class="chat__note">Асистентът работи във вашия браузър – въпросите не се изпращат никъде. За поръчки и сложни въпроси ще ви свърже с човек.</p>
+      </section>`);
+    const fab = $("#chatFab"), box = $("#chat"), log = $("#chatLog"), chipsEl = $("#chatChips"), inp = $("#chatInput");
+    let started = false, misses = 0, lastQ = "";
+    const START = ["Работно време", "Доставка и плащане", "Цена на ремонт", "Търся телефон", "Гаранция и връщане", "Говори с човек"];
+
+    const scroll = () => (log.scrollTop = log.scrollHeight);
+    const say = (html, who = "bot") => { log.insertAdjacentHTML("beforeend", `<div class="msg msg--${who}">${html}</div>`); scroll(); };
+    const chips = (list) => (chipsEl.innerHTML = list.map((c) => `<button type="button" class="chip">${esc(c)}</button>`).join(""));
+    const typing = (fn) => {
+      log.insertAdjacentHTML("beforeend", `<div class="msg msg--bot msg--typing"><i></i><i></i><i></i></div>`); scroll();
+      setTimeout(() => { $(".msg--typing", log)?.remove(); fn(); }, 450 + Math.random() * 350);
+    };
+    const human = () => `<div class="msg__acts">
+        <a class="btn btn--sm btn--primary" href="tel:${tel}">${icon("phone")} Обади се</a>
+        ${S.social.messenger ? `<a class="btn btn--sm btn--ghost" href="${esc(S.social.messenger)}" target="_blank" rel="noopener">${socIcon("messenger")} Messenger</a>` : ""}
+        <a class="btn btn--sm btn--ghost" href="#/inquiries?topic=${encodeURIComponent("Въпрос от чата")}&msg=${encodeURIComponent(lastQ)}" data-chat-close>${icon("mail")} Изпрати въпроса</a>
+      </div>`;
+    const link = (href, text) => `<a class="msg__link" href="${href}" data-chat-close>${text} →</a>`;
+
+    const A = {
+      greet: () => `Здравей! 👋 Аз съм асистентът на GDMobil. Мога да помогна с цени на телефони и аксесоари, ремонти, доставка, плащане и гаранция. Какво те интересува?`,
+      hours: () => `🕘 <b>Работно време</b><br>${S.hours.map(([d, h]) => `${esc(d)}: <b>${esc(h)}</b>`).join("<br>")}<br><br>${todayText()}<br>📍 ${esc(S.address)}`,
+      address: () => `📍 Магазинът и сервизът са на <b>${esc(S.address)}</b>.<br><a class="msg__link" href="${esc(S.maps)}" target="_blank" rel="noopener">Упътване в Google Maps →</a><br>${todayText()}`,
+      delivery: () => `🚚 <b>Доставка</b><br>• Вземане от магазина – <b>без такса</b>, след потвърждение, че конфигурацията е готова.<br>• <b>Еконт или Спиди</b> до офис или адрес в България – таксата и срокът се потвърждават от магазина преди изпращане.<br>${link("#/legal/delivery", "Доставка и плащане")}`,
+      payment: () => `💳 <b>Плащане</b><br>• В магазина – при вземане на място.<br>• <b>Наложен платеж</b> – при доставка с куриер.<br>Не се изисква предплащане за непотвърдена заявка. За други възможности (напр. на изплащане) – попитай колегите ни.${human()}`,
+      returns: () => `↩️ <b>Връщане и гаранция</b><br>• При покупка онлайн имаш <b>14 дни</b> за отказ без причина.<br>• За новите стоки важи минимум <b>2 години законова гаранция</b>.<br>• Рекламации: ${esc(S.email)} или в магазина.<br>${link("#/legal/returns", "Гаранция и връщане")}`,
+      order: () => `📦 След заявка получаваш <b>номер на заявката</b>. Магазинът потвърждава наличността, сумата и срока по телефона или имейла, а при изпращане – номер на товарителница.<br>За статус на конкретна поръчка се свържи с нас:${human()}`,
+      human: () => `Разбира се – ето как да говориш с колега от GDMobil:<br>${todayText()}${human()}`,
+      promo: () => `🔥 Новите модели са с етикет „Ново“, а намаленията – с „-%“. ${link("#/c/phones?tag=new", "Нови телефони")}${PRODUCTS.some((p) => p.tags.sale) ? link("#/c/all?tag=sale", "Намалени продукти") : ""}<br>Абонирай се за бюлетина най-долу на началната страница, за да научаваш първи.`,
+      thanks: () => `Моля! 😊 Ако имаш още въпроси – тук съм.`,
+    };
+    const REPAIR_MAP = [
+      [/дисплей|екран|тъч|счупен[оа]? стъкло|пукна|счупих|пукнат/, 0], [/батери|издържа|изтощава|бързо пада|гасне|изключва/, 1],
+      [/букса|зарежда|порт|кабел не|не зарежд/, 2], [/заден|гръб|капак|гърба/, 3], [/камер|говорител|микрофон|не се чува|звук|слушалка/, 4],
+      [/бутон|лент/, 5], [/софтуер|обнов|прехвърл|данни|забрав|парола|заключ|вирус|бавен/, 6], [/не се включва|платка|мокр|вода|падна в/, 7],
+    ];
+    const INTENTS = [
+      [/^(здрав|здрасти|здр|добър ден|добро утро|добър вечер|hello|hi|hey|хей|ехо)/, "greet"],
+      [/благодар|мерси|thanks|супер|чудесно/, "thanks"],
+
+      [/работно време|работите|работи ли|кога (отваря|затваря|сте)|отворено|затворено|до колко|от колко|събота|неделя|празни/, "hours"],
+      [/адрес|къде (сте|се намира|е магазин)|локаци|упътван|карта|как да стигна/, "address"],
+      [/доставк|еконт|спиди|куриер|изпращ|до офис|до адрес|пратк|кога ще получ/, "delivery"],
+      [/плащ|наложен|карт[аи]|изплащ|лизинг|кредит|вноски|банков|кеш|в брой/, "payment"],
+      [/връщ|върн|отказ|рекламац|гаранц|замян|замен|дефект|повреден/, "returns"],
+      [/поръчк|заявк|статус|потвърж|номер на/, "order"],
+      [/човек|оператор|консултант|служител|колега|обад|звънн|говоря с|свърж|контакт|имейл|месинджър|messenger|viber|вайбър|телефон за връзка|вашия телефон|номер за връзка/, "human"],
+      [/промо|оферт|намал|отстъпк|бюлетин|абонам|ново|нови модели/, "promo"],
+    ];
+    const STOP = new Set("колко струва струват цена цената цени имате ли има търся искам трябва ми кажи моля за на по от в с и е ли какво какъв каква до най нов нова нови нъв евтин евтино скъп телефон телефона модел модела купя купувам наличност налично".split(" "));
+
+    function productAnswer(text) {
+      const toks = tokens(text).filter((t) => !STOP.has(t) && t.length > 1);
+      if (!toks.length) return null;
+      let res = PRODUCTS.filter((p) => p.min != null && matches(p, toks));
+      if (!res.length && toks.length > 1) res = PRODUCTS.filter((p) => p.min != null && matches(p, toks.slice(0, -1)));
+      if (!res.length) return null;
+      res.sort((a, b) => (a.cat === "accessories") - (b.cat === "accessories") || (featuredRank.get(a) ?? 99) - (featuredRank.get(b) ?? 99) || b.min - a.min);
+      const top = res.slice(0, 3);
+      return `Ето какво намерих${res.length > 3 ? ` (${res.length} резултата)` : ""}:
+        <div class="msg__prods">${top.map((p) => `<a class="msg__prod" href="#/p/${p.slug}" data-chat-close>${imgTag(p.img, "")}<span><b>${esc(p.name)}</b><small>${p.variants.length > 1 ? "от " : ""}${eur(p.min)} · ${p.tags.new ? "Ново · " : ""}В наличност</small></span></a>`).join("")}</div>
+        ${res.length > 3 ? link(`#/c/all?q=${encodeURIComponent(toks.join(" "))}`, "Виж всички резултати") : ""}`;
+    }
+
+    function answer(raw) {
+      const t = raw.toLowerCase().replace(/ё/g, "е");
+      const rep = /ремонт|сервиз|смяна|смени|поправ/.test(t) || (REPAIR_MAP.some(([re]) => re.test(t)) && /счуп|пукн|не работ|не заре|сменя|поправ|ремонт|издържа|изтощава|гасне|изключва/.test(t));
+      if (rep || /не се включва|мокр|падна в вода/.test(t)) {
+        const hit = REPAIR_MAP.find(([re]) => re.test(t));
+        if (hit) {
+          const r = window.REPAIRS[hit[1]];
+          return { html: `🔧 <b>${esc(r.title)}</b> – ориентировъчно <b>${esc(r.price)}</b>.<br>${esc(r.text)} Точната цена зависи от модела и частта и се уточнява след преглед – ремонтираме едва след като я потвърдиш.<div class="msg__acts"><a class="btn btn--sm btn--primary" href="#/service?repair=${encodeURIComponent(r.title)}&msg=${encodeURIComponent(raw)}#form" data-chat-close>Поискай оферта</a><a class="btn btn--sm btn--ghost" href="tel:${tel}">${icon("phone")} Обади се</a></div>`, chips: ["Колко време отнема?", "Работно време", "Говори с човек"] };
+        }
+        return { html: `🔧 <b>Цени на ремонти (ориентировъчно)</b><br>${window.REPAIRS.map((r) => `${esc(r.title)}: <b>${esc(r.price)}</b>`).join("<br>")}<br>${link("#/service", "Сервиз и запитване за ремонт")}`, chips: ["Смяна на дисплей", "Смяна на батерия", "Говори с човек"] };
+      }
+      if (/колко време|срок/.test(t) && /ремонт|отнема/.test(t)) return { html: `⏱ Срокът зависи от диагностиката, наличността на части и сложността на ремонта – уточняваме го заедно с офертата.${human()}` };
+      for (const [re, k] of INTENTS) {
+        if (re.test(t)) return { html: A[k](), chips: k === "greet" ? START : k === "human" ? ["Работно време", "Адрес на магазина"] : undefined };
+      }
+      const pa = productAnswer(raw);
+      if (pa) return { html: pa, chips: ["Доставка и плащане", "Аксесоари за моя модел", "Говори с човек"] };
+      if (/търся|искам|препоръч|какъв телефон|кой телефон|до \d+/.test(t)) {
+        return { html: `С удоволствие! Напиши марка или модел (напр. „iPhone 17“, „Galaxy S26“, „Redmi Note 15“) или разгледай: ${link("#/c/phones?tag=new", "Нови телефони")} ${link("#/c/phones?sort=asc", "Телефони по цена")}`, chips: ["iPhone 17 Pro", "Galaxy S26", "Redmi Note 15", "Pixel 11"] };
+      }
+      misses++;
+      return {
+        html: misses > 1
+          ? `Съжалявам, не мога да отговоря точно на това. Нека те свържа с колега – ще получиш отговор от човек:${human()}`
+          : `Не съм сигурен, че разбрах. 🤔 Мога да помогна с: цени на телефони и аксесоари, ремонти, доставка, плащане, гаранция и работно време. Или да те свържа с човек.${human()}`,
+        chips: START,
+      };
+    }
+
+    const CHIP_Q = { "Търся телефон": "търся телефон", "Аксесоари за моя модел": "калъф", "Цена на ремонт": "цени на ремонти", "Говори с човек": "искам да говоря с човек", "Гаранция и връщане": "гаранция и връщане", "Доставка и плащане": "__delivery_payment", "Адрес на магазина": "адрес", "Колко време отнема?": "колко време отнема ремонтът" };
+    const ask = (shown, internal) => {
+      shown = shown.trim();
+      if (!shown) return;
+      lastQ = shown;
+      say(esc(shown), "me");
+      chipsEl.innerHTML = "";
+      typing(() => {
+        if (internal === "__delivery_payment") { say(A.delivery()); say(A.payment()); chips(START); return; }
+        const r = answer(internal || shown);
+        say(r.html);
+        chips(r.chips || ["Говори с човек", "Работно време", "Търся телефон"]);
+      });
+    };
+    chipsEl.addEventListener("click", (e) => { const c = e.target.closest(".chip"); if (c) ask(c.textContent, CHIP_Q[c.textContent]); });
+
+    const open = () => {
+      box.hidden = false; fab.setAttribute("aria-expanded", "true"); document.body.classList.add("chat-open");
+      if (!started) { started = true; typing(() => { say(A.greet()); chips(START); }); }
+      setTimeout(() => inp.focus({ preventScroll: true }), 100);
+    };
+    const close = () => { box.hidden = true; fab.setAttribute("aria-expanded", "false"); document.body.classList.remove("chat-open"); };
+    window.__openChat = open;
+    fab.addEventListener("click", () => (box.hidden ? open() : close()));
+    $("#chatClose").addEventListener("click", () => { close(); fab.focus(); });
+    $("#chatForm").addEventListener("submit", (e) => { e.preventDefault(); const q = inp.value; inp.value = ""; ask(q); });
+    box.addEventListener("click", (e) => { if (e.target.closest("[data-chat-close]") && innerWidth < 761) close(); });
+    box.addEventListener("keydown", (e) => { if (e.key === "Escape") { close(); fab.focus(); } });
   }
 
   /* ================= ЗАПИТВАНИЯ ================= */
@@ -897,12 +1221,12 @@
             <div class="info-card">${icon("shield")}<div><b>Без ангажимент</b><p class="muted">Запитването не е поръчка и не те обвързва с покупка. Не изпращай пароли, PIN кодове или банкови данни.</p></div></div>
           </div>
         </div>
-        <div>${inquiryForm("inquiry", q.get("topic") || "")}</div>
+        <div>${inquiryForm("inquiry", q.get("topic") || "", q.get("msg") || "")}</div>
       </div>
     </section>`;
   }
 
-  function inquiryForm(kind, topic = "") {
+  function inquiryForm(kind, topic = "", msg = "") {
     const svc = kind === "service";
     const guessDevice = /ipad|tab|таблет/i.test(topic) ? "Таблет" : /tapo|камер/i.test(topic) ? "Камера" : topic ? "Телефон" : "";
     return `<form class="form-card" id="inqForm">
@@ -920,7 +1244,9 @@
           <option value="">Избери устройство</option>${["Телефон", "Таблет", "Камера", "Аксесоар", "Друго"].map((t) => `<option ${t === guessDevice ? "selected" : ""}>${t}</option>`).join("")}</select></label>
       </div>
       <label class="field"><span>${svc ? "Марка и модел" : "Продукт / тема"} *</span><input class="input" name="model" required value="${esc(topic)}"></label>
-      <label class="field"><span>${svc ? "Какъв е проблемът?" : "Как можем да помогнем?"} *</span><textarea class="input" name="msg" rows="4" required></textarea></label>
+      <label class="field"><span>${svc ? "Какъв е проблемът?" : "Как можем да помогнем?"} *</span><textarea class="input" name="msg" rows="4" required>${esc(msg)}</textarea></label>
+      ${svc ? `<label class="field"><span>Как ще предадеш устройството?</span><select class="select" name="handover">
+        <option>Ще го донеса в магазина</option><option>Искам да уговорим изпращане с куриер</option><option>Още не знам</option></select></label>` : ""}
       <label class="check check--consent"><input type="checkbox" required><span>Прочетох <a href="#/legal/privacy" target="_blank">информацията за личните данни</a> и разбирам, че посочените данни ще бъдат използвани за отговор на запитването. *</span></label>
       <button class="btn btn--primary btn--block" type="submit">Изпрати запитване</button>
       <p class="muted small">След успешно изпращане ще получиш номер на запитването.</p>
@@ -930,7 +1256,7 @@
   async function submitInquiry(form) {
     const fd = Object.fromEntries(new FormData(form));
     const num = refNo("Z");
-    const text = [`Запитване № ${num}`, `Вид: ${fd.type}`, `Устройство: ${fd.device}`, `Модел / тема: ${fd.model}`, "", fd.msg, "",
+    const text = [`Запитване № ${num}`, `Вид: ${fd.type}`, `Устройство: ${fd.device}`, `Модел / тема: ${fd.model}`, fd.handover ? `Предаване: ${fd.handover}` : false, "", fd.msg, "",
       `Име: ${fd.name}`, `Телефон: ${fd.phone}`, fd.email ? `Имейл: ${fd.email}` : false].filter((x) => x !== false).join("\n");
     const btn = form.querySelector("[type=submit]");
     btn.disabled = true; btn.textContent = "Изпращане…";
@@ -1191,9 +1517,21 @@
 
   /* ---------- търсене с подсказки ---------- */
   function saveSearch(q) { store.set("searches", [q, ...store.get("searches", []).filter((x) => x.toLowerCase() !== q.toLowerCase())].slice(0, 6)); }
+  let openSearch = () => {}, closeSearch = () => {};
   function initSearch() {
-    const inp = $("#searchInput"), box = $("#suggest");
+    const inp = $("#searchInput"), box = $("#suggest"), hdr = $("#header"), tgl = $("#searchToggle");
     let idx = -1;
+    openSearch = () => {
+      hdr.classList.add("is-search"); tgl.setAttribute("aria-expanded", "true");
+      requestAnimationFrame(() => inp.focus());
+    };
+    closeSearch = () => {
+      if (!hdr.classList.contains("is-search")) return;
+      hdr.classList.remove("is-search"); tgl.setAttribute("aria-expanded", "false");
+      box.hidden = true; inp.blur();
+    };
+    tgl.addEventListener("click", () => (hdr.classList.contains("is-search") ? closeSearch() : openSearch()));
+    $("#searchClose").addEventListener("click", () => { inp.value = ""; closeSearch(); tgl.focus(); });
     const POPULAR = ["iPhone 17 Pro", "Galaxy S26 Ultra", "Pixel 11", "Redmi Note 15", "калъф", "протектор", "зарядно", "слушалки"];
     const render = () => {
       const toks = tokens(inp.value);
@@ -1224,20 +1562,24 @@
         idx = (idx + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
         items.forEach((a, i) => a.classList.toggle("on", i === idx));
       } else if (e.key === "Enter" && idx > -1) { e.preventDefault(); box.hidden = true; go(items[idx].getAttribute("href")); }
-      else if (e.key === "Escape") box.hidden = true;
+      else if (e.key === "Escape") { closeSearch(); tgl.focus(); }
     });
-    document.addEventListener("click", (e) => { if (!e.target.closest("#searchForm")) box.hidden = true; });
+    document.addEventListener("click", (e) => {
+      if (e.target.closest("#searchForm, #searchToggle, #tabSearch")) return;
+      box.hidden = true;
+      if (!inp.value.trim()) closeSearch();
+    });
     box.addEventListener("mousedown", (e) => e.preventDefault());
     box.addEventListener("click", (e) => {
       if (e.target.closest("[data-clear-s]")) { store.set("searches", []); render(); return; }
       if (e.target.closest("a") && inp.value.trim()) saveSearch(inp.value.trim());
-      if (e.target.closest("a")) { box.hidden = true; inp.blur(); }
+      if (e.target.closest("a")) closeSearch();
     });
     $("#searchForm").addEventListener("submit", (e) => {
       e.preventDefault();
       const q = inp.value.trim();
       if (q) saveSearch(q);
-      box.hidden = true; inp.blur();
+      closeSearch();
       go(q ? `#/c/all?q=${encodeURIComponent(q)}` : "#/c/all");
     });
   }
@@ -1316,7 +1658,7 @@
     const key = routeKey();
     // само котва в същата страница → плавен скрол
     if (anchor && key === lastPath) return document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth" });
-    closeModal(); closeDrawers();
+    closeModal(); closeDrawers(); closeSearch();
     $("#suggest").hidden = true;
     if (parts[0] !== "p") setLd("ld-product", null);
     if (parts[0] !== "c") { cat = null; $("#searchInput").value = ""; }
@@ -1325,7 +1667,7 @@
       case "contact": pageHome("contact"); break;
       case "c": pageCatalog(parts[1] || "all", q); break;
       case "p": pageProduct(parts[1], q); break;
-      case "service": pageService(anchor); break;
+      case "service": pageService(anchor, q); break;
       case "inquiries": pageInquiries(q); break;
       case "legal": pageLegal(parts[1], anchor); break;
       case "compare": pageCompare(); break;
@@ -1351,6 +1693,8 @@
     });
   }
 
+  let todayText = () => "";
+
   /* ---------- статични части ---------- */
   function renderStatic() {
     $$("[data-addr]").forEach((e) => (e.textContent = S.address));
@@ -1358,7 +1702,7 @@
     $$("[data-tel]").forEach((e) => { e.href = "tel:" + tel; e.textContent = S.phone; });
     $$("[data-mail]").forEach((e) => { e.href = "mailto:" + S.email; e.textContent = S.email; });
     $$("[data-hours]").forEach((e) => (e.innerHTML = hoursHtml()));
-    const today = () => {
+    todayText = () => {
       const d = new Date(), wd = d.getDay();
       const h = S.hours[wd === 0 ? 2 : wd === 6 ? 1 : 0][1];
       const m = h.match(/(\d+):(\d+)\D+(\d+):(\d+)/);
@@ -1368,18 +1712,18 @@
       return `<i class="dot ${open ? "dot--on" : ""}"></i>${open ? "Отворено сега" : "Затворено сега"} · днес ${esc(h)}`;
     };
     const tds = $$("[data-today], [data-today2]");
-    const tick = () => tds.forEach((e) => (e.innerHTML = today()));
+    const tick = () => tds.forEach((e) => (e.innerHTML = todayText()));
     if (tds.length) { tick(); setInterval(tick, 60000); }
     $("[data-tagline]").textContent = S.tagline;
     $("[data-copy]").textContent = `© ${new Date().getFullYear()} GDMobil · ${S.company} · ЕИК ${S.eik}`;
-    $("#socials").innerHTML = `
-      <a href="${esc(S.social.facebook)}" target="_blank" rel="noopener" aria-label="Facebook"><svg viewBox="0 0 24 24"><path d="M14 8h3V4h-3a4 4 0 0 0-4 4v3H7v4h3v9h4v-9h3l1-4h-4V8z"/></svg></a>
-      <a href="${esc(S.social.instagram)}" target="_blank" rel="noopener" aria-label="Instagram"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></svg></a>`;
+    $("#socials").innerHTML = SOCIAL().map(([k, n, u]) => `<a href="${esc(u)}" target="_blank" rel="noopener" aria-label="${n}" title="${n}">${socIcon(k)}</a>`).join("");
+    $("#footNews").innerHTML = store.get("newsletter", false) ? `<p class="footer__news-ok">${icon("check")} Абониран си за бюлетина.</p>` : newsForm("news-form--foot");
     $("#fab").innerHTML = S.viber ? `<a href="viber://chat?number=%2B${esc(S.viber)}" class="fab__btn fab__viber" aria-label="Пиши ни във Viber">V</a>` : "";
     $("#menuBody").innerHTML = `
       ${window.CATEGORIES.map((c) => `<a href="#/c/${c.key}"><img src="${esc(c.img)}" alt="">${esc(c.name)}</a>`).join("")}
       <hr><a href="#/service">${icon("wrench")} Сервиз и ремонти</a><a href="#/inquiries">${icon("mail")} Запитвания</a>
       <a href="#/compare">${icon("swap")} Сравнение</a><a href="#/contact">${icon("pin")} Контакти</a>
+      <button data-open-chat>${icon("mail")} Чат с асистента</button>
       <button id="themeToggle2">${icon("moon")} Тъмна / светла тема</button>
       <hr><a href="#/legal/delivery">Доставка и плащане</a><a href="#/legal/returns">Гаранция и връщане</a><a href="#/legal/terms">Общи условия</a>
       <hr><a href="tel:${tel}"><b>${esc(S.phone)}</b></a><span class="muted small">${esc(S.address)}</span>`;
@@ -1407,6 +1751,7 @@
   function bind() {
     document.addEventListener("click", (e) => {
       if (e.target.closest("[data-opencart]")) { e.preventDefault(); return openDrawer("cartDrawer"); }
+      if (e.target.closest("[data-open-chat]")) { closeDrawers(); return window.__openChat && window.__openChat(); }
       if (e.target.closest("[data-loadmap]")) {
         $("#map").innerHTML = `<iframe title="Карта – GDMobil, ${esc(S.address)}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://maps.google.com/maps?q=${encodeURIComponent("GDMobil, " + S.address)}&z=16&output=embed"></iframe>`;
         return;
@@ -1445,13 +1790,16 @@
     });
     document.addEventListener("change", onFilterChange);
     document.addEventListener("input", (e) => { if (e.target.dataset.f === "max") onFilterChange(e); });
-    document.addEventListener("submit", (e) => { if (e.target.id === "inqForm") { e.preventDefault(); submitInquiry(e.target); } });
+    document.addEventListener("submit", (e) => {
+      if (e.target.id === "inqForm") { e.preventDefault(); submitInquiry(e.target); }
+      if (e.target.classList.contains("news-form")) { e.preventDefault(); submitNewsletter(e.target); }
+    });
 
     $("#cartBtn").addEventListener("click", () => openDrawer("cartDrawer"));
     $("#tabCart").addEventListener("click", () => openDrawer("cartDrawer"));
-    $("#tabSearch").addEventListener("click", () => { closeDrawers(); scrollTo({ top: 0, behavior: "smooth" }); $("#searchInput").focus(); });
+    $("#tabSearch").addEventListener("click", () => { closeDrawers(); openSearch(); });
     document.addEventListener("keydown", (e) => {
-      if (e.key === "/" && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); $("#searchInput").focus(); }
+      if (e.key === "/" && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); openSearch(); }
     });
     $("#favBtn").addEventListener("click", () => openDrawer("favDrawer"));
     $("#burger").addEventListener("click", () => openDrawer("menuDrawer"));
@@ -1478,6 +1826,7 @@
   renderFavs();
   setCount("#cmpCount", state.compare.length);
   bind();
+  initChat();
   router();
   if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
     addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));

@@ -51,11 +51,14 @@
       <form class="search" id="searchForm" role="search" autocomplete="off">
         <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
         <input type="search" id="searchInput" placeholder="Търси iPhone, Galaxy, калъф…" aria-label="Търсене" />
-        <kbd class="search__kbd" aria-hidden="true">/</kbd>
+        <button type="button" class="icon-btn search__close" id="searchClose" aria-label="Затвори търсенето"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
         <div class="suggest" id="suggest" hidden></div>
       </form>
 
       <div class="header__actions">
+        <button class="icon-btn" id="searchToggle" aria-label="Търсене" aria-expanded="false" aria-controls="searchForm" title="Търсене (/)">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+        </button>
         <button class="icon-btn hide-md" id="themeToggle" aria-label="Смяна на тема" title="Тъмна/светла тема">
           <svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
         </button>
@@ -93,6 +96,7 @@
         <img src="assets/img/logo.webp" alt="GDMobil" class="footer__logo" width="160" height="46" loading="lazy" />
         <p class="muted" data-tagline></p>
         <div class="socials" id="socials"></div>
+        <div class="footer__news"><h4>Бюлетин</h4><div id="footNews"></div></div>
       </div>
       <div>
         <h4>Каталог</h4>
