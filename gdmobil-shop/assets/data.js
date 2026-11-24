@@ -11,6 +11,12 @@ window.STORE = {
   email: "info@gdmobil.bg",
   address: "гр. София, бул. „Витоша“ 1",
   hours: "Пон–Пет 10:00–19:00 · Съб 10:00–16:00",
+  viber: "359888000000", // номер за Viber без „+“
+  /* Къде да се изпращат поръчките и запитванията.
+     Оставете празно, за да се изпращат по имейл (отваря се имейл клиентът на купувача).
+     За автоматично получаване: регистрирайте се безплатно във formspree.io,
+     създайте форма и поставете адреса ѝ тук, напр. "https://formspree.io/f/abcdwxyz". */
+  orderEndpoint: "",
   freeShippingFrom: 100,
   shippingPrice: 4.9,
   social: {
@@ -20,7 +26,10 @@ window.STORE = {
   },
 };
 
-/* camera: "apple" | "apple-air" | "samsung" | "pixel" | "xiaomi" | "fold" | "flip" */
+/* image: (по желание) път до истинска снимка, напр. "images/iphone-17-pro-max.webp".
+   Може и по цвят: colors: [{ name, hex, image: "images/iphone-orange.webp" }].
+   Ако няма снимка, се рисува модерен 3D макет на телефона.
+   camera: "apple" | "apple-air" | "samsung" | "pixel" | "xiaomi" | "fold" | "flip" */
 window.PRODUCTS = [
   {
     id: "iphone-17-pro-max",

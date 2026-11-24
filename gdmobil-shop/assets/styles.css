@@ -432,3 +432,35 @@ textarea.input { height: auto; padding: 12px 16px; resize: vertical; }
   .grid .badge--sale { left: auto; right: 8px; }
   .rail { grid-auto-columns: 78%; }
 }
+
+/* ---- истински снимки ---- */
+.phone-wrap.photo { filter: none !important; }
+.phone-wrap.photo img { width: 100%; height: auto; object-fit: contain; }
+.card__media .phone-wrap.photo { width: 78%; }
+.pd__media .phone-wrap.photo { width: 80%; }
+.line__img .phone-wrap.photo, .mini__img .phone-wrap.photo { width: 90%; }
+
+/* ---- последно разгледани ---- */
+.mini-rail { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; scrollbar-width: thin; }
+.mini {
+  flex: none; display: flex; align-items: center; gap: 12px; padding: 10px 16px 10px 10px; text-align: left;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 16px; transition: border-color .2s, transform .2s;
+}
+.mini:hover { border-color: var(--primary); transform: translateY(-2px); }
+.mini__img { width: 52px; height: 52px; border-radius: 12px; background: var(--surface-2); display: grid; place-items: center; }
+.mini__img .phone-wrap { width: 22px; }
+.mini b { display: block; font-size: .92rem; }
+.mini small { color: var(--muted); }
+
+/* ---- плаващ бутон за контакт ---- */
+.fab { position: fixed; right: 18px; bottom: 18px; z-index: 70; display: grid; gap: 10px; }
+.fab__btn {
+  width: 54px; height: 54px; border-radius: 50%; display: grid; place-items: center; color: #fff;
+  box-shadow: 0 12px 26px -8px rgba(0,0,0,.45); transition: transform .2s;
+}
+.fab__btn:hover { transform: scale(1.08); }
+.fab__btn svg { width: 24px !important; fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.fab__viber { background: #7360f2; }
+.fab__call { background: var(--success); }
+body:has(.compare-bar:not([hidden])) .fab { bottom: 92px; }
+@media (max-width: 560px) { .fab__btn { width: 48px; height: 48px; } .fab { right: 12px; bottom: 12px; } }

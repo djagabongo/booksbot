@@ -29,6 +29,7 @@
     compare: [],
     promo: store.get("promo", null),
     sel: {}, // избран цвят на карта: id -> index
+    recent: store.get("recent", []),
   };
 
   /* ---------- SVG телефон ---------- */
@@ -92,7 +93,12 @@
       <rect x="2" y="2" width="${w - 4}" height="201" rx="${type === "fold" ? 14 : 18}" fill="url(#${id}s)" stroke="${dark}" stroke-opacity=".5"/>
     </svg>`;
   }
-  const phone = (p, hex) => `<div class="phone-wrap">${phoneSVG(p, hex)}</div>`;
+  function phone(p, hex) {
+    const c = p.colors.find((x) => x.hex === hex);
+    const img = (c && c.image) || p.image;
+    if (img) return `<div class="phone-wrap photo"><img src="${esc(img)}" alt="${esc(p.model)}${c ? " – " + esc(c.name) : ""}" loading="lazy" decoding="async"/></div>`;
+    return `<div class="phone-wrap">${phoneSVG(p, hex)}</div>`;
+  }
 
   /* ---------- икони ---------- */
   const ICONS = {
@@ -185,6 +191,11 @@
   /* ---------- детайли на продукт ---------- */
   function openProduct(id) {
     const p = byId(id);
+    if (!p) return;
+    setHash("#p/" + id);
+    state.recent = [id, ...state.recent.filter((x) => x !== id)].slice(0, 8);
+    store.set("recent", state.recent);
+    renderRecent();
     let ci = state.sel[id] || 0, si = 0;
     const draw = () => {
       const st = p.storage[si], c = p.colors[ci];
@@ -210,6 +221,7 @@
             <div style="display:flex;gap:10px">
               <button class="btn btn--primary" style="flex:1" data-add>Добави в количката</button>
               <button class="icon-btn" data-fav="${p.id}" style="width:50px;height:50px" aria-label="Любими">${heart}</button>
+              <button class="icon-btn" data-share style="width:50px;height:50px" aria-label="Сподели" title="Сподели"><svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg></button>
             </div>
             <div class="perks"><span>🚚 Доставка до 24 ч</span><span>🔍 Преглед преди плащане</span><span>🛡️ Гаранция ${p.condition === "Нов" ? "24" : "12"} мес.</span><span>↩️ 14 дни за връщане</span></div>
             <table class="specs">${Object.entries(p.specs).map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</table>
@@ -226,9 +238,50 @@
       else if (t.dataset.ms) { si = +t.dataset.ms; draw(); }
       else if ("add" in t.dataset) { addToCart(p.id, si, ci); closeModal(); openDrawer("cartDrawer"); }
       else if (t.dataset.fav) { toggleFav(p.id); draw(); }
+      else if ("share" in t.dataset) share(p);
     };
     openModal();
   }
+
+  function share(p) {
+    const url = location.href.split("#")[0] + "#p/" + p.id;
+    const text = `${p.model} – от ${eur(minPrice(p))} в ${S.name}`;
+    if (navigator.share) navigator.share({ title: p.model, text, url }).catch(() => {});
+    else navigator.clipboard?.writeText(url).then(() => toast("🔗 Линкът е копиран"), () => toast(url));
+  }
+  function setHash(h) {
+    try { history.replaceState(null, "", h || location.pathname + location.search); } catch {}
+  }
+  function routeFromHash() {
+    const m = location.hash.match(/^#p\/([\w-]+)/);
+    if (m && byId(m[1])) openProduct(m[1]);
+  }
+
+  /* ---------- последно разгледани ---------- */
+  function renderRecent() {
+    const list = state.recent.map(byId).filter(Boolean);
+    $("#recent").hidden = list.length === 0;
+    $("#recentRail").innerHTML = list
+      .map((p) => `<button class="mini" data-open="${p.id}">
+        <span class="mini__img">${phone(p, p.colors[state.sel[p.id] || 0].hex)}</span>
+        <span><b>${esc(p.model)}</b><small>от ${eur(minPrice(p))}</small></span></button>`)
+      .join("");
+  }
+
+  /* ---------- изпращане на поръчки/запитвания ---------- */
+  async function sendToStore(subject, text, data) {
+    if (!S.orderEndpoint) return false;
+    try {
+      const r = await fetch(S.orderEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ _subject: subject, message: text, ...data }),
+      });
+      return r.ok;
+    } catch { return false; }
+  }
+  const mailtoLink = (subject, text) =>
+    `mailto:${S.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
 
   /* ---------- количка ---------- */
   const saveCart = () => { store.set("cart", state.cart); renderCart(); };
@@ -322,18 +375,40 @@
         <button class="btn btn--primary btn--block" type="submit">Потвърди поръчката · ${eur(t.total)}</button>
       </form>`;
     $("#modalBox").onclick = null;
-    $("#checkoutForm").addEventListener("submit", (e) => {
+    $("#checkoutForm").addEventListener("submit", async (e) => {
       e.preventDefault();
       const fd = Object.fromEntries(new FormData(e.target));
       const num = "GD" + Date.now().toString().slice(-6);
+      const lines = state.cart.map((l) => {
+        const p = byId(l.id);
+        return `• ${p.model} ${p.storage[l.si].size}, ${p.colors[l.ci].name} × ${l.qty} = ${eur(lineTotal(l))}`;
+      });
+      const text = [
+        `Поръчка № ${num}`, "", ...lines, "",
+        `Междинна сума: ${eur(t.sub)}`, t.disc ? `Отстъпка (${state.promo.code}): −${eur(t.disc)}` : false,
+        `Доставка: ${t.ship ? eur(t.ship) : "безплатна"}`, `ОБЩО: ${eur(t.total)}`, "",
+        `Клиент: ${fd.name}`, `Телефон: ${fd.phone}`, fd.email ? `Имейл: ${fd.email}` : false,
+        `Доставка: ${fd.ship} – ${fd.city}, ${fd.addr}`, `Плащане: ${fd.pay}`,
+      ].filter((x) => x !== false).join("\n");
+      const btn = e.target.querySelector("[type=submit]");
+      btn.disabled = true; btn.textContent = "Изпращане…";
+      const sent = await sendToStore(`Нова поръчка ${num} – ${eur(t.total)}`, text, { order: num, name: fd.name, phone: fd.phone, email: fd.email || "" });
       const orders = store.get("orders", []);
       orders.push({ num, date: new Date().toISOString(), customer: fd, items: state.cart, total: t.total });
       store.set("orders", orders);
       state.cart = []; state.promo = null; store.set("promo", null); saveCart();
       $("#modalBox").innerHTML = `<button class="icon-btn modal__close" data-close aria-label="Затвори"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
         <div class="success"><div class="check">✓</div><h2>Благодарим, ${esc(fd.name.split(" ")[0])}!</h2>
-        <p class="muted">Поръчка <b>№ ${num}</b> е приета. Ще се свържем с вас на <b>${esc(fd.phone)}</b> за потвърждение.<br/>Доставка: ${esc(fd.ship)} · Плащане: ${esc(fd.pay)}</p>
-        <button class="btn btn--primary" data-close>Продължи пазаруването</button></div>`;
+        ${sent
+          ? `<p class="muted">Поръчка <b>№ ${num}</b> е приета. Ще се свържем с вас на <b>${esc(fd.phone)}</b> за потвърждение.<br/>Доставка: ${esc(fd.ship)} · Плащане: ${esc(fd.pay)}</p>
+             <button class="btn btn--primary" data-close>Продължи пазаруването</button>`
+          : `<p class="muted">Поръчка <b>№ ${num}</b> е готова. Остава една стъпка – изпратете я, за да я получим:</p>
+             <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+               <a class="btn btn--primary" href="${mailtoLink("Поръчка " + num, text)}">✉️ Изпрати поръчката</a>
+               <a class="btn btn--ghost" href="tel:${S.phone.replace(/\s/g, "")}">📞 Обади се</a>
+             </div>
+             <p class="muted" style="font-size:.85rem;margin-top:16px">Или ни се обадете на ${esc(S.phone)} и кажете номера на поръчката.</p>`}
+        </div>`;
     });
     openModal();
   }
@@ -399,6 +474,7 @@
   function closeModal() {
     const m = $("#modal");
     m.classList.remove("open"); m.setAttribute("aria-hidden", "true");
+    if (location.hash.startsWith("#p/")) setHash("");
     if (!$(".drawer.open")) document.body.style.overflow = "";
     lastFocus?.focus?.();
   }
@@ -436,6 +512,28 @@
       <li><span class="ic">${icon("pin")}</span><div><small>Магазин</small><b>${esc(S.address)}</b></div></li>
       <li><span class="ic">${icon("clock")}</span><div><small>Работно време</small><b>${esc(S.hours)}</b></div></li>`;
     $("#socials").innerHTML = `<a href="${S.social.facebook}" aria-label="Facebook">f</a><a href="${S.social.instagram}" aria-label="Instagram">ig</a><a href="${S.social.tiktok}" aria-label="TikTok">tt</a>`;
+
+    // плаващ бутон за контакт
+    $("#fab").innerHTML = `
+      <a href="viber://chat?number=%2B${S.viber}" class="fab__btn fab__viber" aria-label="Пиши ни във Viber" title="Viber"><svg viewBox="0 0 24 24"><path d="M12 2C6.5 2 3 4.6 3 10.5c0 3.2 1.1 5.4 3 6.7V21l3.2-2.6c.9.1 1.8.2 2.8.2 5.5 0 9-2.6 9-8.1S17.5 2 12 2z"/><path d="M9 7.5c.4-.4 1-.4 1.3.1l.7 1.1c.2.4.1.8-.2 1.1l-.4.3c.4 1 1.2 1.8 2.2 2.3l.3-.4c.3-.3.8-.4 1.1-.2l1.1.7c.5.3.5.9.1 1.3l-.5.5c-.6.6-1.6.7-2.4.2C10.6 13.4 9.4 12.2 8.5 10.6c-.5-.8-.4-1.8.2-2.4z" fill="currentColor"/></svg></a>
+      <a href="tel:${tel}" class="fab__btn fab__call" aria-label="Обади се" title="Обади се">${icon("phone")}</a>`;
+
+    // структурирани данни за Google
+    const ld = document.createElement("script");
+    ld.type = "application/ld+json";
+    ld.textContent = JSON.stringify({
+      "@context": "https://schema.org",
+      "@graph": [
+        { "@type": "MobilePhoneStore", name: S.name, telephone: S.phone, email: S.email, address: S.address, openingHours: S.hours },
+        ...P.map((p) => ({
+          "@type": "Product", name: p.model, brand: { "@type": "Brand", name: p.brand }, description: p.description,
+          aggregateRating: { "@type": "AggregateRating", ratingValue: p.rating, reviewCount: p.reviews },
+          offers: { "@type": "AggregateOffer", priceCurrency: "EUR", lowPrice: minPrice(p), highPrice: Math.max(...p.storage.map((s) => s.price)), availability: "https://schema.org/InStock",
+            itemCondition: p.condition === "Нов" ? "https://schema.org/NewCondition" : "https://schema.org/RefurbishedCondition" },
+        })),
+      ],
+    });
+    document.head.appendChild(ld);
 
     // hero
     const a = byId("iphone-17-pro-max"), b = byId("galaxy-s26-ultra");
@@ -541,9 +639,13 @@
 
     $("#tiModel").addEventListener("change", tradeIn);
     $("#tiCond").addEventListener("change", tradeIn);
-    $("#contactForm").addEventListener("submit", (e) => {
-      e.preventDefault(); e.target.reset();
-      toast("✓ Благодарим! Ще се свържем с вас скоро.");
+    $("#contactForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fd = Object.fromEntries(new FormData(e.target));
+      const text = `Запитване от ${fd.name}\nТелефон: ${fd.phone}\n\n${fd.msg || ""}`;
+      if (await sendToStore("Запитване от сайта", text, fd)) toast("✓ Благодарим! Ще се свържем с вас скоро.");
+      else location.href = mailtoLink("Запитване от сайта", text);
+      e.target.reset();
     });
   }
 
@@ -557,6 +659,9 @@
   renderCompareBar();
   tradeIn();
   countdown(); setInterval(countdown, 1000);
+  renderRecent();
   bind();
   reveal();
+  routeFromHash();
+  addEventListener("hashchange", routeFromHash);
 })();
