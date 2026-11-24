@@ -4,7 +4,7 @@
 и assets/legal.js от текстовете на правните страници.
 
 Употреба:
-    python3 tools/build_catalog.py <папка_с_източници> [--keep-legacy] [--accessories casestore.json]
+    python3 tools/build_catalog.py <папка_с_източници> [--keep-legacy] [--accessories casestore.json] [--min-year 2023]
 
 В папката трябва да има:
     catalog-list.json, models.json, shop.json (по желание)
@@ -29,6 +29,10 @@ LEGACY = re.compile(r"""(
   \bMoto\s*(G[1-6]|E[1-5]|X)(?![0-9])
 )""", re.I | re.X)
 KEEP_LEGACY = "--keep-legacy" in sys.argv
+# Телефони и таблети, представени преди тази година, не се включват (--min-year 0 = без филтър)
+MIN_YEAR = int(sys.argv[sys.argv.index("--min-year") + 1]) if "--min-year" in sys.argv else 2023
+# Модели без година в данните, за които е известно, че са по-стари
+OLD_DEVICES = re.compile(r"\b(LG\s+Cam\s+Plus|Nokia\s+T21|Galaxy\s+Tab\s+Active\s*4)\b", re.I)
 ACCESSORIES_FILE = sys.argv[sys.argv.index("--accessories") + 1] if "--accessories" in sys.argv else None
 
 # Корекции на правните текстове, за да отговарят на новия сайт (без лична връзка за проследяване,
@@ -97,6 +101,17 @@ def build_catalog(src):
             if f.endswith(".json"):
                 for v in json.load(open(os.path.join(model_dir, f), encoding="utf-8")):
                     model_data[v["id"]] = v
+    # година на представяне от данните на модела („Представен: 2024-…“) или от името („(2022)“)
+    def release_year(x):
+        md = model_data.get(x["id"]) or {}
+        for f in md.get("features") or []:
+            if f.startswith("Представен:"):
+                m = re.search(r"(19|20)\d\d", f)
+                if m:
+                    return int(m.group(0))
+        m = re.search(r"\b(20[12]\d)\b", x.get("familyName") or x["name"])
+        return int(m.group(1)) if m else None
+    too_old = 0
     img_dir = os.path.join(ROOT, "assets", "img", "products")
     def has_img(ref):
         return os.path.exists(os.path.join(img_dir, ref + ".webp"))
@@ -116,6 +131,11 @@ def build_catalog(src):
         if cat == "accessories" and not KEEP_LEGACY and LEGACY.search(x["name"]):
             legacy_hidden += 1
             continue
+        if x.get("groupId") and cat in ("phones", "tablets") and MIN_YEAR:
+            y = release_year(x)
+            if (y and y < MIN_YEAR) or OLD_DEVICES.search(x.get("familyName") or x["name"]):
+                too_old += 1
+                continue
         if x.get("groupId"):
             g = groups.setdefault(x["groupSlug"], {
                 "s": x["groupSlug"], "n": x["familyName"], "b": x["brand"], "c": cat,
@@ -197,7 +217,7 @@ def build_catalog(src):
     path = os.path.join(ROOT, "assets", "catalog.js")
     open(path, "w", encoding="utf-8").write(js)
     print(f"catalog.js: {len(groups)} модела, {len(singles)} артикула, {len(js) // 1024} KB"
-          f" (скрити аксесоари за стари модели: {legacy_hidden})")
+          f" (скрити аксесоари за стари модели: {legacy_hidden}; варианти на телефони/таблети отпреди {MIN_YEAR}: {too_old})")
 
 
 SPEC_SECTIONS = [
@@ -295,7 +315,7 @@ def build_legal(src):
 
 
 if __name__ == "__main__":
-    args = [a for i, a in enumerate(sys.argv[1:], 1) if not a.startswith("--") and sys.argv[i - 1] != "--accessories"]
+    args = [a for i, a in enumerate(sys.argv[1:], 1) if not a.startswith("--") and sys.argv[i - 1] not in ("--accessories", "--min-year")]
     if len(args) != 1:
         sys.exit(__doc__)
     build_catalog(args[0])
