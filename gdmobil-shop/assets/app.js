@@ -221,8 +221,8 @@
         <div class="tile__glow"></div>
         <div class="tile__copy">
           <span class="eyebrow eyebrow--dark">Магазин и сервиз · Гоце Делчев</span>
-          <h1 class="display">Следващият ти телефон <em>е тук.</em></h1>
-          <p>${esc(hero.name)} – избери конфигурация и цвят. Вземи от магазина без такса или с доставка до теб.</p>
+          <h1 class="display">Новият ти телефон <em>е тук.</em></h1>
+          <p>${esc(hero.name)} – избери памет и цвят. Вземи го от магазина без такса или с доставка до теб.</p>
           <div class="tile__row">
             <span class="btn btn--ember">Виж модела ${icon("arrow")}</span>
             <span class="tile__price"><small>от</small> ${eur(hero.min)}</span>
@@ -241,8 +241,8 @@
       </a>` : ""}
       <a class="tile tile--ember" href="#/service">
         <span class="eyebrow eyebrow--dark">Сервиз</span>
-        <h3>Счупен екран? Слаба батерия?</h3>
-        <p>Ремонт от <b>15 €</b> · диагностика и оферта преди ремонта</p>
+        <h3>Счупен екран?<br>Слаба батерия?</h3>
+        <p>Ремонт от <b>15 €</b> с оферта преди ремонта</p>
         <span class="tile__cta">Запитване за ремонт ${icon("arrow")}</span>
       </a>
       <a class="tile tile--ink" href="#/c/accessories">
@@ -255,10 +255,10 @@
 
     <section class="container">
       <div class="ticker">
-        <span>${icon("store")} Вземане от магазина <b>без такса</b></span>
-        <span>${icon("truck")} Еконт и Спиди до <b>офис или адрес</b></span>
-        <span>${icon("shield")} <b>Преглед</b> при получаване</span>
-        <span>${icon("wrench")} Сервиз <b>на място</b></span>
+        <span>${icon("store")}<b>Вземане без такса</b></span>
+        <span>${icon("truck")}<b>Еконт и Спиди</b></span>
+        <span>${icon("shield")}<b>14 дни за отказ</b></span>
+        <span>${icon("wrench")}<b>Сервиз на място</b></span>
       </div>
     </section>
 
@@ -315,15 +315,6 @@
           <button class="btn btn--primary btn--block" type="submit">Покажи аксесоарите ${icon("arrow")}</button>
           <small class="muted">Провери точния модел и съвместимостта преди покупка.</small>
         </form>
-      </div>
-    </section>
-
-    <section class="container section">
-      <div class="why">
-        <a href="#/legal/delivery" class="why__item"><span class="why__ic">${icon("store")}</span><b>Вземи от магазина</b><small>Без такса, след потвърждение, че конфигурацията е готова.</small></a>
-        <a href="#/legal/delivery" class="why__item"><span class="why__ic">${icon("truck")}</span><b>Доставка до теб</b><small>Еконт или Спиди – до офис или адрес, с наложен платеж.</small></a>
-        <a href="#/legal/returns" class="why__item"><span class="why__ic">${icon("shield")}</span><b>Гаранция и връщане</b><small>Законова гаранция и 14 дни за отказ при покупка онлайн.</small></a>
-        <a href="#/inquiries" class="why__item"><span class="why__ic">${icon("mail")}</span><b>Питай ни</b><small>Цена, наличност или съвместимост – отговаряме по телефона.</small></a>
       </div>
     </section>
 
@@ -588,7 +579,7 @@
           return `<button class="opt ${cur[k] === val ? "active" : ""} ${exact ? "" : "opt--alt"}" data-opt="${k}" data-val="${esc(val)}" aria-pressed="${cur[k] === val}" ${exact ? "" : 'title="Ще смени и други опции"'}>
             ${k === "color" ? `<i class="sw" style="background:${colorHex(val)}"></i>` : ""}<span>${esc(val)}</span>${showPrice ? `<small>${eur(target.price)}</small>` : ""}</button>`;
         }).join("")}</div></div>`).join("")}
-      ${compact ? "" : `<div class="config__sel"><small class="muted">Избрана конфигурация</small><b>${esc(varLabel(cur) || "Стандартна")}</b></div>`}`;
+`;
   }
 
   function buyHtml(p, cur) {
@@ -635,9 +626,9 @@
           <h1>${esc(p.name)}</h1>
           <p class="muted pd__codes" id="pdCodes"></p>
           ${p.desc ? `<p class="muted">${esc(p.desc)}</p>` : ""}
-          ${keySpecs.length ? `<div class="keyspecs">${keySpecs.map((k) => `<div><small>${esc(k)}</small><b>${esc(p.specs[k])}</b></div>`).join("")}</div>` : ""}
           <div class="config" id="config"></div>
           <div class="pd__buy" id="pdBuy"></div>
+          ${keySpecs.length ? `<div class="keyspecs">${keySpecs.map((k) => `<div><small>${esc(k)}</small><b>${esc(p.specs[k])}</b></div>`).join("")}</div>` : ""}
           <div class="pd__tools">
             <button class="btn btn--ghost btn--sm" data-fav="${p.slug}" id="pdFav">${icon("heart")} <span></span></button>
             ${canCompare(p) ? `<button class="btn btn--ghost btn--sm" data-cmp="${p.slug}" id="pdCmp">${icon("swap")} <span></span></button>` : ""}
@@ -648,7 +639,6 @@
             <div>${icon("truck")}<span><b>Еконт или Спиди</b><small>До офис или адрес · наложен платеж</small></span></div>
             <div>${icon("shield")}<span><b>Гаранция и 14 дни за отказ</b><small><a href="#/legal/returns">Условия</a></small></span></div>
           </div>
-          <div class="acc">${window.PRODUCT_INFO.map((x) => `<details><summary>${esc(x.q)}</summary><p>${esc(x.a)}</p></details>`).join("")}</div>
         </div>
       </div>
 
@@ -1340,8 +1330,9 @@
       const open = now >= from && now < to;
       return `<i class="dot ${open ? "dot--on" : ""}"></i>${open ? "Отворено сега" : "Затворено сега"} · днес ${esc(h)}`;
     };
-    const td = $("[data-today]");
-    if (td) { td.innerHTML = today(); setInterval(() => (td.innerHTML = today()), 60000); }
+    const tds = $$("[data-today], [data-today2]");
+    const tick = () => tds.forEach((e) => (e.innerHTML = today()));
+    if (tds.length) { tick(); setInterval(tick, 60000); }
     $("[data-tagline]").textContent = S.tagline;
     $("[data-copy]").textContent = `© ${new Date().getFullYear()} GDMobil · ${S.company} · ЕИК ${S.eik}`;
     $("#socials").innerHTML = `

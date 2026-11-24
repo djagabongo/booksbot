@@ -880,3 +880,81 @@ body:has(.sticky-buy.show) .fab { bottom: 90px; }
 .topbar__item .dot--on { background: #3ddc97; box-shadow: 0 0 0 3px rgba(61,220,151,.25); }
 .stock { color: var(--ember-2) !important; }
 .stock--no { color: #f5b14c !important; }
+
+/* ===== v4: начална страница и мобилна версия ===== */
+.ticker span { justify-content: center; gap: 10px; color: var(--text); }
+.ticker b { font-weight: 600; }
+.tile--ember h3 { line-height: 1.15; }
+
+@media (max-width: 640px) {
+  /* основна плочка – по-компактна */
+  .tile--hero { padding: 24px 20px 210px; }
+  .display { font-size: 2.05rem; margin-bottom: 12px; }
+  .tile--hero p { font-size: .95rem; margin-bottom: 0; }
+  .tile__row { margin-top: 16px; gap: 12px 16px; }
+  .tile__price { font-size: 1.3rem; }
+  .tile__phone { width: 58%; bottom: -46px; }
+
+  /* плочка с втория модел – хоризонтална */
+  .tile--wide { flex-direction: row-reverse; align-items: center; gap: 14px; padding: 18px; }
+  .tile--wide .plinth { width: 38%; margin: 0; }
+  .tile--wide h2 { font-size: 1.15rem; margin-bottom: 2px; }
+  .tile--wide .muted { font-size: .78rem; line-height: 1.35; margin: 0; }
+  .tile--wide .tile__price { font-size: 1.15rem; margin-top: 8px; }
+  .tile--wide .eyebrow { margin-bottom: 6px; }
+
+  /* сервиз и аксесоари – еднакви, четими плочки */
+  .tile--ember, .tile--ink { min-height: 178px; padding: 18px 16px; }
+  .tile--ember h3, .tile--ink h3 { font-size: 1rem; line-height: 1.2; margin-bottom: 6px; }
+  .tile--ember p { font-size: .8rem; line-height: 1.35; margin: 0; }
+  .tile--ember .tile__cta { font-size: .85rem; margin-top: 10px; }
+  .tile--ember .tile__cta .ic { width: 16px; height: 16px; }
+  .tile__acc { width: 56%; right: -16px; bottom: -20px; }
+  .tile .eyebrow { font-size: .66rem; letter-spacing: .12em; }
+
+  /* лентата с предимства – плъзгаща се на един ред */
+  .ticker { display: flex; overflow-x: auto; scrollbar-width: none; gap: 8px; background: none; border: 0; border-radius: 0; margin-top: 10px; padding-bottom: 2px; }
+  .ticker::-webkit-scrollbar { display: none; }
+  .ticker span { flex: none; padding: 10px 14px; border-radius: 999px; border: 1px solid var(--line); font-size: .82rem; white-space: nowrap; }
+
+  /* по-кратки секции */
+  .section { padding-top: 52px; }
+  .section__head { margin-bottom: 18px; }
+  #topGrid .card:nth-child(n+7) { display: none; }
+  .band { margin-top: 60px; }
+  .band__inner { padding: 44px 0; gap: 24px; }
+  .band__prices li:nth-child(n+5) { display: none; }
+  .band__prices li { padding: 11px 12px; font-size: .9rem; }
+
+  /* марките – плъзгаща се лента на два реда */
+  .brands { grid-template-columns: none; grid-auto-flow: column; grid-template-rows: repeat(2, auto); grid-auto-columns: 46%; overflow-x: auto; scrollbar-width: none; padding-bottom: 4px; }
+  .brands::-webkit-scrollbar { display: none; }
+
+  /* „защо при нас“ – 2 × 2 компактни */
+  .why { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .why__item { padding: 16px; border-radius: 20px; }
+  .why__ic { width: 40px; height: 40px; margin-bottom: 4px; }
+  .why__item b { font-size: .92rem; line-height: 1.25; }
+  .why__item small { font-size: .78rem; }
+
+  .finder { padding: 22px 18px; border-radius: 26px; }
+  .finder h2 { font-size: 1.3rem; }
+
+  /* картата – на телефона има бутон „Упътване“ */
+  .map { display: none; }
+  .contact { gap: 18px; }
+}
+
+.footer__open { color: #bdb9b3; font-size: .9rem; margin: 6px 0 4px; }
+.footer__open .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #8f8c87; margin-right: 8px; vertical-align: middle; }
+.footer__open .dot--on { background: #3ddc97; box-shadow: 0 0 0 3px rgba(61,220,151,.25); }
+.footer__addr { color: #fff !important; }
+
+.map { min-height: 0; }
+.map__ph { padding: 22px; grid-template-columns: auto 1fr auto; justify-items: start; text-align: left; align-items: center; gap: 4px 16px; }
+.map__ph .ic { grid-row: span 2; width: 30px; height: 30px; }
+.map__ph .btn { grid-row: 1 / span 2; grid-column: 3; margin: 0; }
+.map__ph .muted { font-size: .86rem; }
+
+.config { gap: 16px; padding: 20px 22px; }
+.pd__info { gap: 14px; }
