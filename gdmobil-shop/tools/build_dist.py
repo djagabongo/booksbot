@@ -79,6 +79,8 @@ def main():
     def img(h, big=True):
         if not h:
             return "assets/img/camera.svg"
+        if h.startswith("cs:"):
+            return f"https://casestore.bg/cdn/img/products/{h[3:]}{'&' if '?' in h else '?'}width=600&height=600"
         if h.startswith("assets/") or h.startswith("https:"):
             return h
         return f"assets/img/products/{h}.webp" if big or h in no_thumb else f"assets/img/products/{h}-sm.webp"

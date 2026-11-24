@@ -174,6 +174,16 @@ def classify(p):
     return sub, label, key, specific, is_new, brand
 
 
+def short_img(u):
+    """https://casestore.bg/cdn/img/products/131705/x.jpeg?width=600&height=600&v=1 → cs:131705/x.jpeg?v=1"""
+    u = html.unescape(u or "")
+    m = re.match(r"https://casestore\.bg/cdn/img/products/([^?]+)(?:\?(.*))?$", u)
+    if not m:
+        return u
+    v = re.search(r"(?:^|&)v=([^&]+)", m.group(2) or "")
+    return "cs:" + m.group(1) + (f"?v={v.group(1)}" if v else "")
+
+
 def main():
     if len(sys.argv) < 2:
         sys.exit(__doc__)
@@ -197,7 +207,7 @@ def main():
             m = models.setdefault(key, {"key": key, "name": dev, "brand": brand, "count": 0})
             m["count"] += 1
         keep.append({"i": 900000000 + p["id"], "s": "cs-" + p["slug"], "n": p["name"], "b": brand, "c": "accessories", "sc": sub,
-                     "p": price, "op": old, "im": p["img"].replace("&amp;", "&"), "cm": compat, "d": "", "dc": 0, "st": 1,
+                     "p": price, "op": old, "im": short_img(p["img"]), "cm": compat, "d": "", "dc": 0, "st": 1,
                      "src": f"https://casestore.bg/product/{p['slug']}"})
     print(json.dumps({"items": keep, "models": sorted(models.values(), key=lambda m: (m["brand"], m["name"]))}, ensure_ascii=False))
     print(json.dumps(stats, ensure_ascii=False), file=sys.stderr)

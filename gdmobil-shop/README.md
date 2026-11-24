@@ -59,6 +59,21 @@
 - `assets/catalog.js` – каталогът (генерира се автоматично, не се пипа ръчно)
 - `assets/legal.js` – правните текстове
 
+### Аксесоари от casestore.bg
+Аксесоарите се внасят от собствения магазин casestore.bg – само за новите модели устройства
+(приблизително от 2023–2024 г.) плюс универсалните (зарядни, кабели, power bank-ове):
+
+    # 1) списъците с продукти (по 96 на страница, пауза 3 сек.)
+    for n in $(seq 1 121); do curl -s -o pages/$n.html "https://casestore.bg/products?page=$n"; sleep 3; done
+    # 2) разчитане и филтър по модел
+    python3 tools/import_casestore.py pages > casestore.json
+    # 3) снимките – локално като WebP 400 px
+    python3 tools/fetch_casestore_images.py casestore.json
+    # 4) каталог: телефони/таблети от GDMobil + аксесоари от casestore.json
+    python3 tools/build_catalog.py <папка_с_източници> --accessories casestore.json
+
+Правилата за „нов модел“ са в `NEW` в `tools/import_casestore.py`.
+
 ### Обновяване на каталога
 Свалете `catalog-list.json`, `models.json` и `shop.json` от сайта в папка и изпълнете:
 

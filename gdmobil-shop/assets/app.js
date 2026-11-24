@@ -22,9 +22,10 @@
 
   /* ---------- каталог ---------- */
   const noThumb = new Set(C.noThumb || []);
-  const full = (h) => (!h ? "assets/img/camera.svg" : /^(assets\/|https:)/.test(h) ? h : `assets/img/products/${h}.webp`);
-  const thumb = (h) => (h && h.startsWith("https:") ? h.replace(/width=\d+&height=\d+/, "width=300&height=300")
-    : !h || h.startsWith("assets/") || noThumb.has(h) ? full(h) : `assets/img/products/${h}-sm.webp`);
+  const csImg = (h, w) => `https://casestore.bg/cdn/img/products/${h.slice(3)}${h.includes("?") ? "&" : "?"}width=${w}&height=${w}`;
+  const full = (h) => (!h ? "assets/img/camera.svg" : h.startsWith("cs:") ? csImg(h, 600) : /^(assets\/|https:)/.test(h) ? h : `assets/img/products/${h}.webp`);
+  const thumb = (h) => (h && h.startsWith("cs:") ? csImg(h, 300) : h && h.startsWith("https:") ? h.replace(/width=\d+&height=\d+/, "width=300&height=300")
+    : !h || h.startsWith("assets/") || /^cs\d+$/.test(h) || noThumb.has(h) ? full(h) : `assets/img/products/${h}-sm.webp`);
   const finalPrice = (base, disc) => (base == null ? null : disc ? Math.round(base * (100 - disc)) / 100 : base);
   const CAT_NAMES = Object.fromEntries(window.CATEGORIES.map((c) => [c.key, c.name]));
   const MODEL_NAMES = Object.fromEntries(C.models.map((m) => [m.key, `${m.brand} ${m.name}`]));

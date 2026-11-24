@@ -4,7 +4,7 @@
 и assets/legal.js от текстовете на правните страници.
 
 Употреба:
-    python3 tools/build_catalog.py <папка_с_източници> [--keep-legacy]
+    python3 tools/build_catalog.py <папка_с_източници> [--keep-legacy] [--accessories casestore.json]
 
 В папката трябва да има:
     catalog-list.json, models.json, shop.json (по желание)
@@ -295,7 +295,7 @@ def build_legal(src):
 
 
 if __name__ == "__main__":
-    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    args = [a for i, a in enumerate(sys.argv[1:], 1) if not a.startswith("--") and sys.argv[i - 1] != "--accessories"]
     if len(args) != 1:
         sys.exit(__doc__)
     build_catalog(args[0])
