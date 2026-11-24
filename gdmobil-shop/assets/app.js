@@ -1076,7 +1076,7 @@
     btn.disabled = true;
     const text = `Моля, абонирайте ме за бюлетина на GDMobil.\nИмейл: ${email}\nСъгласие: да (${new Date().toLocaleString("bg-BG")})`;
     track("Абонамент за бюлетин");
-    const sent = await sendToStore("Абонамент за бюлетин", text, { email, type: "newsletter" });
+    const sent = await sendToStore("Абонамент за бюлетин", text, { type: "newsletter", email, consent: true });
     store.set("newsletter", true);
     form.outerHTML = sent
       ? `<div class="news__done">${icon("check")}<b>Готово – абониран си!</b><span>Ще получаваш новините на ${esc(email)}.</span></div>`
@@ -1152,7 +1152,7 @@
       delivery: () => `🚚 <b>Доставка</b><br>• Вземане от магазина – <b>без такса</b>, след потвърждение, че конфигурацията е готова.<br>• <b>Еконт или Спиди</b> до офис или адрес в България – таксата и срокът се потвърждават от магазина преди изпращане.<br>${link("#/legal/delivery", "Доставка и плащане")}`,
       payment: () => `💳 <b>Плащане</b><br>• В магазина – при вземане на място.<br>• <b>Наложен платеж</b> – при доставка с куриер.<br>Не се изисква предплащане за непотвърдена заявка. За други възможности (напр. на изплащане) – попитай колегите ни.${human()}`,
       returns: () => `↩️ <b>Връщане и гаранция</b><br>• При покупка онлайн имаш <b>14 дни</b> за отказ без причина.<br>• За новите стоки важи минимум <b>2 години законова гаранция</b>.<br>• Рекламации: ${esc(S.email)} или в магазина.<br>${link("#/legal/returns", "Гаранция и връщане")}`,
-      order: () => `📦 След заявка получаваш <b>номер на заявката</b>. Магазинът потвърждава наличността, сумата и срока по телефона или имейла, а при изпращане – номер на товарителница.<br>За статус на конкретна поръчка се свържи с нас:${human()}`,
+      order: () => `📦 След заявка получаваш <b>номер на заявката</b>. Магазинът потвърждава наличността, сумата и срока по телефона или имейла, а при изпращане – номер на товарителница.<br>Статуса на поръчка или ремонт виждаш в <a href="#/track">Проследяване</a> – с номера и последните 4 цифри от телефона. Ако имаш въпрос:${human()}`,
       human: () => `Разбира се – ето как да говориш с колега от GDMobil:<br>${todayText()}${human()}`,
       promo: () => `🔥 Новите модели са с етикет „Ново“, а намаленията – с „-%“. ${link("#/c/phones?tag=new", "Нови телефони")}${PRODUCTS.some((p) => p.tags.sale) ? link("#/c/all?tag=sale", "Намалени продукти") : ""}<br>Абонирай се за бюлетина най-долу на началната страница, за да научаваш първи.`,
       thanks: () => `Моля! 😊 Ако имаш още въпроси – тук съм.`,
@@ -1338,7 +1338,7 @@
         <label class="field"><span>Вид запитване *</span><select class="select" name="type" required>
           ${["Ремонт", "Диагностика", "Въпрос за цена или части", "Друго запитване"].map((t) => `<option ${(!svc && t === "Въпрос за цена или части") ? "selected" : ""}>${t}</option>`).join("")}</select></label>
         <label class="field"><span>Устройство *</span><select class="select" name="device" required>
-          <option value="">Избери устройство</option>${["Телефон", "Таблет", "Камера", "Аксесоар", "Друго"].map((t) => `<option ${t === guessDevice ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+          <option value="">Избери устройство</option>${["Телефон", "Таблет", "Аксесоар", "Друго"].map((t) => `<option ${t === guessDevice ? "selected" : ""}>${t}</option>`).join("")}</select></label>
       </div>
       <label class="field"><span>${svc ? "Марка и модел" : "Продукт / тема"} *</span><input class="input" name="model" required value="${esc(topic)}"></label>
       <label class="field"><span>${svc ? "Какъв е проблемът?" : "Как можем да помогнем?"} *</span><textarea class="input" name="msg" rows="4" required>${esc(msg)}</textarea></label>
@@ -1358,12 +1358,17 @@
     const btn = form.querySelector("[type=submit]");
     btn.disabled = true; btn.textContent = "Изпращане…";
     track(fd.type === "Ремонт" ? "Запитване за ремонт" : "Запитване");
-    const sent = await sendToStore(`Запитване ${num} – ${fd.type}`, text, { ref: num, ...fd });
+    const isRepair = ["Ремонт", "Диагностика"].includes(fd.type);
+    const sent = await sendToStore(`Запитване ${num} – ${fd.type}`, text, {
+      type: isRepair ? "repair" : "inquiry", ref: num.replace(/^Z-/, isRepair ? "R-" : "Z-"), title: `${fd.type}: ${fd.model}`,
+      device: `${fd.device} – ${fd.model}`, customer: { name: fd.name, phone: fd.phone, email: fd.email || "" } });
+    const ref = typeof sent === "string" ? sent : num;
     form.outerHTML = `<div class="form-card success">
       <div class="success__check">${icon("check")}</div>
       <h2>${sent ? "Запитването е изпратено" : "Запитването е готово"}</h2>
-      <p>Номер на запитването: <b>${num}</b></p>
-      ${sent ? `<p class="muted">Ще се свържем с теб на <b>${esc(fd.phone)}</b>.</p>`
+      <p>Номер на запитването: <b>${ref}</b></p>
+      ${sent ? `<p class="muted">Ще се свържем с теб на <b>${esc(fd.phone)}</b>.</p>
+        ${typeof sent === "string" ? `<a class="btn btn--ghost" href="${trackLink(ref, fd.phone)}">${icon("search")} Проследи статуса</a>` : ""}`
         : `<p class="muted">Остава една стъпка – изпрати го, за да го получим:</p>
            <div class="row-btns"><a class="btn btn--primary" href="${mailto(`Запитване ${num}`, text)}">${icon("mail")} Изпрати по имейл</a>
            <a class="btn btn--ghost" href="tel:${tel}">${icon("phone")} Обади се</a></div>`}
@@ -1550,19 +1555,25 @@
       const btn = f.querySelector("[type=submit]");
       btn.disabled = true; btn.textContent = "Изпращане…";
       track("Изпратена заявка за поръчка");
-      const sent = await sendToStore(`Нова поръчка ${num} – ${eur(sub, true)}`, text, { order: num, name: fd.name, phone: fd.phone, email: fd.email || "" });
+      const sent = await sendToStore(`Нова поръчка ${num} – ${eur(sub, true)}`, text, {
+        type: "order", ref: num, title: `${cartLines().length} продукт(а) – ${eur(sub + (fee || 0), true)}`,
+        customer: { name: fd.name, phone: fd.phone, email: fd.email || "" },
+        items: cartLines().map((l) => { const { p, v } = lineInfo(l); return { id: v.id, name: p.name, variant: varLabel(v), qty: l.qty, price: v.price }; }),
+        total: Math.round((sub + (fee || 0)) * 100) / 100, delivery: recvTxt, payment: fd.pay });
+      const ref = typeof sent === "string" ? sent : num;
       const orders = store.get("orders", []);
-      orders.push({ num, date: new Date().toISOString(), text });
+      orders.push({ num: ref, phone: fd.phone, date: new Date().toISOString(), text });
       store.set("orders", orders.slice(-20));
       state.cart = []; saveState("cart"); renderCart();
       $("#modalBox").innerHTML = `<button class="icon-btn modal__close" data-close aria-label="Затвори">${icon("close")}</button>
         <div class="success">
           <div class="success__check">${icon("check")}</div>
           <h2>Благодарим, ${esc(fd.name.split(" ")[0])}!</h2>
-          <p>Номер на заявката: <b>${num}</b></p>
+          <p>Номер на заявката: <b>${ref}</b></p>
           ${sent
             ? `<p class="muted">Заявката е получена. Ще се свържем с теб на <b>${esc(fd.phone)}</b>, за да потвърдим наличността, сумата и срока.</p>
-               <button class="btn btn--primary" data-close>Продължи пазаруването</button>`
+               <div class="row-btns"><button class="btn btn--primary" data-close>Продължи пазаруването</button>
+               ${typeof sent === "string" ? `<a class="btn btn--ghost" href="${trackLink(ref, fd.phone)}">${icon("search")} Проследи поръчката</a>` : ""}</div>`
             : `<p class="muted">Остава една стъпка – изпрати заявката, за да я получим:</p>
                <div class="row-btns"><a class="btn btn--primary" href="${mailto(`Поръчка ${num}`, text)}">${icon("mail")} Изпрати заявката</a>
                <a class="btn btn--ghost" href="tel:${tel}">${icon("phone")} Обади се</a></div>
@@ -1576,7 +1587,15 @@
     const d = new Date();
     return `${prefix}-${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}-${Math.floor(1000 + Math.random() * 9000)}`;
   }
+  // Връща номера (string), когато заявката е записана в магазина, true – при Formspree, false – ако не е изпратена.
   async function sendToStore(subject, text, data) {
+    try {
+      const r = await fetch("/api/orders", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...data, text }), signal: AbortSignal.timeout?.(8000),
+      });
+      if (r.ok) { const j = await r.json(); if (j.ok) return j.ref || true; }
+    } catch {}
     if (!S.orderEndpoint) return false;
     try {
       const r = await fetch(S.orderEndpoint, {
@@ -1587,6 +1606,66 @@
       return r.ok;
     } catch { return false; }
   }
+  const trackLink = (ref, phone) => `#/track?ref=${encodeURIComponent(ref)}&phone=${String(phone || "").replace(/\D/g, "").slice(-4)}`;
+
+  /* ================= ПРОСЛЕДЯВАНЕ ================= */
+  function pageTrack(q) {
+    setTitle("Проследи поръчка или ремонт");
+    const mine = store.get("orders", []).filter((o) => o.phone).slice(-3).reverse();
+    view.innerHTML = `<section class="container page">
+      ${crumbs([["Проследяване"]])}
+      <div class="svc-grid">
+        <div>
+          <h1>Проследи поръчка или ремонт</h1>
+          <p class="muted">Въведи номера, който получи (напр. GD-261124-1234 или R-261124-1234), и последните 4 цифри от телефона, с който е направена заявката.</p>
+          ${mine.length ? `<div class="track-mine"><b class="small">Твоите последни заявки</b>${mine.map((o) => `<a class="chip" href="${trackLink(o.num, o.phone)}">${esc(o.num)}</a>`).join("")}</div>` : ""}
+          <div class="info-cards">
+            <div class="info-card">${icon("phone")}<div><b>Имаш въпрос?</b><p class="muted">Обади се на <a href="tel:${tel}">${esc(S.phone)}</a> и кажи номера на заявката.</p></div></div>
+          </div>
+        </div>
+        <div>
+          <form class="form-card" id="trackForm">
+            <h2>Статус на заявка</h2>
+            <label class="field"><span>Номер *</span><input class="input" name="ref" required value="${esc(q.get("ref") || "")}" placeholder="GD-261124-1234" autocapitalize="characters"></label>
+            <label class="field"><span>Последни 4 цифри от телефона *</span><input class="input" name="phone" required inputmode="numeric" pattern="\\d{4}" maxlength="4" value="${esc(q.get("phone") || "")}" placeholder="3338"></label>
+            <button class="btn btn--primary btn--block" type="submit">${icon("search")} Провери статуса</button>
+          </form>
+          <div id="trackRes" aria-live="polite"></div>
+        </div>
+      </div>
+    </section>`;
+    const f = $("#trackForm");
+    f.addEventListener("submit", (e) => { e.preventDefault(); lookup(); });
+    if (q.get("ref") && q.get("phone")) lookup();
+    async function lookup() {
+      const ref = f.ref.value.trim().toUpperCase(), phone = f.phone.value.replace(/\D/g, "");
+      const out = $("#trackRes");
+      if (!ref || phone.length !== 4) { out.innerHTML = `<p class="muted">Въведи номера и 4 цифри от телефона.</p>`; return; }
+      out.innerHTML = `<p class="muted">Проверка…</p>`;
+      let res, data;
+      try { res = await fetch(`/api/orders?ref=${encodeURIComponent(ref)}&phone=${phone}`); data = await res.json(); } catch {}
+      if (!res || !res.ok) {
+        out.innerHTML = `<div class="form-card"><p><b>${res?.status === 404 ? "Не открихме заявка с тези данни." : res?.status === 429 ? "Твърде много опити. Опитай пак след малко." : "Проследяването не е достъпно в момента."}</b></p>
+          <p class="muted small">Провери номера и цифрите или се обади на <a href="tel:${tel}">${esc(S.phone)}</a>.</p></div>`;
+        return;
+      }
+      track("Проследяване");
+      const d = (s) => new Date(s).toLocaleString("bg-BG", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+      const kind = data.type === "order" ? "Поръчка" : data.type === "repair" ? "Ремонт" : "Запитване";
+      const done = ["done", "cancelled"].includes(data.status);
+      out.innerHTML = `<div class="form-card track-card">
+        <div class="track-card__head"><span class="muted small">${kind} ${esc(data.ref)}</span>
+          <span class="track-status track-status--${esc(data.status)}">${esc(data.statusLabel)}</span></div>
+        ${data.items?.length ? `<ul class="track-items">${data.items.map((i) => `<li>${esc(i.name)}${i.variant ? ` <span class="muted">(${esc(i.variant)})</span>` : ""} × ${i.qty}</li>`).join("")}</ul>` : ""}
+        ${data.device ? `<p class="small"><span class="muted">Устройство:</span> ${esc(data.device)}</p>` : ""}
+        ${data.total != null ? `<p class="small"><span class="muted">Сума:</span> <b>${eur(data.total, true)}</b></p>` : ""}
+        ${data.delivery ? `<p class="small"><span class="muted">Получаване:</span> ${esc(data.delivery)}</p>` : ""}
+        ${data.tracking ? `<p class="small"><span class="muted">Товарителница:</span> <b>${esc(data.tracking)}</b></p>` : ""}
+        <ol class="track-steps">${data.history.slice().reverse().map((h, i) => `<li class="${i === 0 && !done ? "now" : ""}"><b>${esc(h.label)}</b><span class="muted small">${d(h.at)}</span>${h.note ? `<p class="small">${esc(h.note)}</p>` : ""}</li>`).join("")}</ol>
+      </div>`;
+    }
+  }
+
   const mailto = (subject, text) => `mailto:${S.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
 
   /* ---------- любими и сравнение ---------- */
@@ -1757,8 +1836,8 @@
   function parseRoute() {
     let h = location.hash.slice(1);
     if (!h || !h.startsWith("/")) {
-      const m = location.pathname.match(/^\/(p|c|legal)\/([\w-]+)\/?$/) || location.pathname.match(/^\/(service|inquiries|compare|contact)\/?$/);
-      if (m) h = "/" + m[1] + (m[2] ? "/" + m[2] : "") + (h && !h.startsWith("/") ? "" : "");
+      const m = location.pathname.match(/^\/(p|c|legal)\/([\w-]+)\/?$/) || location.pathname.match(/^\/(service|inquiries|compare|contact|track)\/?$/);
+      if (m) h = "/" + m[1] + (m[2] ? "/" + m[2] : "") + location.search; // /p/slug/?v=123 от фийда
     }
     const [pathA, qs] = (h.startsWith("/") ? h : "/").split("?");
     const [path, anchor] = pathA.split("#");
@@ -1788,6 +1867,7 @@
       case "inquiries": pageInquiries(q); break;
       case "legal": pageLegal(parts[1], anchor); break;
       case "compare": pageCompare(); break;
+      case "track": pageTrack(q); break;
       default: pageNotFound();
     }
     if (!anchor && parts[0] !== "contact") window.scrollTo(0, 0);

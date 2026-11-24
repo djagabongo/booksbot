@@ -47,11 +47,40 @@
     netlify deploy --prod --no-build --dir dist --functions netlify/functions
 
 ## Поръчки и запитвания
-Поръчката е заявка, която магазинът потвърждава (както на сегашния сайт): вземане от магазина без такса
-или Еконт/Спиди до офис или адрес; плащане в магазина или с наложен платеж.
-- **Без настройка:** клиентът изпраща готов имейл с поръчката до `office@gdmobil.bg`.
-- **Автоматично (препоръчително):** създайте безплатна форма във formspree.io и поставете адреса ѝ в
-  `orderEndpoint` в `assets/data.js` – поръчките и запитванията идват директно в пощата.
+Поръчката е заявка, която магазинът потвърждава: вземане от магазина без такса или Еконт/Спиди до офис
+или адрес; плащане в магазина или с наложен платеж.
+- Всяка поръчка, запитване, заявка за ремонт и абонамент се записва в Netlify Blobs
+  (`netlify/functions/orders.mjs`) и се вижда в админ панела → **Поръчки**. Там се сменя статусът,
+  добавя се бележка към клиента и номер на товарителница.
+- Клиентът проследява статуса на `#/track` с номера (GD-…, R-…, Z-…) и последните 4 цифри от телефона.
+- Ако сървърът не е достъпен, сайтът ползва Formspree (`orderEndpoint`), а накрая – готов имейл до магазина.
+
+### Известия в Telegram
+Viber ботовете изискват платен търговски акаунт, затова известията са през Telegram (безплатно):
+1. В Telegram пишете на **@BotFather** → `/newbot` → получавате **токен**.
+2. Пишете произволно съобщение на новия бот, после отворете
+   `https://api.telegram.org/bot<ТОКЕН>/getUpdates` и вземете `"chat":{"id": …}`.
+   (За група: добавете бота в групата и вземете id на групата – започва с `-`.)
+3. В Netlify → Site configuration → Environment variables добавете `TELEGRAM_BOT_TOKEN` и
+   `TELEGRAM_CHAT_ID` и публикувайте отново.
+
+## Google Shopping, Facebook и Instagram Shop
+Продуктовият фийд е на **`/feeds/products.xml`** (формат Google RSS, всеки цвят/памет е отделен артикул
+с `item_group_id`). Цените, намаленията, наличността и скритите продукти идват на живо от админ панела.
+- **Google Merchant Center** → Products → Feeds → Add → Scheduled fetch → адрес на фийда (дневно).
+  Доставката се задава в Merchant Center → Shipping (или с таксата „до офис“ в админ панела).
+- **Meta Commerce Manager** → Catalog → Data sources → Data feed → Scheduled feed → същият адрес.
+  После в Instagram → Shopping и Facebook Page → Shop се избира този каталог.
+
+## Google Search Console и Google Business
+1. search.google.com/search-console → Add property → **URL prefix** → адресът на сайта →
+   метод **HTML tag** → копирайте само кода от `content="…"` в `googleVerify` в `assets/data.js`,
+   пуснете `python3 tools/build_dist.py` и публикувайте → Verify.
+2. В Search Console → Sitemaps → `sitemap.xml` → Submit.
+3. business.google.com → профил „GDMobil“, категория „Магазин за мобилни телефони“ (+ „Сервиз за мобилни
+   телефони“), адрес ул. „Солун“ 21, Гоце Делчев, телефон, работно време и уебсайт; потвърждение с
+   пощенска карта/видео. Добавете снимки на магазина и помолете клиенти за отзиви.
+4. За Meta (домейн за магазина): Business Settings → Brand safety → Domains → Meta-tag → кода в `metaVerify`.
 
 ## Редактиране
 - `assets/data.js` – стойности по подразбиране (контакти, работно време, етикети, сервизни цени, текстове);

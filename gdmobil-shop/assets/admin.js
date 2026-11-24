@@ -27,7 +27,7 @@
   /* ---------- състояние ---------- */
   let O = null; // настройките
   let dirty = false;
-  let tab = "products";
+  let tab = "orders";
   let sel = null; // избран продукт
   const blank = () => ({
     store: {}, labels: { new: [...(L0.new || [])], hot: [...(L0.hot || [])], sale: { ...(L0.sale || {}) }, newAdd: [], newRemove: [] },
@@ -139,7 +139,7 @@
   function render() {
     const m = $("#main"), fresh = m.cloneNode(false);
     m.replaceWith(fresh); // нов елемент – без натрупани обработчици от предишния раздел
-    ({ products: renderProducts, labels: renderLabels, home: renderHome, store: renderStore, reviews: renderReviews, analytics: renderAnalytics })[tab]();
+    ({ orders: renderOrders, products: renderProducts, labels: renderLabels, home: renderHome, store: renderStore, reviews: renderReviews, analytics: renderAnalytics })[tab]();
   }
 
   /* ===== ПРОДУКТИ ===== */
@@ -378,6 +378,71 @@
       if (e.target.closest("[data-rup]")) { [R.items[i - 1], R.items[i]] = [R.items[i], R.items[i - 1]]; change(); renderReviews(); }
     });
     $("#addRev").addEventListener("click", () => { R.items = R.items || []; R.items.push({ name: "", rating: 5, date: "", text: "" }); change(); renderReviews(); });
+  }
+
+  /* ===== ПОРЪЧКИ, РЕМОНТИ, ЗАПИТВАНИЯ ===== */
+  const TYPE = { order: "Поръчка", repair: "Ремонт", inquiry: "Запитване" };
+  let OL = null, oFilter = "open", oType = "", oSel = null;
+  async function ordersApi(method, query, body) {
+    const r = await fetch("/api/orders" + query, { method, cache: "no-store", headers: { "content-type": "application/json", "x-admin-password": pw() }, body: body ? JSON.stringify(body) : undefined });
+    let data = null; try { data = await r.json(); } catch {}
+    return { ok: r.ok, status: r.status, data };
+  }
+  const fmt = (s) => new Date(s).toLocaleString("bg-BG", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  async function renderOrders() {
+    const m = $("#main");
+    if (!OL) {
+      m.innerHTML = `<div class="adm-page"><p class="muted">Зареждане…</p></div>`;
+      const r = await ordersApi("GET", "?list=1");
+      if (!r.ok) { m.innerHTML = `<div class="adm-page"><section class="adm-box"><p>Списъкът не може да се зареди (${r.status}).</p></section></div>`; return; }
+      OL = r.data;
+    }
+    const S = OL.statuses, list = OL.orders.filter((o) => (!oType || o.type === oType) && (oFilter === "all" || (oFilter === "open" ? !["done", "cancelled", "closed"].includes(o.status) : o.status === "new")));
+    const cnt = (f) => OL.orders.filter((o) => f(o)).length;
+    m.innerHTML = `<div class="adm-page adm-orders"><section class="adm-box">
+      <div class="adm-row"><h2>Заявки</h2><button class="btn btn--ghost btn--sm" id="oReload">Обнови</button></div>
+      <div class="adm-chips">
+        ${[["new", `Нови (${cnt((o) => o.status === "new")})`], ["open", `Отворени (${cnt((o) => !["done", "cancelled", "closed"].includes(o.status))})`], ["all", `Всички (${OL.orders.length})`]].map(([k, l]) => `<button class="adm-chip ${oFilter === k ? "on" : ""}" data-of="${k}">${l}</button>`).join("")}
+        <select class="select" id="oType"><option value="">Всички видове</option>${Object.entries(TYPE).map(([k, l]) => `<option value="${k}" ${oType === k ? "selected" : ""}>${l}</option>`).join("")}</select>
+      </div>
+      ${list.length ? `<div class="adm-table-wrap"><table class="adm-table adm-table--orders"><thead><tr><th>№</th><th>Дата</th><th>Клиент</th><th>Описание</th><th>Сума</th><th>Статус</th></tr></thead><tbody>
+        ${list.map((o) => `<tr data-ref="${esc(o.ref)}" class="${oSel?.ref === o.ref ? "sel" : ""}"><td><b>${esc(o.ref)}</b><br><span class="muted small">${TYPE[o.type] || o.type}</span></td><td>${fmt(o.createdAt)}</td>
+          <td>${esc(o.name)}<br><a href="tel:${esc(o.phone)}">${esc(o.phone)}</a></td><td>${esc(o.title)}</td><td>${o.total != null ? eur(o.total) : "—"}</td>
+          <td><span class="adm-badge adm-badge--${esc(o.status)}">${esc(S[o.type]?.[o.status] || o.status)}</span></td></tr>`).join("")}</tbody></table></div>`
+        : `<p class="muted">Няма заявки в този изглед. Новите поръчки от сайта се появяват тук автоматично.</p>`}
+      <p class="muted small">Известия в Telegram: добави TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID в Netlify (виж README).</p>
+    </section><section class="adm-box" id="oDetail">${oSel ? orderDetail(oSel) : `<p class="muted">Избери заявка от списъка.</p>`}</section></div>`;
+    m.addEventListener("click", async (e) => {
+      if (e.target.id === "oReload") { OL = null; return renderOrders(); }
+      const f = e.target.closest("[data-of]"); if (f) { oFilter = f.dataset.of; return renderOrders(); }
+      const tr = e.target.closest("tr[data-ref]");
+      if (tr && !e.target.closest("a")) {
+        const r = await ordersApi("GET", "?ref=" + encodeURIComponent(tr.dataset.ref));
+        if (r.ok) { oSel = r.data; renderOrders(); }
+      }
+      if (e.target.id === "oSave") {
+        const b = { status: $("#oStatus").value, note: $("#oNote").value.trim(), tracking: $("#oTrack").value.trim(), internalNote: $("#oInternal").value };
+        e.target.disabled = true;
+        const r = await ordersApi("POST", "?update=" + encodeURIComponent(oSel.ref), b);
+        if (r.ok) { oSel = r.data.order; OL = null; toast("✓ Заявката е обновена"); renderOrders(); }
+        else { e.target.disabled = false; toast("Грешка (" + r.status + ")"); }
+      }
+    });
+    m.addEventListener("change", (e) => { if (e.target.id === "oType") { oType = e.target.value; renderOrders(); } });
+  }
+  function orderDetail(o) {
+    const S = OL.statuses[o.type] || {};
+    const link = `${location.origin}/#/track?ref=${encodeURIComponent(o.ref)}&phone=${String(o.customer.phone).replace(/\D/g, "").slice(-4)}`;
+    return `<div class="adm-row"><h2>${TYPE[o.type] || ""} ${esc(o.ref)}</h2><span class="muted small">${fmt(o.createdAt)}</span></div>
+      <p><b>${esc(o.customer.name)}</b> · <a href="tel:${esc(o.customer.phone)}">${esc(o.customer.phone)}</a>${o.customer.email ? ` · <a href="mailto:${esc(o.customer.email)}">${esc(o.customer.email)}</a>` : ""}</p>
+      <pre class="adm-pre">${esc(o.text)}</pre>
+      <label class="field"><span>Статус</span><select class="select" id="oStatus">${Object.entries(S).map(([k, l]) => `<option value="${k}" ${o.status === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+      <label class="field"><span>Бележка към клиента (вижда се при проследяване)</span><input class="input" id="oNote" placeholder="напр. Очакваме частта до четвъртък"></label>
+      ${o.type === "order" ? `<label class="field"><span>Номер на товарителница</span><input class="input" id="oTrack" value="${esc(o.tracking || "")}" placeholder="Еконт / Спиди"></label>` : `<input type="hidden" id="oTrack" value="${esc(o.tracking || "")}">`}
+      <label class="field"><span>Вътрешна бележка (само за магазина)</span><textarea class="input" id="oInternal" rows="2">${esc(o.internalNote || "")}</textarea></label>
+      <button class="btn btn--primary" id="oSave">Запази статуса</button>
+      <p class="muted small">Връзка за клиента: <a href="${esc(link)}" target="_blank">${esc(link)}</a></p>
+      <h3>История</h3><ol class="adm-hist">${o.history.slice().reverse().map((h) => `<li><b>${esc(S[h.status] || h.status)}</b> <span class="muted small">${fmt(h.at)}</span>${h.note ? `<br>${esc(h.note)}` : ""}</li>`).join("")}</ol>`;
   }
 
   /* ===== СТАТИСТИКА ===== */

@@ -1198,3 +1198,19 @@ body:has(.sticky-buy.show) .chat-fab { bottom: 96px; }
 .seo-list--cols li { break-inside: avoid; margin-bottom: 6px; }
 .seo-pre .pd__main { aspect-ratio: auto; min-height: 320px; }
 .seo-pre .pd__stage { position: static; padding: 30px; }
+
+/* ---------- проследяване ---------- */
+.track-mine { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 18px 0; }
+.track-mine b { width: 100%; }
+#trackRes { margin-top: 16px; }
+.track-card__head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
+.track-status { padding: 6px 14px; border-radius: 999px; font-weight: 600; font-size: .9rem; background: var(--ember-soft); color: var(--ember-ink); }
+.track-status--ready, .track-status--shipped { background: #dff3e6; color: #17703a; }
+.track-status--done, .track-status--answered, .track-status--closed { background: var(--bg); color: var(--muted); }
+.track-status--cancelled { background: #fde2e2; color: #a01d1d; }
+.track-items { margin: 0 0 10px; padding-left: 18px; }
+.track-steps { list-style: none; margin: 16px 0 0; padding: 0 0 0 18px; border-left: 2px solid var(--line); display: grid; gap: 14px; }
+.track-steps li { position: relative; display: grid; gap: 2px; }
+.track-steps li::before { content: ""; position: absolute; left: -25px; top: 4px; width: 12px; height: 12px; border-radius: 50%; background: var(--line); }
+.track-steps li.now::before { background: var(--ember); box-shadow: 0 0 0 4px var(--ember-soft); }
+.track-steps p { margin: 2px 0 0; }

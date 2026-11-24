@@ -30,6 +30,10 @@ window.STORE = {
   viber: "", // напр. "359893933338" – ако е празно, бутонът за Viber не се показва
   aiChat: true, // AI асистент в чата (нужен е ключ ANTHROPIC_API_KEY в Netlify); без ключ работи вграденият асистент
   siteUrl: "https://gdmobil.netlify.app", // основен адрес на сайта (за Google и споделяне)
+  // Потвърждение на собствеността (само кода от content="…"): Google Search Console → „HTML маркер“,
+  // Meta Business Suite → Brand safety → Domains → „Meta-tag verification“. Важи след ново публикуване.
+  googleVerify: "",
+  metaVerify: "",
 
   /* Къде да се изпращат поръчките и запитванията.
      Празно = клиентът изпраща готов имейл до office@gdmobil.bg.

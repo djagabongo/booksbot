@@ -99,6 +99,10 @@ def main():
         og = image if image and image.startswith("https:") else site + "/" + (image or "assets/img/logo.webp")
         head = re.sub(r'<meta property="og:image" content="[^"]*" />', f'<meta property="og:image" content="{E(og)}" />', head, count=1)
         extra = f'  <link rel="canonical" href="{E(url)}" />\n  <meta property="og:url" content="{E(url)}" />\n'
+        if path == "/" and store.get("googleVerify"):
+            extra += f'  <meta name="google-site-verification" content="{E(store["googleVerify"])}" />\n'
+        if path == "/" and store.get("metaVerify"):
+            extra += f'  <meta name="facebook-domain-verification" content="{E(store["metaVerify"])}" />\n'
         if ld:
             extra += f'  <script type="application/ld+json">{json.dumps(ld, ensure_ascii=False)}</script>\n'
         head = head.replace("</head>", extra + "</head>", 1)
@@ -197,6 +201,32 @@ def main():
           "openingHours": ["Mo-Fr 09:30-18:00", "Sa 10:00-14:00"], "sameAs": [v for v in store.get("social", {}).values() if v]}
     home = page("/", "GDMobil — Телефони, аксесоари и сервиз в Гоце Делчев", "Телефони, таблети и аксесоари с цени в евро. Поръчай онлайн или вземи от GDMobil в Гоце Делчев. Сервиз за телефони и таблети.", body, ld)
     urls.insert(0, home)
+
+    # ---------- продуктов фийд (Google Merchant Center, Meta Commerce Manager) ----------
+    # Тук се записва само основата; /feeds/products.xml (netlify/functions/feed.mjs) добавя
+    # актуалните цени, намаления, наличност и скрити продукти от админ панела.
+    gcat = {"phones": "267", "tablets": "4745", "accessories": "264"}
+    rows = []
+    def short(t, n=4900):
+        t = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", t or "")).strip()
+        return t[:n]
+    for g in catalog["groups"]:
+        sp = g.get("sp") or {}
+        spec_txt = "; ".join(f"{k}: {v}" for k, v in list(sp.items())[:8])
+        for v in g["v"]:
+            title = " ".join(x for x in [g["n"], v[1], v[2] and v[2] + " RAM", v[3]] if x)
+            rows.append({"id": v[0], "g": g["s"] if len(g["v"]) > 1 else "", "s": g["s"], "t": title[:150], "b": g["b"], "c": g["c"], "sub": g.get("sc", ""),
+                         "color": v[3], "mem": v[1], "p": v[5], "d": v[8], "o": v[11] if len(v) > 11 else None, "st": v[9],
+                         "im": img(v[6]), "gal": [img(x) for x in (v[10] or [])[:5]],
+                         "desc": short(f'{g["n"]} {" ".join(x for x in [v[1], v[3]] if x)}. {spec_txt}. Купи от GDMobil – магазин и сервиз в Гоце Делчев. Доставка в цяла България или вземане от магазина.')})
+    for i in catalog["items"]:
+        rows.append({"id": i["i"], "g": "", "s": i["s"], "t": i["n"][:150], "b": i["b"], "c": i["c"], "sub": i.get("sc", ""), "color": "", "mem": "",
+                     "p": i["p"], "d": i.get("dc", 0), "o": i.get("op"), "st": i.get("st", 1), "im": img(i["im"]), "gal": [],
+                     "desc": short((i.get("d") or "") + f' {i["n"]}. Купи от GDMobil – доставка в цяла България или вземане от магазина в Гоце Делчев.')})
+    rows = [r for r in rows if r["p"] is not None and r["im"] and not r["im"].endswith(".svg")]
+    os.makedirs(os.path.join(DIST, "feeds"), exist_ok=True)
+    json.dump({"site": site, "gcat": gcat, "cats": cat_names, "rows": rows}, open(os.path.join(DIST, "feeds", "base.json"), "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
+    print(f"feeds/base.json: {len(rows)} артикула за Google Shopping / Facebook / Instagram")
 
     # ---------- sitemap и robots ----------
     today = date.today().isoformat()
