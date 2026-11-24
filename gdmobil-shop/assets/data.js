@@ -1,432 +1,88 @@
 /* ==========================================================
-   GD Mobil – данни за магазина
-   Редактирайте този файл, за да промените продукти, цени и контакти.
-   Цените са в евро (€). Те са примерни – заменете ги с вашите.
+   GDMobil – настройки на магазина
+   Каталогът (продукти, цени, снимки) е в assets/catalog.js и се генерира
+   с tools/build_catalog.py. Тук са контактите, услугите и текстовете.
    ========================================================== */
 
 window.STORE = {
-  name: "GD Mobil",
-  tagline: "Смартфони, които вдъхновяват",
-  phone: "+359 888 000 000",
-  email: "info@gdmobil.bg",
-  address: "гр. София, бул. „Витоша“ 1",
-  hours: "Пон–Пет 10:00–19:00 · Съб 10:00–16:00",
-  viber: "359888000000", // номер за Viber без „+“
-  /* Къде да се изпращат поръчките и запитванията.
-     Оставете празно, за да се изпращат по имейл (отваря се имейл клиентът на купувача).
-     За автоматично получаване: регистрирайте се безплатно във formspree.io,
-     създайте форма и поставете адреса ѝ тук, напр. "https://formspree.io/f/abcdwxyz". */
-  orderEndpoint: "",
-  freeShippingFrom: 100,
-  shippingPrice: 4.9,
+  name: "GDMobil",
+  tagline: "Магазин и сервиз за мобилни устройства в Гоце Делчев.",
+  phone: "0893 933 338",
+  phoneIntl: "+359893933338",
+  email: "office@gdmobil.bg",
+  address: "ул. „Солун“ 21, Гоце Делчев",
+  postcode: "2900",
+  company: "ИН-ТЕЛ ЕООД",
+  eik: "101560088",
+  vat: "BG101560088",
+  hours: [
+    ["Пон. – Пет.", "09:30 – 18:00"],
+    ["Събота", "10:00 – 14:00"],
+    ["Неделя", "Почивен ден"],
+  ],
   social: {
-    facebook: "#",
-    instagram: "#",
-    tiktok: "#",
+    facebook: "https://www.facebook.com/110226218023637/",
+    instagram: "https://www.instagram.com/gdmobil_gsm/",
   },
+  maps: "https://www.google.com/maps/search/?api=1&query=GDMobil+%D0%A1%D0%BE%D0%BB%D1%83%D0%BD+21+%D0%93%D0%BE%D1%86%D0%B5+%D0%94%D0%B5%D0%BB%D1%87%D0%B5%D0%B2",
+  viber: "", // напр. "359893933338" – ако е празно, бутонът за Viber не се показва
+
+  /* Къде да се изпращат поръчките и запитванията.
+     Празно = клиентът изпраща готов имейл до office@gdmobil.bg.
+     За автоматично получаване: безплатна форма във formspree.io → поставете адреса тук. */
+  orderEndpoint: "",
+
+  /* Такси за доставка в евро. null = „Предстои уточняване“ (както на сегашния сайт). */
+  deliveryOffice: null,
+  deliveryAddress: null,
+
+  /* Основният модел в началото и подбраните смартфони (slug от каталога). */
+  heroSlug: "samsung-galaxy-s26-ultra-model-119473",
+  heroImage: "assets/img/galaxys26.webp",
+  featured: [
+    "samsung-galaxy-s26-ultra-model-119473",
+    "apple-iphone-18-pro-model-136292",
+    "apple-iphone-17-pro-model-103615",
+    "samsung-galaxy-s26-model-119515",
+    "apple-iphone-18-pro-max-model-136316",
+    "samsung-galaxy-z-fold-8-ultra-model-131082",
+    "google-pixel-11-pro-model-133234",
+    "xiaomi-17t-pro-model-125157",
+  ],
 };
 
-/* image: (по желание) път до истинска снимка, напр. "images/iphone-17-pro-max.webp".
-   Може и по цвят: colors: [{ name, hex, image: "images/iphone-orange.webp" }].
-   Ако няма снимка, се рисува модерен 3D макет на телефона.
-   camera: "apple" | "apple-air" | "samsung" | "pixel" | "xiaomi" | "fold" | "flip" */
-window.PRODUCTS = [
-  {
-    id: "iphone-17-pro-max",
-    brand: "Apple",
-    model: "iPhone 17 Pro Max",
-    camera: "apple",
-    badge: "Хит",
-    condition: "Нов",
-    rating: 4.9,
-    reviews: 214,
-    colors: [
-      { name: "Космическо оранжево", hex: "#d9773a" },
-      { name: "Дълбоко синьо", hex: "#2e3a55" },
-      { name: "Сребристо", hex: "#dfe1e4" },
-    ],
-    storage: [
-      { size: "256 GB", price: 1499 },
-      { size: "512 GB", price: 1749 },
-      { size: "1 TB", price: 1999 },
-    ],
-    oldPrice: 1599,
-    specs: {
-      "Дисплей": "6.9\" Super Retina XDR, 120 Hz ProMotion",
-      "Процесор": "Apple A19 Pro",
-      "Камера": "48 + 48 + 48 MP, 8× оптично",
-      "Батерия": "до 37 ч видео",
-      "5G": "Да",
-    },
-    description:
-      "Най-мощният iPhone досега – алуминиев unibody корпус, топлинна камера с изпарителна система и професионална тройна 48 MP камера.",
-  },
-  {
-    id: "iphone-17-pro",
-    brand: "Apple",
-    model: "iPhone 17 Pro",
-    camera: "apple",
-    condition: "Нов",
-    rating: 4.8,
-    reviews: 168,
-    colors: [
-      { name: "Космическо оранжево", hex: "#d9773a" },
-      { name: "Дълбоко синьо", hex: "#2e3a55" },
-      { name: "Сребристо", hex: "#dfe1e4" },
-    ],
-    storage: [
-      { size: "256 GB", price: 1349 },
-      { size: "512 GB", price: 1599 },
-      { size: "1 TB", price: 1849 },
-    ],
-    specs: {
-      "Дисплей": "6.3\" Super Retina XDR, 120 Hz",
-      "Процесор": "Apple A19 Pro",
-      "Камера": "48 + 48 + 48 MP",
-      "Батерия": "до 31 ч видео",
-      "5G": "Да",
-    },
-    description: "Pro мощност в компактен размер. Тройна 48 MP система и A19 Pro чип.",
-  },
-  {
-    id: "iphone-air",
-    brand: "Apple",
-    model: "iPhone Air",
-    camera: "apple-air",
-    badge: "Ново",
-    condition: "Нов",
-    rating: 4.6,
-    reviews: 87,
-    colors: [
-      { name: "Небесно синьо", hex: "#c9dcef" },
-      { name: "Светло злато", hex: "#efe3c8" },
-      { name: "Облачно бяло", hex: "#f4f4f2" },
-      { name: "Космическо черно", hex: "#26272b" },
-    ],
-    storage: [
-      { size: "256 GB", price: 1199 },
-      { size: "512 GB", price: 1449 },
-    ],
-    specs: {
-      "Дисплей": "6.5\" ProMotion, 120 Hz",
-      "Процесор": "Apple A19 Pro",
-      "Дебелина": "5.6 мм",
-      "Камера": "48 MP Fusion",
-      "5G": "Да",
-    },
-    description: "Най-тънкият iPhone, правен някога – само 5.6 мм титаниева рамка.",
-  },
-  {
-    id: "iphone-17",
-    brand: "Apple",
-    model: "iPhone 17",
-    camera: "apple",
-    condition: "Нов",
-    rating: 4.7,
-    reviews: 301,
-    colors: [
-      { name: "Лавандула", hex: "#cbbfe0" },
-      { name: "Мъгливо синьо", hex: "#a9bccb" },
-      { name: "Градински зелено", hex: "#b7c7a6" },
-      { name: "Черно", hex: "#2a2a2d" },
-      { name: "Бяло", hex: "#f2f2f0" },
-    ],
-    storage: [
-      { size: "256 GB", price: 949 },
-      { size: "512 GB", price: 1199 },
-    ],
-    specs: {
-      "Дисплей": "6.3\" ProMotion, 120 Hz",
-      "Процесор": "Apple A19",
-      "Камера": "48 + 48 MP",
-      "Предна камера": "18 MP Center Stage",
-      "5G": "Да",
-    },
-    description: "120 Hz дисплей, двойна 48 MP камера и цял ден батерия.",
-  },
-  {
-    id: "iphone-16",
-    brand: "Apple",
-    model: "iPhone 16",
-    camera: "apple",
-    condition: "Нов",
-    rating: 4.6,
-    reviews: 412,
-    colors: [
-      { name: "Ултрамарин", hex: "#7c8fd6" },
-      { name: "Тюркоаз", hex: "#9fd2c9" },
-      { name: "Розово", hex: "#efc3d2" },
-      { name: "Черно", hex: "#2a2a2d" },
-    ],
-    storage: [
-      { size: "128 GB", price: 749 },
-      { size: "256 GB", price: 869 },
-    ],
-    oldPrice: 849,
-    specs: {
-      "Дисплей": "6.1\" Super Retina XDR",
-      "Процесор": "Apple A18",
-      "Камера": "48 + 12 MP",
-      "Бутон": "Camera Control",
-      "5G": "Да",
-    },
-    description: "Apple Intelligence, бутон Camera Control и отлично съотношение цена/качество.",
-  },
-  {
-    id: "galaxy-s26-ultra",
-    brand: "Samsung",
-    model: "Galaxy S26 Ultra",
-    camera: "samsung",
-    badge: "Топ",
-    condition: "Нов",
-    rating: 4.9,
-    reviews: 156,
-    colors: [
-      { name: "Титаниево черно", hex: "#2b2c30" },
-      { name: "Титаниево сиво", hex: "#9a9a96" },
-      { name: "Титаниево синьо", hex: "#5d6f8c" },
-    ],
-    storage: [
-      { size: "256 GB", price: 1449 },
-      { size: "512 GB", price: 1569 },
-      { size: "1 TB", price: 1809 },
-    ],
-    specs: {
-      "Дисплей": "6.9\" Dynamic AMOLED 2X, 120 Hz",
-      "Процесор": "Snapdragon 8 Elite Gen 5 for Galaxy",
-      "Камера": "200 + 50 + 50 + 10 MP",
-      "S Pen": "Вграден",
-      "5G": "Да",
-    },
-    description: "200 MP камера, вграден S Pen и Galaxy AI за максимална продуктивност.",
-  },
-  {
-    id: "galaxy-s26",
-    brand: "Samsung",
-    model: "Galaxy S26",
-    camera: "samsung",
-    condition: "Нов",
-    rating: 4.7,
-    reviews: 98,
-    colors: [
-      { name: "Кобалтово виолетово", hex: "#6f5b8f" },
-      { name: "Ледено синьо", hex: "#bcd0e6" },
-      { name: "Черно", hex: "#26272b" },
-    ],
-    storage: [
-      { size: "256 GB", price: 999 },
-      { size: "512 GB", price: 1119 },
-    ],
-    specs: {
-      "Дисплей": "6.3\" Dynamic AMOLED 2X, 120 Hz",
-      "Процесор": "Exynos 2600",
-      "Камера": "50 + 12 + 10 MP",
-      "Батерия": "4300 mAh",
-      "5G": "Да",
-    },
-    description: "Компактен флагман с Galaxy AI и 7 години софтуерни обновления.",
-  },
-  {
-    id: "galaxy-z-fold7",
-    brand: "Samsung",
-    model: "Galaxy Z Fold7",
-    camera: "fold",
-    badge: "Сгъваем",
-    condition: "Нов",
-    rating: 4.8,
-    reviews: 64,
-    colors: [
-      { name: "Синя сянка", hex: "#3c4c6b" },
-      { name: "Сребърна сянка", hex: "#c9cbcf" },
-      { name: "Jetblack", hex: "#1f2023" },
-    ],
-    storage: [
-      { size: "256 GB", price: 2099 },
-      { size: "512 GB", price: 2219 },
-    ],
-    specs: {
-      "Вътрешен дисплей": "8.0\" Dynamic AMOLED 2X",
-      "Външен дисплей": "6.5\"",
-      "Дебелина (сгънат)": "8.9 мм",
-      "Камера": "200 + 12 + 10 MP",
-      "5G": "Да",
-    },
-    description: "Таблет в джоба ви – най-тънкият и лек Fold досега.",
-  },
-  {
-    id: "galaxy-z-flip7",
-    brand: "Samsung",
-    model: "Galaxy Z Flip7",
-    camera: "flip",
-    condition: "Нов",
-    rating: 4.6,
-    reviews: 77,
-    colors: [
-      { name: "Коралово червено", hex: "#e0675a" },
-      { name: "Синя сянка", hex: "#3c4c6b" },
-      { name: "Jetblack", hex: "#1f2023" },
-    ],
-    storage: [
-      { size: "256 GB", price: 1219 },
-      { size: "512 GB", price: 1339 },
-    ],
-    specs: {
-      "Вътрешен дисплей": "6.9\" FHD+ 120 Hz",
-      "FlexWindow": "4.1\" цял екран",
-      "Процесор": "Exynos 2500",
-      "Камера": "50 + 12 MP",
-      "5G": "Да",
-    },
-    description: "Стилен сгъваем телефон с огромен външен FlexWindow дисплей.",
-  },
-  {
-    id: "galaxy-a56",
-    brand: "Samsung",
-    model: "Galaxy A56 5G",
-    camera: "samsung",
-    condition: "Нов",
-    rating: 4.5,
-    reviews: 389,
-    colors: [
-      { name: "Графит", hex: "#3a3b3f" },
-      { name: "Светлосиво", hex: "#cfd1d4" },
-      { name: "Розово", hex: "#e8c4cf" },
-    ],
-    storage: [
-      { size: "128 GB", price: 429 },
-      { size: "256 GB", price: 479 },
-    ],
-    oldPrice: 479,
-    specs: {
-      "Дисплей": "6.7\" Super AMOLED, 120 Hz",
-      "Процесор": "Exynos 1580",
-      "Камера": "50 + 12 + 5 MP",
-      "Батерия": "5000 mAh, 45 W",
-      "5G": "Да",
-    },
-    description: "Флагмански функции на достъпна цена. 6 години обновления.",
-  },
-  {
-    id: "pixel-10-pro",
-    brand: "Google",
-    model: "Pixel 10 Pro",
-    camera: "pixel",
-    condition: "Нов",
-    rating: 4.7,
-    reviews: 52,
-    colors: [
-      { name: "Обсидиан", hex: "#25262a" },
-      { name: "Порцелан", hex: "#ece6dc" },
-      { name: "Лунен камък", hex: "#7d8796" },
-    ],
-    storage: [
-      { size: "128 GB", price: 1099 },
-      { size: "256 GB", price: 1199 },
-      { size: "512 GB", price: 1329 },
-    ],
-    specs: {
-      "Дисплей": "6.3\" Super Actua, 120 Hz",
-      "Процесор": "Google Tensor G5",
-      "Камера": "50 + 48 + 48 MP, 5× оптично",
-      "AI": "Gemini вграден",
-      "5G": "Да",
-    },
-    description: "Най-умният Pixel – Tensor G5, Gemini и фантастична компютърна фотография.",
-  },
-  {
-    id: "xiaomi-15t-pro",
-    brand: "Xiaomi",
-    model: "Xiaomi 15T Pro",
-    camera: "xiaomi",
-    badge: "Leica",
-    condition: "Нов",
-    rating: 4.6,
-    reviews: 73,
-    colors: [
-      { name: "Черно", hex: "#26272b" },
-      { name: "Сиво", hex: "#8e9094" },
-      { name: "Мока злато", hex: "#b59a7a" },
-    ],
-    storage: [
-      { size: "256 GB", price: 799 },
-      { size: "512 GB", price: 899 },
-      { size: "1 TB", price: 999 },
-    ],
-    specs: {
-      "Дисплей": "6.83\" AMOLED 144 Hz",
-      "Процесор": "MediaTek Dimensity 9400+",
-      "Камера": "Leica 50 + 50 + 12 MP",
-      "Зареждане": "90 W HyperCharge",
-      "5G": "Да",
-    },
-    description: "Leica оптика, 5× телефото и 90 W бързо зареждане.",
-  },
-  {
-    id: "redmi-note-15-pro",
-    brand: "Xiaomi",
-    model: "Redmi Note 15 Pro+",
-    camera: "xiaomi",
-    condition: "Нов",
-    rating: 4.4,
-    reviews: 256,
-    colors: [
-      { name: "Полунощно черно", hex: "#232427" },
-      { name: "Ледено синьо", hex: "#a8c3dc" },
-      { name: "Лилаво", hex: "#b7a3cf" },
-    ],
-    storage: [
-      { size: "256 GB", price: 449 },
-      { size: "512 GB", price: 519 },
-    ],
-    specs: {
-      "Дисплей": "6.67\" AMOLED 120 Hz",
-      "Камера": "200 MP",
-      "Батерия": "6500 mAh, 100 W",
-      "Защита": "IP68",
-      "5G": "Да",
-    },
-    description: "200 MP камера и огромна батерия на супер цена.",
-  },
-  {
-    id: "iphone-15-pro-refurb",
-    brand: "Apple",
-    model: "iPhone 15 Pro",
-    camera: "apple",
-    badge: "Рефърбиш",
-    condition: "Като нов",
-    rating: 4.6,
-    reviews: 141,
-    colors: [
-      { name: "Естествен титан", hex: "#bdb7ad" },
-      { name: "Черен титан", hex: "#3b3b3d" },
-    ],
-    storage: [
-      { size: "128 GB", price: 699 },
-      { size: "256 GB", price: 789 },
-    ],
-    oldPrice: 899,
-    specs: {
-      "Дисплей": "6.1\" Super Retina XDR, 120 Hz",
-      "Процесор": "Apple A17 Pro",
-      "Състояние": "Клас А+, батерия над 90%",
-      "Гаранция": "12 месеца",
-      "5G": "Да",
-    },
-    description: "Проверен по 50 точки, с нова батерия при нужда и 12 месеца гаранция.",
-  },
+window.CATEGORIES = [
+  { key: "phones", name: "Телефони", sub: "Смартфони", img: "assets/img/iphone.png" },
+  { key: "accessories", name: "Аксесоари", sub: "Слушалки, калъфи и зарядни", img: "assets/img/airpods.png" },
+  { key: "tablets", name: "Таблети", sub: "За работа и забавление", img: "assets/img/ipad.png" },
+  { key: "cameras", name: "Камери", sub: "Камери за наблюдение", img: "assets/img/camera.svg" },
 ];
 
-window.SERVICES = [
-  { icon: "wrench", title: "Сервиз и ремонт", text: "Смяна на дисплей, батерия и букса – често до 60 минути, с гаранция." },
-  { icon: "swap", title: "Изкупуване и бартер", text: "Дайте стария си телефон и вземете отстъпка за нов. Оценка за 2 минути." },
-  { icon: "card", title: "Покупка на изплащане", text: "От 0% оскъпяване до 12 месеца. Одобрение онлайн за минути." },
-  { icon: "shield", title: "Гаранция до 24 месеца", text: "Официална гаранция за всички нови устройства и 12 месеца за рефърбиш." },
+window.REPAIRS = [
+  { icon: "screen", title: "Смяна на дисплей", text: "Счупен екран, липсваща картина или неработещ допир.", price: "30 – 550 €" },
+  { icon: "battery", title: "Смяна на батерия", text: "Когато зарядът пада бързо или устройството се изключва.", price: "30 – 129 €" },
+  { icon: "plug", title: "Букса за зареждане", text: "Проверка при прекъсващо зареждане или проблем с конектора.", price: "15 – 90 €" },
+  { icon: "back", title: "Заден капак и стъкло", text: "Подмяна при пукнатини или счупване на задната част.", price: "15 – 150 €" },
+  { icon: "camera", title: "Камера, говорител и микрофон", text: "Проблеми със снимките, звука или разговорите.", price: "15 – 280 €" },
+  { icon: "buttons", title: "Бутони и лентови кабели", text: "За неработещи бутони и свързващи компоненти.", price: "15 – 60 €" },
+  { icon: "software", title: "Софтуерни услуги", text: "Обновяване, преинсталация или помощ с прехвърляне на данни.", price: "20 – 80 €" },
+  { icon: "chip", title: "Ремонт на платка", text: "Сложни повреди и устройства, които не се включват.", price: "След диагностика" },
 ];
 
-window.FAQ = [
-  { q: "Колко бързо се доставя поръчката?", a: "Поръчки до 16:00 ч. се изпращат в същия ден. Доставката с Еконт или Speedy е 1–2 работни дни до офис или адрес." },
-  { q: "Мога ли да прегледам телефона преди плащане?", a: "Да. При наложен платеж имате право на преглед и тест преди да платите на куриера." },
-  { q: "Какви са условията за връщане?", a: "Имате 14 дни да върнете устройството без да посочвате причина, ако е в оригиналното си състояние." },
-  { q: "Устройствата отключени ли са за всички оператори?", a: "Да, всички телефони са фабрично отключени и работят с A1, Yettel, Vivacom и всички останали оператори." },
-  { q: "Какво означава „Рефърбиш“?", a: "Професионално възстановено устройство, преминало проверка по 50 точки. Изглежда и работи като ново, с 12 месеца гаранция." },
+window.REPAIR_STEPS = [
+  { title: "Опиши проблема", text: "Посочи точния модел, кога се появява проблемът и дали устройството е било изпускано или мокрено." },
+  { title: "Уточняваме цената и срока", text: "След преглед ще получиш конкретна оферта. Потвърждаваш я преди ремонта." },
+  { title: "Предай устройството", text: "Ще уточним как да го предадеш. Ако имаш достъп до него, направи резервно копие на важните си данни." },
+];
+
+window.SERVICE_FAQ = [
+  { q: "Какво да подготвя?", a: "Направи резервно копие, ако е възможно. Пази паролите, PIN кодовете и личните файлове извън запитването." },
+  { q: "Колко време отнема ремонтът?", a: "Срокът зависи от диагностиката, наличността на части и сложността на ремонта." },
+  { q: "Да изпратя ли устройството по куриер?", a: "Първо се свържи с нас, за да уточним приемането на устройството." },
+];
+
+window.PRODUCT_INFO = [
+  { q: "Магазин и сервиз в Гоце Делчев", a: "Вземане на място след потвърждение. Адрес: ул. „Солун“ 21, Гоце Делчев. Телефон: 0893 933 338." },
+  { q: "Получаване и крайна сума", a: "Избери получаване от магазина без такса или доставка със Спиди или Еконт. Ако таксата изисква оферта, ще получиш крайната сума преди потвърждение." },
+  { q: "Какво следва след заявката?", a: "Получаваш номер на заявката. Магазинът потвърждава наличността, сумата и срока преди изпълнение." },
 ];
