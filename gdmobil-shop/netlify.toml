@@ -1,0 +1,8 @@
+# Netlify: статичният сайт се публикува от папка dist (създава се с tools/build_dist.py),
+# а сървърните функции са в netlify/functions.
+[build]
+  publish = "dist"
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"

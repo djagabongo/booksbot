@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="bg">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Админ панел | GDMobil</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230d0d0f'/%3E%3Ctext x='32' y='42' font-family='Arial' font-weight='800' font-size='26' text-anchor='middle' fill='%23ff7a2e'%3EGD%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="assets/styles.css" />
+  <link rel="stylesheet" href="assets/admin.css" />
+</head>
+<body class="adm">
+  <!-- Вход -->
+  <section class="adm-login" id="login">
+    <form class="adm-login__box" id="loginForm">
+      <img src="assets/img/logo.webp" alt="GDMobil" height="44" />
+      <h1>Админ панел</h1>
+      <p class="muted">Въведи паролата, зададена в Netlify като <code>ADMIN_PASSWORD</code>.</p>
+      <label class="field"><span>Парола</span><input class="input" type="password" id="pw" autocomplete="current-password" required minlength="8" /></label>
+      <button class="btn btn--primary btn--block" type="submit">Вход</button>
+      <p class="adm-msg" id="loginMsg" role="alert"></p>
+      <a class="link" href="./">← Към магазина</a>
+    </form>
+  </section>
+
+  <!-- Панел -->
+  <div class="adm-app" id="app" hidden>
+    <header class="adm-top">
+      <a href="./" class="adm-logo"><img src="assets/img/logo.webp" alt="GDMobil" height="34" /><span>Админ</span></a>
+      <nav class="adm-tabs" id="tabs" role="tablist">
+        <button role="tab" data-tab="products" aria-selected="true">Продукти</button>
+        <button role="tab" data-tab="labels">Етикети</button>
+        <button role="tab" data-tab="home">Начална страница</button>
+        <button role="tab" data-tab="store">Магазин</button>
+        <button role="tab" data-tab="reviews">Отзиви</button>
+        <button role="tab" data-tab="analytics">Статистика</button>
+      </nav>
+      <div class="adm-top__act">
+        <span class="adm-status" id="status">Няма промени</span>
+        <button class="btn btn--primary btn--sm" id="saveBtn" disabled>Запази</button>
+        <button class="icon-btn" id="menuBtn" aria-label="Още" title="Резервно копие и изход">⋯</button>
+        <div class="adm-menu" id="menu" hidden>
+          <button id="exportBtn">Свали резервно копие (JSON)</button>
+          <label class="adm-menu__file">Възстанови от файл<input type="file" id="importFile" accept="application/json" hidden /></label>
+          <button id="logoutBtn">Изход</button>
+        </div>
+      </div>
+    </header>
+    <main class="adm-main" id="main"></main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="assets/data.js"></script>
+  <script src="assets/catalog.js"></script>
+  <script src="assets/admin.js"></script>
+</body>
+</html>

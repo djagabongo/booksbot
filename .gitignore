@@ -87,3 +87,8 @@ ENV/
 
 # Rope project settings
 .ropeproject
+
+# GDMobil
+gdmobil-shop/node_modules/
+gdmobil-shop/dist/
+gdmobil-shop/.netlify/

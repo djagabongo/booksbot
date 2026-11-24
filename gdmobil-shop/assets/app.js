@@ -38,6 +38,7 @@
   const SALE = L.sale || {};
   const NEW_RE = (L.new || []).length ? new RegExp((L.new || []).map((x) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "i") : null;
   const HOT = new Set(L.hot || []);
+  const NEW_ADD = new Set(L.newAdd || []), NEW_REMOVE = new Set(L.newRemove || []);
 
   function addProduct(p) {
     p.variants.forEach((v) => {
@@ -57,7 +58,7 @@
     }
     p.disc = Math.max(0, ...p.variants.map((v) => v.disc || 0));
     p.tags = {
-      new: !!NEW_RE && (p.cat === "phones" || p.cat === "tablets") && NEW_RE.test(p.name),
+      new: NEW_ADD.has(p.slug) || (!NEW_REMOVE.has(p.slug) && !!NEW_RE && (p.cat === "phones" || p.cat === "tablets") && NEW_RE.test(p.name)),
       hot: HOT.has(p.slug),
       sale: p.disc > 0,
     };
@@ -253,7 +254,8 @@
             <span class="tile__price"><small>от</small> ${eur(hero.min)}</span>
           </div>
         </div>
-        <img src="${esc(S.heroImage || full(hero.img))}" alt="${esc(hero.name)}" class="tile__phone" width="630" height="640" fetchpriority="high">
+        ${S.heroImage ? `<img src="${esc(S.heroImage)}" alt="${esc(hero.name)}" class="tile__phone" width="630" height="640" fetchpriority="high">`
+          : `<span class="tile__phone tile__phone--plinth"><img src="${esc(full(hero.img))}" alt="${esc(hero.name)}" fetchpriority="high"></span>`}
       </a>` : ""}
       ${second ? `<a class="tile tile--light tile--wide" href="#/p/${second.slug}">
         <div class="tile__copy">
@@ -342,6 +344,8 @@
         </form>
       </div>
     </section>
+
+    ${reviewsBlock()}
 
     ${newsletterBlock()}
 
@@ -1004,6 +1008,24 @@
   const socIcon = (n) => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${SOC_IC[n]}</svg>`;
   const socialButtons = (cls = "soc") => `<div class="${cls}">${SOCIAL().map(([k, n, u]) => `<a class="${cls}__btn ${cls}__btn--${k}" href="${esc(u)}" target="_blank" rel="noopener" aria-label="${n}">${socIcon(k)}<span>${n}</span></a>`).join("")}</div>`;
 
+  function reviewsBlock() {
+    const R = window.REVIEWS || {};
+    const items = (R.items || []).filter((r) => r && r.text).slice(0, 6);
+    if (!items.length && !R.googleUrl) return "";
+    const stars = (n) => `<span class="stars" aria-label="${n} от 5">${"★".repeat(Math.round(n))}${"☆".repeat(5 - Math.round(n))}</span>`;
+    const rating = Number(R.rating) || 0;
+    return `<section class="container section" id="reviews">
+      <div class="section__head"><div><span class="eyebrow">Отзиви</span><h2>Какво казват клиентите</h2></div>
+        <div class="rev-summary">${rating ? `<b>${rating.toFixed(1).replace(".", ",")}</b>${stars(rating)}<small>${R.count ? `${esc(R.count)} отзива в Google` : "в Google"}</small>` : ""}
+          ${R.googleUrl ? `<a class="btn btn--ghost btn--sm" href="${esc(R.googleUrl)}" target="_blank" rel="noopener">Виж всички в Google</a>` : ""}
+          ${R.writeUrl ? `<a class="btn btn--primary btn--sm" href="${esc(R.writeUrl)}" target="_blank" rel="noopener">Остави отзив</a>` : ""}</div></div>
+      ${items.length ? `<div class="reviews">${items.map((r) => `<figure class="review">
+        ${stars(Number(r.rating) || 5)}<blockquote>${esc(r.text)}</blockquote>
+        <figcaption><span class="review__ava">${esc((r.name || "?").trim().charAt(0).toUpperCase())}</span><span><b>${esc(r.name || "Клиент")}</b><small>${esc(r.date || "")}${R.googleUrl ? " · Google" : ""}</small></span></figcaption>
+      </figure>`).join("")}</div>` : ""}
+    </section>`;
+  }
+
   function newsletterBlock() {
     const done = store.get("newsletter", false);
     return `<section class="container section">
@@ -1033,6 +1055,7 @@
     const btn = form.querySelector("[type=submit]");
     btn.disabled = true;
     const text = `Моля, абонирайте ме за бюлетина на GDMobil.\nИмейл: ${email}\nСъгласие: да (${new Date().toLocaleString("bg-BG")})`;
+    track("Абонамент за бюлетин");
     const sent = await sendToStore("Абонамент за бюлетин", text, { email, type: "newsletter" });
     store.set("newsletter", true);
     form.outerHTML = sent
@@ -1176,6 +1199,45 @@
       };
     }
 
+    // --- AI асистент (Claude през /api/chat); при липса – готовите отговори по-долу
+    let aiOn = !!S.aiChat && /^https?:$/.test(location.protocol);
+    const aiHistory = [];
+    const mdLite = (t) => esc(t)
+      .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
+      .replace(/\[([^\]]{1,80})\]\((#\/[\w\/?=&%-]*)\)/g, '<a class="msg__link" href="$2" data-chat-close>$1</a>')
+      .replace(/\n/g, "<br>");
+    function productMatches(text) {
+      const toks = tokens(text).filter((t) => !STOP.has(t) && t.length > 1);
+      if (!toks.length) return [];
+      let res = PRODUCTS.filter((p) => p.min != null && matches(p, toks));
+      if (!res.length && toks.length > 1) res = PRODUCTS.filter((p) => p.min != null && matches(p, toks.slice(0, -1)));
+      return res.sort((a, b) => (a.cat === "accessories") - (b.cat === "accessories") || (featuredRank.get(a) ?? 99) - (featuredRank.get(b) ?? 99) || b.min - a.min).slice(0, 6);
+    }
+    async function aiAnswer(q) {
+      if (!aiOn) return null;
+      const found = productMatches(q);
+      aiHistory.push({ role: "user", text: q });
+      try {
+        const r = await fetch("/api/chat", {
+          method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            messages: aiHistory.slice(-8),
+            products: found.map((p) => ({ name: p.name, priceFrom: p.min, url: `#/p/${p.slug}`, category: CAT_NAMES[p.cat], labels: [p.tags.new && "Ново", p.tags.sale && `-${p.disc}%`, p.tags.hot && "Хит"].filter(Boolean).join(", ") })),
+          }),
+          signal: AbortSignal.timeout ? AbortSignal.timeout(30000) : undefined,
+        });
+        if (r.status === 503 || r.status === 404) { aiOn = false; aiHistory.pop(); return null; }
+        if (!r.ok) { aiHistory.pop(); return null; }
+        const d = await r.json();
+        aiHistory.push({ role: "assistant", text: d.text });
+        track("Чат – AI отговор");
+        const cards = found.length && /цен|струва|имате|търся|искам|модел|калъф|протектор|зарядно|слушалк|телефон|iphone|galaxy|redmi|pixel|xiaomi|samsung/i.test(q)
+          ? `<div class="msg__prods">${found.slice(0, 3).map((p) => `<a class="msg__prod" href="#/p/${p.slug}" data-chat-close>${imgTag(p.img, "")}<span><b>${esc(p.name)}</b><small>${p.variants.length > 1 ? "от " : ""}${eur(p.min)}</small></span></a>`).join("")}</div>` : "";
+        if (d.human) track("Чат – към човек");
+        return { html: mdLite(d.text) + cards + (d.human ? human() : ""), chips: d.human ? ["Работно време", "Адрес на магазина"] : undefined };
+      } catch { aiHistory.pop(); return null; }
+    }
+
     const CHIP_Q = { "Търся телефон": "търся телефон", "Аксесоари за моя модел": "калъф", "Цена на ремонт": "цени на ремонти", "Говори с човек": "искам да говоря с човек", "Гаранция и връщане": "гаранция и връщане", "Доставка и плащане": "__delivery_payment", "Адрес на магазина": "адрес", "Колко време отнема?": "колко време отнема ремонтът" };
     const ask = (shown, internal) => {
       shown = shown.trim();
@@ -1183,6 +1245,16 @@
       lastQ = shown;
       say(esc(shown), "me");
       chipsEl.innerHTML = "";
+      if (!internal && aiOn) {
+        log.insertAdjacentHTML("beforeend", `<div class="msg msg--bot msg--typing"><i></i><i></i><i></i></div>`); scroll();
+        aiAnswer(shown).then((r) => {
+          $(".msg--typing", log)?.remove();
+          r = r || answer(shown);
+          say(r.html);
+          chips(r.chips || ["Говори с човек", "Работно време", "Търся телефон"]);
+        });
+        return;
+      }
       typing(() => {
         if (internal === "__delivery_payment") { say(A.delivery()); say(A.payment()); chips(START); return; }
         const r = answer(internal || shown);
@@ -1192,7 +1264,12 @@
     };
     chipsEl.addEventListener("click", (e) => { const c = e.target.closest(".chip"); if (c) ask(c.textContent, CHIP_Q[c.textContent]); });
 
+    if (aiOn) {
+      $(".chat__note").textContent = "Отговаря AI асистент (Claude на Anthropic) – въпросите се изпращат към него само за отговор. Не пиши лични данни. За поръчки и сложни въпроси ще те свърже с човек.";
+      $(".chat__head small").innerHTML = `<i class="dot dot--on"></i>AI асистент · ${esc(S.phone)}`;
+    }
     const open = () => {
+      track("Чат – отворен");
       box.hidden = false; fab.setAttribute("aria-expanded", "true"); document.body.classList.add("chat-open");
       if (!started) { started = true; typing(() => { say(A.greet()); chips(START); }); }
       setTimeout(() => inp.focus({ preventScroll: true }), 100);
@@ -1260,6 +1337,7 @@
       `Име: ${fd.name}`, `Телефон: ${fd.phone}`, fd.email ? `Имейл: ${fd.email}` : false].filter((x) => x !== false).join("\n");
     const btn = form.querySelector("[type=submit]");
     btn.disabled = true; btn.textContent = "Изпращане…";
+    track(fd.type === "Ремонт" ? "Запитване за ремонт" : "Запитване");
     const sent = await sendToStore(`Запитване ${num} – ${fd.type}`, text, { ref: num, ...fd });
     form.outerHTML = `<div class="form-card success">
       <div class="success__check">${icon("check")}</div>
@@ -1275,8 +1353,9 @@
   /* ================= ПРАВНИ СТРАНИЦИ ================= */
   const LEGAL_ORDER = [["terms", "Общи условия"], ["delivery", "Доставка и плащане"], ["returns", "Гаранция и връщане"], ["privacy", "Поверителност"], ["cookies", "Бисквитки и локални настройки"]];
   function pageLegal(key, anchor) {
-    const d = LEGAL[key];
-    if (!d) return pageNotFound();
+    const base = LEGAL[key];
+    if (!base) return pageNotFound();
+    const d = { ...base, sections: [...base.sections, ...extraLegal(key)] };
     setTitle(d.title);
     const sid = (i) => `s${i + 1}`;
     view.innerHTML = `<section class="container page">
@@ -1294,6 +1373,18 @@
       </div>
     </section>`;
     if (anchor) requestAnimationFrame(() => document.getElementById(anchor)?.scrollIntoView());
+  }
+
+  function extraLegal(key) {
+    const A = window.ANALYTICS || {}, out = [];
+    const names = { plausible: "Plausible Analytics", umami: "Umami", goatcounter: "GoatCounter", cloudflare: "Cloudflare Web Analytics" };
+    if (A.provider && names[A.provider] && (key === "cookies" || key === "privacy")) {
+      out.push({ h: "Анонимна статистика", p: [`Използваме ${names[A.provider]} за обобщена статистика на посещенията (брой разглеждания, страници, вид устройство и държава). Услугата не използва бисквитки и не създава профил на посетителя. Отчитат се и обобщени действия като добавяне в количката, изпратена заявка или запитване, без лични данни.`] });
+    }
+    if (S.aiChat && key === "privacy") {
+      out.push({ h: "AI асистент в чата", p: ["Ако пишете в чата на сайта, въпросите и последните съобщения от разговора се изпращат през сървъра на сайта към Anthropic (модел Claude) само за да бъде генериран отговор. Не въвеждайте в чата лични данни като ЕГН, пароли или данни от карти. При поръчки и конкретни въпроси асистентът Ви насочва към служител."] });
+    }
+    return out;
   }
 
   function pageNotFound() {
@@ -1327,6 +1418,7 @@
     const l = state.cart.find((x) => x.id === +id);
     if (l) l.qty++; else state.cart.push({ id: +id, qty: 1 });
     saveState("cart"); renderCart();
+    track("Добавяне в количката");
     toast(`✓ ${info.p.name} е добавен в количката`, "#cart", "Виж количката");
   }
 
@@ -1437,6 +1529,7 @@
         fd.note ? `Бележка: ${fd.note}` : false].filter((x) => x !== false).join("\n");
       const btn = f.querySelector("[type=submit]");
       btn.disabled = true; btn.textContent = "Изпращане…";
+      track("Изпратена заявка за поръчка");
       const sent = await sendToStore(`Нова поръчка ${num} – ${eur(sub, true)}`, text, { order: num, name: fd.name, phone: fd.phone, email: fd.email || "" });
       const orders = store.get("orders", []);
       orders.push({ num, date: new Date().toISOString(), text });
@@ -1642,7 +1735,11 @@
 
   /* ---------- рутер ---------- */
   function parseRoute() {
-    const h = location.hash.slice(1);
+    let h = location.hash.slice(1);
+    if (!h || !h.startsWith("/")) {
+      const m = location.pathname.match(/^\/(p|c|legal)\/([\w-]+)\/?$/) || location.pathname.match(/^\/(service|inquiries|compare|contact)\/?$/);
+      if (m) h = "/" + m[1] + (m[2] ? "/" + m[2] : "") + (h && !h.startsWith("/") ? "" : "");
+    }
     const [pathA, qs] = (h.startsWith("/") ? h : "/").split("?");
     const [path, anchor] = pathA.split("#");
     return { parts: path.split("/").filter(Boolean), q: new URLSearchParams(qs || ""), anchor };
@@ -1676,11 +1773,68 @@
     if (!anchor && parts[0] !== "contact") window.scrollTo(0, 0);
     lastPath = routeKey();
     reveal();
+    setCanonical(parts);
+    track("pageview", "/" + parts.join("/"));
     const active = parts[0] === "p" ? BY_SLUG.get(parts[1])?.cat : parts[0] === "c" ? parts[1] : parts[0] || "";
     $$("[data-nav]").forEach((a) => a.classList.toggle("active", a.dataset.nav === active));
     const tab = !parts[0] ? "home" : parts[0] === "c" || parts[0] === "p" ? "c" : parts[0];
     $$("[data-tab]").forEach((a) => a.classList.toggle("active", a.dataset.tab === tab));
   }
+
+  /* ---------- canonical адрес за Google ---------- */
+  function setCanonical(parts) {
+    const base = (S.siteUrl || location.origin).replace(/\/$/, "");
+    let href = base + "/";
+    if (parts[0] === "p" && BY_SLUG.get(parts[1])) href = `${base}/p/${parts[1]}/`;
+    else if (parts[0] === "c" && CAT_NAMES[parts[1]]) href = `${base}/c/${parts[1]}/`;
+    else if (parts[0] === "service") href = `${base}/service/`;
+    else if (parts[0] === "legal" && LEGAL[parts[1]]) href = `${base}/legal/${parts[1]}/`;
+    let l = document.querySelector('link[rel="canonical"]');
+    if (!l) { l = document.createElement("link"); l.rel = "canonical"; document.head.appendChild(l); }
+    l.href = href;
+  }
+
+  /* ---------- анонимна статистика (без бисквитки) ---------- */
+  const AN = window.ANALYTICS || {};
+  function initAnalytics() {
+    if (!AN.provider || !/^https?:$/.test(location.protocol)) return;
+    const s = document.createElement("script");
+    s.defer = true;
+    if (AN.provider === "plausible" && AN.domain) {
+      s.src = AN.src || "https://plausible.io/js/script.manual.js";
+      s.dataset.domain = AN.domain;
+      window.plausible = window.plausible || function () { (window.plausible.q = window.plausible.q || []).push(arguments); };
+    } else if (AN.provider === "umami" && AN.websiteId) {
+      s.src = AN.src || "https://cloud.umami.is/script.js";
+      s.dataset.websiteId = AN.websiteId;
+      s.dataset.autoTrack = "false";
+    } else if (AN.provider === "goatcounter" && AN.code) {
+      s.src = "https://gc.zgo.at/count.js";
+      s.dataset.goatcounter = `https://${AN.code}.goatcounter.com/count`;
+      s.dataset.goatcounterSettings = JSON.stringify({ no_onload: true });
+    } else if (AN.provider === "cloudflare" && AN.token) {
+      s.src = "https://static.cloudflareinsights.com/beacon.min.js";
+      s.dataset.cfBeacon = JSON.stringify({ token: AN.token, spa: true });
+    } else return;
+    document.head.appendChild(s);
+  }
+  const trackQueue = [];
+  function track(name, path) {
+    if (!AN.provider) return;
+    const url = location.origin + (path || "/");
+    try {
+      if (AN.provider === "plausible" && window.plausible) {
+        name === "pageview" ? window.plausible("pageview", { u: url }) : window.plausible(name);
+      } else if (AN.provider === "umami") {
+        if (!window.umami) { trackQueue.push([name, path]); if (trackQueue.length === 1) setTimeout(flushTrack, 1500); return; }
+        name === "pageview" ? window.umami.track((p) => ({ ...p, url: path })) : window.umami.track(name);
+      } else if (AN.provider === "goatcounter") {
+        if (!window.goatcounter?.count) { trackQueue.push([name, path]); if (trackQueue.length === 1) setTimeout(flushTrack, 1500); return; }
+        name === "pageview" ? window.goatcounter.count({ path }) : window.goatcounter.count({ path: name, title: name, event: true });
+      }
+    } catch {}
+  }
+  function flushTrack() { const q = trackQueue.splice(0); q.forEach(([n, p]) => track(n, p)); }
 
   /* ---------- плавна поява при скрол ---------- */
   const revealObs = "IntersectionObserver" in window && !matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -1827,6 +1981,7 @@
   setCount("#cmpCount", state.compare.length);
   bind();
   initChat();
+  initAnalytics();
   router();
   if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
     addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));

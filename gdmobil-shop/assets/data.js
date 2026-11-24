@@ -28,6 +28,8 @@ window.STORE = {
   },
   maps: "https://www.google.com/maps/search/?api=1&query=GDMobil+%D0%A1%D0%BE%D0%BB%D1%83%D0%BD+21+%D0%93%D0%BE%D1%86%D0%B5+%D0%94%D0%B5%D0%BB%D1%87%D0%B5%D0%B2",
   viber: "", // напр. "359893933338" – ако е празно, бутонът за Viber не се показва
+  aiChat: true, // AI асистент в чата (нужен е ключ ANTHROPIC_API_KEY в Netlify); без ключ работи вграденият асистент
+  siteUrl: "https://gdmobil.netlify.app", // основен адрес на сайта (за Google и споделяне)
 
   /* Къде да се изпращат поръчките и запитванията.
      Празно = клиентът изпраща готов имейл до office@gdmobil.bg.

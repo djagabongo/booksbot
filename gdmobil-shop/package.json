@@ -1,0 +1,15 @@
+{
+  "name": "gdmobil-shop",
+  "private": true,
+  "type": "module",
+  "description": "GDMobil – онлайн магазин (статичен сайт + Netlify функции)",
+  "scripts": {
+    "build:catalog": "python3 tools/build_catalog.py",
+    "build:pages": "python3 tools/build_pages.py",
+    "build:dist": "python3 tools/build_dist.py"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.14.0",
+    "@netlify/blobs": "^11.1.11"
+  }
+}
