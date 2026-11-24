@@ -245,7 +245,7 @@
 
     <section class="container section">
       <div class="section__head"><h2>Подбрани смартфони</h2><a href="#/c/phones" class="link">Всички телефони →</a></div>
-      <div class="grid">${FEATURED.map(card).join("")}</div>
+      <div class="grid grid--4">${FEATURED.map(card).join("")}</div>
     </section>
 
     ${recent.length ? `<section class="container section">

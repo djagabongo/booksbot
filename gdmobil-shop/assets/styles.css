@@ -640,3 +640,4 @@ body:has(.sticky-buy.show) .fab { bottom: 86px; }
   .marquee__track { flex-wrap: wrap; width: auto; }
 }
 @media (prefers-reduced-motion: reduce) { .marquee__track [aria-hidden="true"] { display: none; } }
+@media (min-width: 1100px) { .grid--4 { grid-template-columns: repeat(4, 1fr); } }
