@@ -29,6 +29,7 @@ LEGACY = re.compile(r"""(
   \bMoto\s*(G[1-6]|E[1-5]|X)(?![0-9])
 )""", re.I | re.X)
 KEEP_LEGACY = "--keep-legacy" in sys.argv
+ACCESSORIES_FILE = sys.argv[sys.argv.index("--accessories") + 1] if "--accessories" in sys.argv else None
 
 # Корекции на правните текстове, за да отговарят на новия сайт (без лична връзка за проследяване,
 # без база данни и броячи; хостинг Netlify; шрифтове и снимки от самия сайт; карта при поискване).
@@ -110,6 +111,8 @@ def build_catalog(src):
         ov = overrides.get(str(x["id"]), {})
         disc = ov.get("discountPercent")
         out_of_stock = ov.get("stockStatus") not in (None, "in_stock")
+        if cat == "accessories" and ACCESSORIES_FILE:
+            continue  # аксесоарите идват от casestore.bg (--accessories)
         if cat == "accessories" and not KEEP_LEGACY and LEGACY.search(x["name"]):
             legacy_hidden += 1
             continue
@@ -159,6 +162,28 @@ def build_catalog(src):
         json.dumps(specs, ensure_ascii=False, separators=(",", ":")) + ";\n"
     open(os.path.join(ROOT, "assets", "specs.js"), "w", encoding="utf-8").write(js)
     print(f"specs.js: {len(specs)} модела, {len(js) // 1024} KB")
+
+    if ACCESSORIES_FILE:
+        cs = json.load(open(ACCESSORIES_FILE, encoding="utf-8"))
+        # свързване на моделите с телефоните/таблетите в магазина (ключовете може да имат 5G/4G в края)
+        strip = lambda k: re.sub(r"(5g|4g|lte|wifi|cellular)+$", "", k)
+        mk_by_norm = {}
+        for g in groups.values():
+            if g.get("mk"):
+                mk_by_norm.setdefault(strip(g["mk"]), g["mk"])
+        remap = lambda k: mk_by_norm.get(strip(k), k)
+        merged = {}
+        for m in cs["models"]:
+            k = remap(m["key"])
+            e = merged.setdefault(k, {"key": k, "name": m["name"], "brand": m["brand"], "count": 0})
+            e["count"] += m["count"]
+        models = sorted(merged.values(), key=lambda m: (m["brand"], m["name"]))
+        for it in cs["items"]:
+            it["cm"] = [remap(k) for k in it["cm"]]
+            it.pop("src", None)
+            singles.append(it)
+        linked = sum(1 for m in models if any(g.get("mk") == m["key"] for g in groups.values()))
+        print(f"casestore.bg: {len(cs['items'])} аксесоара, {len(models)} модела (свързани с телефони/таблети в магазина: {linked})")
 
     data = {
         "groups": sorted(groups.values(), key=lambda g: g["n"]),

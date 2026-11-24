@@ -79,7 +79,7 @@ def main():
     def img(h, big=True):
         if not h:
             return "assets/img/camera.svg"
-        if h.startswith("assets/"):
+        if h.startswith("assets/") or h.startswith("https:"):
             return h
         return f"assets/img/products/{h}.webp" if big or h in no_thumb else f"assets/img/products/{h}-sm.webp"
 
@@ -94,7 +94,8 @@ def main():
         head = re.sub(r'<meta name="description" content="[^"]*" />', f'<meta name="description" content="{E(desc)}" />', head, count=1)
         head = re.sub(r'<meta property="og:title" content="[^"]*" />', f'<meta property="og:title" content="{E(title)}" />', head, count=1)
         head = re.sub(r'<meta property="og:description" content="[^"]*" />', f'<meta property="og:description" content="{E(desc)}" />', head, count=1)
-        head = re.sub(r'<meta property="og:image" content="[^"]*" />', f'<meta property="og:image" content="{E(site + "/" + (image or "assets/img/logo.webp"))}" />', head, count=1)
+        og = image if image and image.startswith("https:") else site + "/" + (image or "assets/img/logo.webp")
+        head = re.sub(r'<meta property="og:image" content="[^"]*" />', f'<meta property="og:image" content="{E(og)}" />', head, count=1)
         extra = f'  <link rel="canonical" href="{E(url)}" />\n  <meta property="og:url" content="{E(url)}" />\n'
         if ld:
             extra += f'  <script type="application/ld+json">{json.dumps(ld, ensure_ascii=False)}</script>\n'
@@ -147,7 +148,7 @@ def main():
 <a class="btn btn--primary btn--lg btn--block" href="#/p/{p["slug"]}">Избери и поръчай</a></div>{var_list}{compat}</div></div>
 {f'<div class="pd-section"><h2>Технически характеристики</h2><div class="specgrid">{"".join(rows)}</div></div>' if rows else ""}</section>'''
         ld = {"@context": "https://schema.org", "@type": "Product", "name": p["name"], "brand": {"@type": "Brand", "name": p["brand"]},
-              "image": f'{site}/{img(p["img"])}', "sku": str(p["variants"][0]["id"]), "category": cat, "url": f'{site}/p/{p["slug"]}/'}
+              "image": img(p["img"]) if img(p["img"]).startswith("https:") else f'{site}/{img(p["img"])}', "sku": str(p["variants"][0]["id"]), "category": cat, "url": f'{site}/p/{p["slug"]}/'}
         if lo is not None:
             ld["offers"] = {"@type": "AggregateOffer", "priceCurrency": "EUR", "lowPrice": lo, "highPrice": hi, "offerCount": len(priced),
                             "availability": "https://schema.org/InStock", "seller": {"@type": "Organization", "name": "GDMobil"}}

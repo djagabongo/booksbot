@@ -22,8 +22,9 @@
 
   /* ---------- каталог ---------- */
   const noThumb = new Set(C.noThumb || []);
-  const full = (h) => (!h ? "assets/img/camera.svg" : h.startsWith("assets/") ? h : `assets/img/products/${h}.webp`);
-  const thumb = (h) => (!h || h.startsWith("assets/") || noThumb.has(h) ? full(h) : `assets/img/products/${h}-sm.webp`);
+  const full = (h) => (!h ? "assets/img/camera.svg" : /^(assets\/|https:)/.test(h) ? h : `assets/img/products/${h}.webp`);
+  const thumb = (h) => (h && h.startsWith("https:") ? h.replace(/width=\d+&height=\d+/, "width=300&height=300")
+    : !h || h.startsWith("assets/") || noThumb.has(h) ? full(h) : `assets/img/products/${h}-sm.webp`);
   const finalPrice = (base, disc) => (base == null ? null : disc ? Math.round(base * (100 - disc)) / 100 : base);
   const CAT_NAMES = Object.fromEntries(window.CATEGORIES.map((c) => [c.key, c.name]));
   const MODEL_NAMES = Object.fromEntries(C.models.map((m) => [m.key, `${m.brand} ${m.name}`]));
@@ -45,6 +46,8 @@
       const pct = SALE[v.id] ?? SALE[p.slug];
       if (pct > 0 && pct < 100) v.disc = pct;
       v.price = finalPrice(v.base, v.disc);
+      // реална стара цена от източника (напр. casestore.bg) → етикет „-X%“ и зачеркната цена
+      if (!v.disc && v.old > v.price) { v.disc = Math.round((1 - v.price / v.old) * 100); v.base = v.old; }
       BY_ID.set(v.id, { p, v });
     });
     const priced = p.variants.filter((v) => v.price != null);
@@ -76,7 +79,7 @@
   for (const i of C.items) {
     addProduct({
       kind: "i", slug: i.s, name: i.n, brand: i.b, cat: i.c, sub: i.sc, compat: i.cm, desc: i.d, specs: {},
-      variants: [{ id: i.i, base: i.p, disc: i.dc, stock: i.st, img: i.im }],
+      variants: [{ id: i.i, base: i.p, disc: i.dc, stock: i.st, img: i.im, old: i.op }],
     });
   }
   const FEATURED = S.featured.map((s) => BY_SLUG.get(s)).filter(Boolean);
@@ -175,7 +178,11 @@
     p.min == null
       ? `<span class="price price--ask">Цена при запитване</span>`
       : `<span class="price">${p.kind === "g" && p.variants.length > 1 ? "<small>от</small> " : ""}${eur(p.min)}</span>${
-          p.disc ? `<span class="old">${eur(Math.round((p.min / (1 - p.disc / 100)) * 100) / 100)}</span>` : ""}`;
+          p.disc ? `<span class="old">${eur(oldOf(p))}</span>` : ""}`;
+  function oldOf(p) {
+    const v = p.variants.find((x) => x.price === p.min) || p.def;
+    return v.disc ? v.base : Math.round((p.min / (1 - p.disc / 100)) * 100) / 100;
+  }
 
   function badgesHtml(p, cls) {
     const b = [
