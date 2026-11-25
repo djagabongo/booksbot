@@ -1550,6 +1550,116 @@
     </div>`;
   }
 
+  /* ================= ЗА НАС, ВЪПРОСИ, РЪКОВОДСТВА ================= */
+  const CT = window.CONTENT || { about: { title: "За нас", lead: "", blocks: [] }, faq: [], guides: [] };
+  const GUIDES = new Map(CT.guides.map((g) => [g.slug, g]));
+  const md = (t) => esc(t).replace(/\[([^\]]+)\]\((#\/[^)\s]+)\)/g, '<a class="link" href="$2">$1</a>');
+  const fmtDate = (d) => new Date(d + "T12:00").toLocaleDateString("bg-BG", { day: "numeric", month: "long", year: "numeric" });
+  function blockProducts(o) {
+    let list = PRODUCTS.filter((p) => p.cat === o.cat && p.min != null && (!o.max || p.min <= o.max) && (!o.min || p.min >= o.min)
+      && (!o.brand || p.brand === o.brand) && (!o.sub || p.sub === o.sub) && (!o.model || (p.compat || []).includes(o.model)));
+    if (o.sort === "price-asc") list.sort((a, b) => a.min - b.min);
+    else if (o.sort === "price-desc") list.sort((a, b) => b.min - a.min);
+    else list = diversify(list.sort((a, b) => accRank(a) - accRank(b)).slice(0, 60));
+    return `<div class="grid grid--4 g-products">${list.slice(0, o.limit || 8).map((x) => card(x)).join("")}</div>`;
+  }
+  function blockCompare(slugs) {
+    const ps = slugs.map((s) => BY_SLUG.get(s)).filter(Boolean);
+    if (ps.length < 2) return "";
+    const id = "gcmp" + Math.random().toString(36).slice(2, 7);
+    loadSpecs().then((all) => {
+      const el = document.getElementById(id); if (!el) return;
+      const sec = ps.map((p) => all[p.slug] || []);
+      const rows = [];
+      sec[0].filter(([t]) => /Дисплей|Производителност|Камери|Батерия/.test(t)).forEach(([title, kv]) => {
+        rows.push(`<tr class="g-cmp__sec"><th colspan="${ps.length + 1}">${esc(title)}</th></tr>`);
+        kv.forEach(([k]) => {
+          const vals = sec.map((ss) => (ss.find(([t]) => t === title)?.[1] || []).find(([kk]) => kk === k)?.[1] ?? "—");
+          if (/детайли/i.test(k)) return;
+          rows.push(`<tr><th>${esc(k)}</th>${vals.map((v) => `<td>${esc(v)}</td>`).join("")}</tr>`);
+        });
+      });
+      el.querySelector("tbody").insertAdjacentHTML("beforeend", rows.join(""));
+    });
+    return `<div class="g-cmp" id="${id}"><table class="specs"><thead><tr><th></th>${ps.map((p) => `<th><a href="#/p/${p.slug}"><img src="${esc(thumb(p.img))}" alt="" loading="lazy"><b>${esc(p.name)}</b></a><span>от ${eur(p.min)}</span></th>`).join("")}</tr></thead><tbody></tbody></table></div>
+      <p class="g-cmp__more"><a class="btn btn--ghost btn--sm" href="#/compare" data-cmpset="${ps.map((p) => p.slug).join(",")}">${icon("swap")} Отвори в сравнението</a></p>`;
+  }
+  function blocksHtml(blocks) {
+    return blocks.map(([t, v]) => {
+      if (t === "p") return `<p>${md(v)}</p>`;
+      if (t === "h2") return `<h2>${esc(v)}</h2>`;
+      if (t === "ul") return `<ul class="g-list">${v.map((x) => `<li>${md(x)}</li>`).join("")}</ul>`;
+      if (t === "tip") return `<div class="g-tip">${icon("star")}<p>${md(v)}</p></div>`;
+      if (t === "products") return blockProducts(v);
+      if (t === "compare") return blockCompare(v);
+      if (t === "cta") return `<div class="g-cta"><a class="btn btn--primary" href="${esc(v.href)}">${esc(v.text)} ${icon("arrow")}</a>${v.note ? `<small class="muted">${md(v.note)}</small>` : ""}</div>`;
+      return "";
+    }).join("");
+  }
+  function pageAbout() {
+    setTitle(CT.about.title);
+    view.innerHTML = `<section class="container page g-page">
+      ${crumbs([[CT.about.title]])}
+      <header class="g-head"><span class="eyebrow">GDMobil · Гоце Делчев</span><h1>${esc(CT.about.title)}</h1><p class="lead">${md(CT.about.lead)}</p></header>
+      <div class="g-about">
+        <article class="g-body">${blocksHtml(CT.about.blocks)}</article>
+        <aside class="g-facts">
+          <div><b>${plural(PRODUCTS.filter((p) => p.cat === "phones").length, "модел", "модела")}</b><span>телефони</span></div>
+          <div><b>${PRODUCTS.filter((p) => p.cat === "accessories").length}+</b><span>аксесоара</span></div>
+          <div><b>${window.REPAIRS.length}</b><span>вида ремонти</span></div>
+          <div><b>0 €</b><span>за вземане от магазина</span></div>
+        </aside>
+      </div>
+    </section>${contactBlock()}`;
+  }
+  function pageFaq() {
+    setTitle("Въпроси и отговори");
+    const groups = [...new Set(CT.faq.map((f) => f.g))];
+    view.innerHTML = `<section class="container page g-page">
+      ${crumbs([["Въпроси и отговори"]])}
+      <header class="g-head"><span class="eyebrow">Помощ</span><h1>Въпроси и отговори</h1><p class="lead">Най-честите въпроси за поръчките, доставката, гаранцията и сервиза.</p>
+        <label class="search g-faq__search">${icon("search")}<input class="input" id="faqQ" type="search" placeholder="Търси във въпросите" aria-label="Търси във въпросите"></label></header>
+      <div class="g-faq">${groups.map((g) => `<section class="g-faq__group" data-g="${esc(g)}"><h2>${esc(g)}</h2>
+        ${CT.faq.filter((f) => f.g === g).map((f) => `<details class="g-faq__item"><summary>${esc(f.q)}</summary><p>${md(f.a)}</p></details>`).join("")}</section>`).join("")}</div>
+      <div class="g-ask"><div><b>Не намери отговор?</b><p class="muted">Попитай асистента в чата, обади се на <a class="link" href="tel:${tel}">${esc(S.phone)}</a> или изпрати запитване.</p></div>
+        <div class="row-btns"><button class="btn btn--primary" data-open-chat>Попитай асистента</button><a class="btn btn--ghost" href="#/inquiries">Изпрати запитване</a></div></div>
+    </section>`;
+    $("#faqQ").addEventListener("input", (e) => {
+      const toks = tokens(e.target.value);
+      $$(".g-faq__item").forEach((d) => { const hit = !toks.length || toks.every((t) => norm(d.textContent).includes(t)); d.hidden = !hit; if (toks.length && hit) d.open = true; });
+      $$(".g-faq__group").forEach((g) => (g.hidden = !g.querySelector(".g-faq__item:not([hidden])")));
+    });
+  }
+  function guideCard(g) {
+    return `<a class="g-card" href="#/guides/${g.slug}"><span class="eyebrow">${g.minutes} мин. четене</span><h2>${esc(g.title)}</h2><p class="muted">${esc(g.desc)}</p><span class="link">Прочети ${icon("arrow")}</span></a>`;
+  }
+  function pageGuides() {
+    setTitle("Ръководства и съвети");
+    view.innerHTML = `<section class="container page g-page">
+      ${crumbs([["Ръководства"]])}
+      <header class="g-head"><span class="eyebrow">Полезно</span><h1>Ръководства и съвети</h1><p class="lead">Как да избереш телефон, аксесоари и как да се грижиш за устройството си – от екипа на GDMobil.</p></header>
+      <div class="g-cards">${CT.guides.map(guideCard).join("")}</div>
+    </section>`;
+  }
+  function pageGuide(slug) {
+    const g = GUIDES.get(slug);
+    if (!g) return pageNotFound();
+    setTitle(g.title);
+    const more = CT.guides.filter((x) => x !== g).slice(0, 3);
+    view.innerHTML = `<section class="container page g-page">
+      ${crumbs([["Ръководства", "#/guides"], [g.title]])}
+      <article class="g-article">
+        <header class="g-head"><span class="eyebrow">${fmtDate(g.date)} · ${g.minutes} мин. четене</span><h1>${esc(g.title)}</h1><p class="lead">${esc(g.desc)}</p></header>
+        <div class="g-body">${blocksHtml(g.blocks)}</div>
+      </article>
+      ${more.length ? `<section class="section"><div class="section__head"><div><span class="eyebrow">Още</span><h2>Други ръководства</h2></div><a class="link" href="#/guides">Всички ${icon("arrow")}</a></div><div class="g-cards">${more.map(guideCard).join("")}</div></section>` : ""}
+    </section>`;
+    $$("[data-cmpset]").forEach((a) => a.addEventListener("click", () => {
+      state.compare = [...new Set([...a.dataset.cmpset.split(","), ...state.compare])].slice(0, 4);
+      saveState("compare"); setCount("#cmpCount", state.compare.length);
+    }));
+  }
+
   /* ================= ЗАПИСВАНЕ НА ЧАС ================= */
   // Официални празници (магазинът е затворен); Великден по православния календар.
   const HOLIDAYS = new Set(["01-01", "03-03", "05-01", "05-06", "05-24", "09-06", "09-22", "12-24", "12-25", "12-26",
@@ -2208,7 +2318,7 @@
   function parseRoute() {
     let h = location.hash.slice(1);
     if (!h || !h.startsWith("/")) {
-      const m = location.pathname.match(/^\/(p|c|legal)\/([\w-]+)\/?$/) || location.pathname.match(/^\/(service|inquiries|compare|contact|track)\/?$/);
+      const m = location.pathname.match(/^\/(p|c|legal|guides)\/([\w-]+)\/?$/) || location.pathname.match(/^\/(service|inquiries|compare|contact|track|about|faq|guides)\/?$/);
       if (m) h = "/" + m[1] + (m[2] ? "/" + m[2] : "") + location.search; // /p/slug/?v=123 от фийда
     }
     const [pathA, qs] = (h.startsWith("/") ? h : "/").split("?");
@@ -2240,6 +2350,9 @@
       case "legal": pageLegal(parts[1], anchor); break;
       case "compare": pageCompare(); break;
       case "track": pageTrack(q); break;
+      case "about": pageAbout(); break;
+      case "faq": pageFaq(); break;
+      case "guides": parts[1] ? pageGuide(parts[1]) : pageGuides(); break;
       default: pageNotFound();
     }
     if (!anchor && parts[0] !== "contact") window.scrollTo(0, 0);
@@ -2260,6 +2373,8 @@
     if (parts[0] === "p" && BY_SLUG.get(parts[1])) href = `${base}/p/${parts[1]}/`;
     else if (parts[0] === "c" && CAT_NAMES[parts[1]]) href = `${base}/c/${parts[1]}/`;
     else if (parts[0] === "service") href = `${base}/service/`;
+    else if (["about", "faq"].includes(parts[0])) href = `${base}/${parts[0]}/`;
+    else if (parts[0] === "guides") href = parts[1] && GUIDES.has(parts[1]) ? `${base}/guides/${parts[1]}/` : `${base}/guides/`;
     else if (parts[0] === "legal" && LEGAL[parts[1]]) href = `${base}/legal/${parts[1]}/`;
     let l = document.querySelector('link[rel="canonical"]');
     if (!l) { l = document.createElement("link"); l.rel = "canonical"; document.head.appendChild(l); }
@@ -2348,6 +2463,7 @@
     $("#menuBody").innerHTML = `
       ${window.CATEGORIES.map((c) => `<a href="#/c/${c.key}"><img src="${esc(c.img)}" alt="">${esc(c.name)}</a>`).join("")}
       <hr><a href="#/service">${icon("wrench")} Сервиз и ремонти</a><a href="#/inquiries">${icon("mail")} Запитвания</a>
+      <a href="#/guides">${icon("star")} Ръководства и съвети</a><a href="#/faq">${icon("check")} Въпроси и отговори</a><a href="#/about">${icon("store")} За нас</a>
       <a href="#/compare">${icon("swap")} Сравнение</a><a href="#/contact">${icon("pin")} Контакти</a>
       <button data-open-chat>${icon("mail")} Чат с асистента</button>
       <button id="themeToggle2">${icon("moon")} Тъмна / светла тема</button>

@@ -72,6 +72,7 @@ def main():
     catalog = load_js(os.path.join(ROOT, "assets", "catalog.js"), "CATALOG")
     specs = load_js(os.path.join(ROOT, "assets", "specs.js"), "SPECS")
     legal = load_js(os.path.join(ROOT, "assets", "legal.js"), "LEGAL")
+    content = load_js(os.path.join(ROOT, "assets", "content.js"), "CONTENT")
     site = (site or store.get("siteUrl") or "https://gdmobil.netlify.app").rstrip("/")
     cat_names = {c["key"]: c["name"] for c in cats}
     no_thumb = set(catalog.get("noThumb", []))
@@ -201,6 +202,73 @@ def main():
     ld = {"@context": "https://schema.org", "@type": "Service", "serviceType": "Ремонт на телефони и таблети", "areaServed": "Гоце Делчев",
           "provider": {"@type": "MobilePhoneStore", "name": "GDMobil", "telephone": store.get("phoneIntl"), "address": store.get("address")}}
     urls.append(page("/service/", "Сервиз за телефони и таблети – цени | GDMobil Гоце Делчев", "Ремонт на телефони и таблети в Гоце Делчев: дисплей от 30 €, батерия от 30 €, букса от 15 €. Оферта преди ремонта.", body, ld))
+
+    # ---------- За нас, Въпроси и отговори, Ръководства ----------
+    def md(t):
+        out = E(t)
+        return re.sub(r"\[([^\]]+)\]\((#/[^)\s]+)\)", lambda m: f'<a class="link" href="{m.group(2)}">{m.group(1)}</a>', out)
+    lo_of = lambda p: min([v["price"] for v in p["variants"] if v["price"] is not None], default=None)
+    def blocks(bl):
+        out = []
+        for kind, v in bl:
+            if kind == "p": out.append(f"<p>{md(v)}</p>")
+            elif kind == "h2": out.append(f"<h2>{E(v)}</h2>")
+            elif kind == "ul": out.append('<ul class="g-list">' + "".join(f"<li>{md(x)}</li>" for x in v) + "</ul>")
+            elif kind == "tip": out.append(f'<div class="g-tip"><p>{md(v)}</p></div>')
+            elif kind == "cta": out.append(f'<div class="g-cta"><a class="btn btn--primary" href="{E(v["href"])}">{E(v["text"])}</a>' + (f'<small class="muted">{md(v["note"])}</small>' if v.get("note") else "") + "</div>")
+            elif kind == "products":
+                ps = [p for p in products if p["cat"] == v.get("cat") and lo_of(p) is not None and (not v.get("max") or lo_of(p) <= v["max"])
+                      and (not v.get("min") or lo_of(p) >= v["min"]) and (not v.get("brand") or p["brand"] == v["brand"]) and (not v.get("sub") or p.get("sub") == v["sub"])]
+                ps.sort(key=lambda p: lo_of(p) if v.get("sort") == "price-asc" else -(lo_of(p) if v.get("sort") == "price-desc" else len(p["variants"])))
+                out.append('<ul class="seo-list">' + "".join(f'<li><a href="/p/{p["slug"]}/">{E(p["name"])}</a> – {E(("от " if len(p["variants"]) > 1 else "") + eur(lo_of(p)))}</li>' for p in ps[: v.get("limit", 8)]) + "</ul>")
+            elif kind == "compare":
+                ps = [next((p for p in products if p["slug"] == sl), None) for sl in v]
+                ps = [p for p in ps if p]
+                if len(ps) >= 2:
+                    sec = [specs.get(p["slug"]) or [] for p in ps]
+                    rows = []
+                    for title, kv in [x for x in sec[0] if re.search(r"Дисплей|Производителност|Камери|Батерия", x[0])]:
+                        rows.append(f'<tr class="g-cmp__sec"><th colspan="{len(ps) + 1}">{E(title)}</th></tr>')
+                        for k, _ in kv:
+                            if "детайли" in k.lower():
+                                continue
+                            vals = []
+                            for ss in sec:
+                                d = dict(next((x[1] for x in ss if x[0] == title), []))
+                                vals.append(str(d.get(k, "—")))
+                            rows.append(f"<tr><th>{E(k)}</th>" + "".join(f"<td>{E(x)}</td>" for x in vals) + "</tr>")
+                    head = "".join(f'<th><a href="/p/{p["slug"]}/"><b>{E(p["name"])}</b></a><span>от {E(eur(lo_of(p)))}</span></th>' for p in ps)
+                    out.append(f'<div class="g-cmp"><table class="specs"><thead><tr><th></th>{head}</tr></thead><tbody>{"".join(rows)}</tbody></table></div>')
+        return "".join(out)
+
+    ab = content["about"]
+    body = f'''<section class="container page seo-pre g-page">{crumbs([(ab["title"], None)])}<header class="g-head"><span class="eyebrow">GDMobil · Гоце Делчев</span><h1>{E(ab["title"])}</h1><p class="lead">{md(ab["lead"])}</p></header>
+<article class="g-body">{blocks(ab["blocks"])}</article><p>{E(store.get("address", ""))} · {E(store.get("phone", ""))} · {E(store.get("email", ""))}</p></section>'''
+    ld = {"@context": "https://schema.org", "@type": "AboutPage", "name": "За GDMobil", "url": f"{site}/about/"}
+    urls.append(page("/about/", "За нас – магазин и сервиз за телефони в Гоце Делчев | GDMobil", ab["lead"], body, ld))
+
+    groups = list(dict.fromkeys(f["g"] for f in content["faq"]))
+    body = f'''<section class="container page seo-pre g-page">{crumbs([("Въпроси и отговори", None)])}<header class="g-head"><span class="eyebrow">Помощ</span><h1>Въпроси и отговори</h1>
+<p class="lead">Най-честите въпроси за поръчките, доставката, гаранцията и сервиза.</p></header><div class="g-faq">''' + "".join(
+        f'<section class="g-faq__group"><h2>{E(g)}</h2>' + "".join(f'<details class="g-faq__item" open><summary>{E(f["q"])}</summary><p>{md(f["a"])}</p></details>' for f in content["faq"] if f["g"] == g) + "</section>"
+        for g in groups) + "</div></section>"
+    strip = lambda t: re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", t)
+    ld = {"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [
+        {"@type": "Question", "name": f["q"], "acceptedAnswer": {"@type": "Answer", "text": strip(f["a"])}} for f in content["faq"]]}
+    urls.append(page("/faq/", "Въпроси и отговори – поръчки, доставка, гаранция, сервиз | GDMobil", "Отговори на най-честите въпроси за поръчка, доставка с Еконт и Спиди, плащане, връщане, гаранция и ремонт в GDMobil.", body, ld))
+
+    cards = "".join(f'<a class="g-card" href="/guides/{g["slug"]}/"><span class="eyebrow">{g["minutes"]} мин. четене</span><h2>{E(g["title"])}</h2><p class="muted">{E(g["desc"])}</p></a>' for g in content["guides"])
+    body = f'''<section class="container page seo-pre g-page">{crumbs([("Ръководства", None)])}<header class="g-head"><span class="eyebrow">Полезно</span><h1>Ръководства и съвети</h1>
+<p class="lead">Как да избереш телефон, аксесоари и как да се грижиш за устройството си – от екипа на GDMobil.</p></header><div class="g-cards">{cards}</div></section>'''
+    urls.append(page("/guides/", "Ръководства и съвети за телефони и аксесоари | GDMobil", "Съвети как да изберете телефон, калъф и протектор, как да пазите батерията и какво да правите, ако телефонът се намокри.", body,
+                     {"@context": "https://schema.org", "@type": "CollectionPage", "name": "Ръководства и съвети", "url": f"{site}/guides/"}))
+    for g in content["guides"]:
+        body = f'''<section class="container page seo-pre g-page">{crumbs([("Ръководства", "/guides/"), (g["title"], None)])}<article class="g-article"><header class="g-head"><span class="eyebrow">{g["minutes"]} мин. четене</span>
+<h1>{E(g["title"])}</h1><p class="lead">{E(g["desc"])}</p></header><div class="g-body">{blocks(g["blocks"])}</div></article></section>'''
+        ld = {"@context": "https://schema.org", "@type": "Article", "headline": g["title"], "description": g["desc"], "datePublished": g["date"], "dateModified": g["date"],
+              "author": {"@type": "Organization", "name": "GDMobil"}, "publisher": {"@type": "Organization", "name": "GDMobil", "logo": {"@type": "ImageObject", "url": f"{site}/assets/img/icon.webp"}},
+              "image": f"{site}/assets/img/og.jpg", "mainEntityOfPage": f"{site}/guides/{g['slug']}/"}
+        urls.append(page(f'/guides/{g["slug"]}/', f'{g["title"]} | GDMobil', g["desc"], body, ld))
 
     # ---------- правни страници ----------
     for key, d in legal.items():
