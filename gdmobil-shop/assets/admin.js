@@ -8,7 +8,7 @@
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const eur = (n) => (n == null || n === "" || isNaN(n) ? "—" : new Intl.NumberFormat("bg-BG", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(n));
   const S0 = window.STORE, L0 = window.LABELS || {}, C = window.CATALOG;
-  const CAT = { phones: "Телефони", tablets: "Таблети", accessories: "Аксесоари", cameras: "Камери" };
+  const CAT = { phones: "Телефони", tablets: "Таблети", accessories: "Аксесоари" };
   const PW_KEY = "gdm_admin_pw";
 
   /* ---------- продукти от каталога ---------- */

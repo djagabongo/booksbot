@@ -205,7 +205,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 10px 0; width: 100%; 
 }
 .sug { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 14px; }
 .sug:hover, .sug.on { background: var(--surface-2); }
-.sug img { width: 46px; height: 46px; object-fit: contain; background: var(--plinth); border-radius: 12px; flex: none; mix-blend-mode: multiply; padding: 3px; }
+.sug img { width: 46px; height: 46px; object-fit: contain; background: var(--plinth); border-radius: 12px; flex: none; padding: 3px; }
 .sug b { display: block; font-size: .92rem; font-weight: 600; }
 .sug small { color: var(--muted); }
 .sug--all { justify-content: center; font-weight: 600; color: var(--ember-ink); }
@@ -608,7 +608,7 @@ textarea.input { height: auto; padding: 14px 16px; resize: vertical; }
 .cmp th { color: var(--muted); font-weight: 500; width: 150px; }
 .cmp td { position: relative; min-width: 190px; }
 .cmp td b { font-weight: 600; }
-.cmp__img { width: 120px; height: 120px; object-fit: contain; background: var(--plinth); border-radius: 22px; margin-bottom: 10px; mix-blend-mode: multiply; padding: 8px; }
+.cmp__img { width: 120px; height: 120px; object-fit: contain; background: var(--plinth); border-radius: 22px; margin-bottom: 10px; padding: 8px; }
 .cmp__rm { position: absolute; top: 12px; right: 12px; }
 
 /* ---------- service ---------- */
@@ -1159,7 +1159,7 @@ body:has(.sticky-buy.show) .chat-fab { bottom: 96px; }
 .msg__prods { display: grid; gap: 6px; margin-top: 8px; }
 .msg__prod { display: flex; align-items: center; gap: 10px; padding: 6px; border-radius: 12px; background: var(--bg); transition: background .2s; }
 .msg__prod:hover { background: var(--surface-2); }
-.msg__prod img { width: 44px; height: 44px; object-fit: contain; background: var(--plinth); border-radius: 10px; mix-blend-mode: multiply; flex: none; }
+.msg__prod img { width: 44px; height: 44px; object-fit: contain; background: var(--plinth); border-radius: 10px; flex: none; }
 .msg__prod span { display: grid; min-width: 0; line-height: 1.3; }
 .msg__prod b { font-weight: 600; font-size: .86rem; }
 .msg__prod small { color: var(--muted); font-size: .78rem; }

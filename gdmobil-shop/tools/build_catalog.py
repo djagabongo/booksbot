@@ -51,7 +51,7 @@ LEGAL_FIXES = [
     ("След заявяване получавате номер и лична връзка за статус. При изпращане магазинът може да добави номер на товарителница. Не публикувайте личната връзка за проследяване.",
      "След заявяване получавате номер на заявката. Статусът се проверява в страницата „Проследяване“ с номера и последните 4 цифри от телефона, посочен в заявката. При изпращане магазинът може да добави номер на товарителница."),
     ("Данните се записват в защитена база към сайта и са достъпни за упълномощения собственик при обслужването.",
-     "Заявките, запитванията за ремонт, изпратените отзиви, абонаментите за бюлетина и за известие при намаление (имейл и продукт – изтриват се след известието) се записват в защитено хранилище към сайта (Netlify Blobs) и са достъпни само за упълномощения собственик при обслужването. Известието до собственика (Telegram или имейл) съдържа данните от заявката. Ако посочите имейл, потвърждението, промените в статуса, напомнянето за записан час и известието при намаление се изпращат чрез доставчика на имейли Brevo. Ако записът не е възможен, заявката се изпраща по имейл от Вашия имейл клиент."),
+     "Заявките, запитванията за ремонт, записаните часове, абонаментите за бюлетина и за известие при намаление (имейл и продукт – изтриват се след известието) се записват в защитено хранилище към сайта (Netlify Blobs) и са достъпни само за упълномощения собственик при обслужването. Известието до собственика (Telegram или имейл) съдържа данните от заявката. Ако посочите имейл, потвърждението, промените в статуса, напомнянето за записан час и известието при намаление се изпращат чрез доставчика на имейли Brevo. Ако записът не е възможен, заявката се изпраща по имейл от Вашия имейл клиент."),
     ("Сайтът използва инфраструктура на OpenAI Sites и Cloudflare. Някои продуктови изображения се зареждат от външен доставчик и съответният сървър получава техническата заявка.",
      "Сайтът се хоства при Netlify. Шрифтовете и продуктовите изображения се зареждат от самия сайт. Картата в раздел „Контакти“ се зарежда от Google Maps само ако я поискате с бутона „Покажи картата“ – тогава Google получава техническата заявка."),
     (" Личната връзка за поръчката показва статуса, артикулите и сумите на всеки, който я притежава; пазете я и не я споделяйте публично.", ""),
@@ -159,7 +159,16 @@ def maker_of(name):
     return ""
 
 
+# Полски думи в имената от доставчика → български
+PL_WORDS = [(r"\bDържач Uchwyt\b", "Държач"), (r"\bMagnetyczny uchwyt/podstawka\b", "Магнитен държач/поставка"), (r"\bUchwyt magnetyczny\b", "Магнитен държач"),
+            (r"\bUchwyt rowerowy\b", "Държач за велосипед"), (r"\bUchwyt\b", "Държач"), (r"\bTorebka na telefon\b", "Чантичка за телефон"),
+            (r"\bna telefon\b", "за телефон"), (r"\buniwersalny", "универсален "), (r"\bbiała\b", "бял"), (r"\bczarny\b", "черен"),
+            (r"\bszary\b", "сив"), (r"\bbrazowy\b", "кафяв"), (r"\bmarmur\b", "мрамор"), (r"\bJeleń\b", "Елен"), (r"\bKoń\b", "Кон"), (r"\bOrzeł\b", "Орел"), (r"\bEtui\b", "Кейс")]
+
+
 def tidy_name(name):
+    for rx, rep in PL_WORDS:
+        name = re.sub(rx, rep, name)
     name = re.sub(r"^Кейс за телефон\s+", "Кейс ", name)
     name = re.sub(r"\s{2,}", " ", name).strip(" ,-–/")
     return name
@@ -232,6 +241,31 @@ OG_PRODUCTS = [
     ("og-premium-strong-steklen-protektor", "Стъклен протектор OG Premium Strong – Full Glass", "cs98610", [], 950_000_000),
     ("og-premium-privacy-steklen-protektor", "Стъклен протектор Privacy OG Premium – със затъмняващ ефект", "cs98609", [], 960_000_000),
 ]
+
+
+def merge_same_name(groups):
+    """Обединява аксесоари с еднакво име и вид (един модел в различни цветове или копия) в един продукт.
+    Повтарящите се модел+цвят остават веднъж – с по-ниската цена."""
+    by, out = {}, []
+    for g in groups:
+        k = (re.sub(r"\W+", " ", g["n"].lower()).strip(), g["sc"])
+        if k in by:
+            t = by[k]
+            t["v"].extend(g["v"])
+            t["cm"] = list(dict.fromkeys(t["cm"] + g["cm"]))
+        else:
+            by[k] = g
+            out.append(g)
+    merged = 0
+    for g in out:
+        best = {}
+        for v in sorted(g["v"], key=lambda v: (v[5] is None, v[5] or 0)):
+            best.setdefault(((v[12] or "").lower(), (v[3] or "").lower()), v)
+        if len(best) < len(g["v"]):
+            merged += len(g["v"]) - len(best)
+        g["v"] = list(best.values())
+    print(f"casestore.bg: обединени {len(groups) - len(out)} продукта с еднакво име, махнати {merged} повторения")
+    return out
 
 
 def build_catalog(src):
@@ -362,9 +396,9 @@ def build_catalog(src):
             e["count"] += m["count"]
         excluded_mk = {k for k, m in merged.items() if m["brand"].lower() in EXCLUDE_BRANDS}
         models = sorted((m for k, m in merged.items() if k not in excluded_mk), key=lambda m: (m["brand"], m["name"]))
-        non_phone = re.compile(r"чанта|\bbag\b|handbag|портфейл|раница|backpack|несесер|purse|tote|клъч|куфар", re.I)
+        non_phone = re.compile(r"чанта|\bbag\b|handbag|портфейл|раница|backpack|несесер|purse|tote|клъч|куфар|torebka", re.I)
         laptop = re.compile(r"лаптоп|laptop|macbook|\b1[3-7](?:[.,]\d)?\s*(?:\"|”|''|inch|инча)", re.I)
-        dropped = [it for it in cs["items"] if (it["sc"] == "Други аксесоари" and non_phone.search(it["n"])) or not it.get("im")
+        dropped = [it for it in cs["items"] if (it["sc"] == "Други аксесоари" and non_phone.search(it["n"])) or re.search(r"torebka", it["n"], re.I) or not it.get("im")
                    or (not it["cm"] and laptop.search(it["n"]) and not re.search(r"ipad|tab|таблет", it["n"], re.I))]
         cs["items"] = [it for it in cs["items"] if it not in dropped]
         print(f"casestore.bg: махнати {len(dropped)} чанти, портфейли, раници, калъфи за лаптоп и продукти без снимка")
@@ -382,7 +416,7 @@ def build_catalog(src):
         before = len(cs["items"])
         cs["items"] = [it for it in cs["items"] if not (it["sc"] == "Протектори" and og_rx.search(it["n"]))]
         print(f"casestore.bg: махнати {before - len(cs['items'])} отделни OG протектора (заменени с общи продукти)")
-        acc_groups = group_accessories(cs["items"], {m["key"]: m["name"] for m in models})
+        acc_groups = merge_same_name(group_accessories(cs["items"], {m["key"]: m["name"] for m in models}))
         phones = sorted((g for g in groups.values() if g["c"] == "phones" and g.get("mk")),
                         key=lambda g: (g["b"].lower() != "apple", g["b"].lower() != "samsung", g["b"].lower(), g["n"].lower()))
         for slug, name, img, gal, base_id in OG_PRODUCTS:
