@@ -19,6 +19,7 @@
       ["deliveryOffice", "deliveryAddress"].forEach((k) => { if (k in st) S[k] = st[k] === "" || st[k] == null ? null : Number(st[k]); });
       if (Array.isArray(st.hours) && st.hours.length === 3) S.hours = st.hours.map((r) => [String(r[0]), String(r[1])]);
       if (Array.isArray(st.featured) && st.featured.length) S.featured = st.featured.map(String);
+      if (Array.isArray(st.heroSlides) && st.heroSlides.length) S.heroSlides = st.heroSlides.filter((x) => x && typeof x === "object");
       if (st.social && typeof st.social === "object") S.social = { ...S.social, ...st.social };
       if (typeof st.aiChat === "boolean") S.aiChat = st.aiChat;
       if (st.heroImage === "auto" || (st.heroSlug && st.heroSlug !== "samsung-galaxy-s26-ultra-model-119473")) S.heroImage = "";

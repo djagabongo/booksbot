@@ -1,6 +1,6 @@
 /* GDMobil service worker – бързо зареждане и работа при слаба връзка */
 const VERSION = "gdm-v24";
-const SHELL = ["./", "index.html", "assets/styles.css", "assets/app.js", "assets/data.js", "assets/catalog.js", "assets/legal.js", "assets/boot.js", "assets/img/logo.webp"];
+const SHELL = ["./", "index.html", "assets/styles.css", "assets/app.js", "assets/data.js", "assets/catalog.js", "assets/legal.js", "assets/boot.js", "assets/img/logo-h.webp"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

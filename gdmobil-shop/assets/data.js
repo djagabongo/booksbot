@@ -47,6 +47,17 @@ window.STORE = {
   /* Основният модел в началото и подбраните смартфони (slug от каталога). */
   heroSlug: "samsung-galaxy-s26-ultra-model-119473",
   heroImage: "assets/img/galaxys26.webp",
+  // Слайдове в голямата витрина на началната страница (въртят се на 6 с). Първият е моделът heroSlug.
+  // Вид "product": { slug } – име, цена и снимка от каталога. Вид "custom": свой текст, връзка и снимка.
+  heroSlides: [
+    { type: "product", slug: "" },
+    { type: "custom", eyebrow: "Протектори · OG Premium", title: "Стъклен протектор за всеки телефон", em: "само 10 €",
+      text: "Full Glass или Privacy със затъмняване – за всички модели, които продаваме. Избери своя модел.",
+      button: "Избери модела си", href: "#/p/og-premium-strong-steklen-protektor", image: "assets/img/products/cs98610.webp", plinth: true },
+    { type: "custom", eyebrow: "Сервиз GDMobil", title: "Запази час за ремонт", em: "онлайн",
+      text: "Избери ден и час – диагностика на място и ясна цена, преди да започнем.",
+      button: "Запази час", href: "#/service#book", image: "assets/img/service-hero.svg", wide: true },
+  ],
   featured: [
     "samsung-galaxy-s26-ultra-model-119473",
     "apple-iphone-18-pro-model-136292",

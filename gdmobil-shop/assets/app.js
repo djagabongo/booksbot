@@ -269,7 +269,8 @@
     const preHero = view.querySelector(".tile--hero .tile__phone"); // готовата снимка от страницата за Google – запазва се, без да се зарежда наново
     view.innerHTML = `
     <section class="container bento">
-      ${hero ? `<a class="tile tile--hero" href="#/p/${hero.slug}">
+      ${hero ? `<div class="hero-slider" id="heroSlider" aria-roledescription="carousel" aria-label="Предложения">
+      <a class="tile tile--hero hero-slide is-on" href="#/p/${hero.slug}" data-slide="0">
         <div class="tile__glow"></div>
         <div class="tile__copy">
           <span class="eyebrow eyebrow--dark">Магазин и сервиз · Гоце Делчев</span>
@@ -282,7 +283,8 @@
         </div>
         ${S.heroImage ? `<img src="${esc(S.heroImage)}" alt="${esc(hero.name)}" class="tile__phone" width="630" height="640" fetchpriority="high">`
           : `<span class="tile__phone tile__phone--plinth"><img src="${esc(full(hero.img))}" alt="${esc(hero.name)}" fetchpriority="high"></span>`}
-      </a>` : ""}
+      </a>
+      ${heroExtraSlides()}</div>` : ""}
       ${second ? `<a class="tile tile--light tile--wide" href="#/p/${second.slug}">
         <div class="tile__copy">
           <span class="eyebrow">Ново · ${esc(second.brand)}</span>
@@ -393,6 +395,7 @@
       $$("#topTabs [data-top]").forEach((b) => b.setAttribute("aria-selected", b.dataset.top === brand));
     };
     $("#topTabs").addEventListener("click", (e) => { const b = e.target.closest("[data-top]"); if (b) drawTop(b.dataset.top); });
+    initHeroSlider();
     const newHero = view.querySelector(".tile--hero .tile__phone");
     if (preHero && newHero && preHero.getAttribute("src") === newHero.getAttribute("src")) newHero.replaceWith(preHero);
     drawTop("Всички");
@@ -1134,6 +1137,58 @@
   };
   const socIcon = (n) => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${SOC_IC[n]}</svg>`;
   const socialButtons = (cls = "soc") => `<div class="${cls}">${SOCIAL().map(([k, n, u]) => `<a class="${cls}__btn ${cls}__btn--${k}" href="${esc(u)}" target="_blank" rel="noopener" aria-label="${n}">${socIcon(k)}<span>${n}</span></a>`).join("")}</div>`;
+
+  // Допълнителни слайдове на витрината (първият е моделът от heroSlug и се рендира отделно)
+  function heroExtraSlides() {
+    const list = (S.heroSlides || []).slice(1).filter((x) => x && x.active !== false);
+    const html = list.map((x, k) => {
+      const n = k + 1;
+      if (x.type === "product") {
+        const p = BY_SLUG.get(x.slug); if (!p) return "";
+        return `<a class="tile tile--hero hero-slide" href="#/p/${p.slug}" data-slide="${n}" aria-hidden="true" tabindex="-1">
+          <div class="tile__glow"></div><div class="tile__copy">
+            <span class="eyebrow eyebrow--dark">${esc(x.eyebrow || (p.tags.new ? "Ново · " : "") + p.brand)}</span>
+            <h2 class="display">${esc(x.title || p.name.replace(p.brand + " ", ""))}${x.em ? ` <em>${esc(x.em)}</em>` : ""}</h2>
+            <p>${esc(x.text || "Избери памет и цвят. Вземи го от магазина без такса или с доставка до теб.")}</p>
+            <div class="tile__row"><span class="btn btn--ember">${esc(x.button || "Виж модела")} ${icon("arrow")}</span><span class="tile__price"><small>от</small> ${eur(p.min)}</span></div></div>
+          <span class="tile__phone tile__phone--plinth"><img src="${esc(full(p.img))}" alt="${esc(p.name)}" loading="lazy"></span></a>`;
+      }
+      return `<a class="tile tile--hero hero-slide" href="${esc(x.href || "#/")}" data-slide="${n}" aria-hidden="true" tabindex="-1">
+        <div class="tile__glow"></div><div class="tile__copy">
+          ${x.eyebrow ? `<span class="eyebrow eyebrow--dark">${esc(x.eyebrow)}</span>` : ""}
+          <h2 class="display">${esc(x.title || "")}${x.em ? ` <em>${esc(x.em)}</em>` : ""}</h2>
+          ${x.text ? `<p>${esc(x.text)}</p>` : ""}
+          ${x.button ? `<div class="tile__row"><span class="btn btn--ember">${esc(x.button)} ${icon("arrow")}</span></div>` : ""}</div>
+        ${x.image ? (x.plinth ? `<span class="tile__phone tile__phone--plinth"><img src="${esc(x.image)}" alt="" loading="lazy"></span>`
+          : `<img src="${esc(x.image)}" alt="" class="tile__phone ${x.wide ? "tile__phone--wide" : ""}" loading="lazy">`) : ""}</a>`;
+    }).join("");
+    const count = 1 + list.length;
+    return html + (count > 1 ? `<div class="hero-dots" role="tablist" aria-label="Слайдове">${Array.from({ length: count }, (_, k) => `<button role="tab" aria-label="Слайд ${k + 1}" aria-selected="${k === 0}" data-go="${k}"></button>`).join("")}</div>` : "");
+  }
+  let heroTimer = null;
+  function initHeroSlider() {
+    clearInterval(heroTimer);
+    const root = $("#heroSlider"); if (!root) return;
+    const slides = $$(".hero-slide", root), dots = $$(".hero-dots button", root);
+    if (slides.length < 2) return;
+    let cur = 0, paused = false;
+    const show = (n) => {
+      cur = (n + slides.length) % slides.length;
+      slides.forEach((s, k) => { s.classList.toggle("is-on", k === cur); s.setAttribute("aria-hidden", k !== cur); s.tabIndex = k === cur ? 0 : -1; });
+      dots.forEach((d, k) => d.setAttribute("aria-selected", k === cur));
+    };
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!still) heroTimer = setInterval(() => { if (!paused && !document.hidden && root.isConnected) show(cur + 1); else if (!root.isConnected) clearInterval(heroTimer); }, 6000);
+    root.addEventListener("mouseenter", () => (paused = true));
+    root.addEventListener("mouseleave", () => (paused = false));
+    root.addEventListener("focusin", () => (paused = true));
+    root.addEventListener("focusout", () => (paused = false));
+    root.addEventListener("click", (e) => { const d = e.target.closest("[data-go]"); if (d) { e.preventDefault(); show(+d.dataset.go); } });
+    let x0 = null, moved = false;
+    root.addEventListener("pointerdown", (e) => { x0 = e.clientX; moved = false; });
+    root.addEventListener("pointerup", (e) => { if (x0 == null) return; const dx = e.clientX - x0; x0 = null; if (Math.abs(dx) > 40) { moved = true; show(cur + (dx < 0 ? 1 : -1)); } });
+    root.addEventListener("click", (e) => { if (moved) { e.preventDefault(); moved = false; } }, true);
+  }
 
   // Въртяща се лента с логата (спира при посочване; без анимация при „намалено движение“)
   function logoMarquee(items, cls = "") {

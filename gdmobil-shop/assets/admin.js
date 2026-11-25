@@ -301,10 +301,29 @@
     freshMain();
     const featured = O.store.featured || [...S0.featured];
     const hero = st("heroSlug");
+    const slides = O.store.heroSlides || JSON.parse(JSON.stringify(S0.heroSlides || [{ type: "product", slug: "" }]));
+    const saveSlides = () => { O.store.heroSlides = slides; change(); };
     $("#main").innerHTML = `<div class="adm-page">
       <section class="adm-box"><h2>Голямата плочка</h2><p class="muted">Моделът, показан най-отгоре на началната страница.</p>
         <p class="adm-current">Сега: <b>${esc(BY_SLUG.get(hero)?.name || hero)}</b></p>${picker("heroPick", "Смени с… (търси модел)")}
         <p class="muted small">Снимката в плочката остава Galaxy S26 Ultra, освен ако не избереш друг модел – тогава се ползва неговата снимка.</p></section>
+      <section class="adm-box"><div class="adm-row"><h2>Витрина – още слайдове (${slides.length - 1})</h2>
+          <button class="btn btn--ghost btn--sm" data-sadd="custom">+ Свой слайд</button><button class="btn btn--ghost btn--sm" data-sadd="product">+ Слайд с продукт</button></div>
+        <p class="muted">Първият слайд е моделът по-горе. Тези се показват след него и се сменят на всеки 6 секунди.</p>
+        <div class="adm-reviews">${slides.slice(1).map((x, k) => { const i = k + 1; return `<div class="adm-rev ${x.active === false ? "off" : ""}" data-si="${i}">
+          <div class="adm-row"><b>Слайд ${i + 1} · ${x.type === "product" ? "продукт" : "свой"}</b>
+            <label class="check"><input type="checkbox" data-sf="active" ${x.active === false ? "" : "checked"}><span>Показва се</span></label>
+            <button class="btn btn--ghost btn--sm" data-sup ${i > 1 ? "" : "disabled"}>↑</button><button class="btn btn--ghost btn--sm" data-sdel>Изтрий</button></div>
+          <div class="adm-grid">
+            ${x.type === "product" ? `<label class="field"><span>Продукт</span><select class="select" data-sf="slug">${PRODUCTS.filter((p) => p.cat !== "accessories" || p.variants.length > 5).map((p) => `<option value="${esc(p.slug)}" ${p.slug === x.slug ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select></label>` : ""}
+            <label class="field"><span>Малък надпис</span><input class="input" data-sf="eyebrow" value="${esc(x.eyebrow || "")}" placeholder="Протектори · OG Premium"></label>
+            <label class="field"><span>Заглавие</span><input class="input" data-sf="title" value="${esc(x.title || "")}" placeholder="${x.type === "product" ? "(името на продукта)" : "Заглавие"}"></label>
+            <label class="field"><span>Оцветена част</span><input class="input" data-sf="em" value="${esc(x.em || "")}" placeholder="само 10 €"></label>
+            <label class="field"><span>Текст на бутона</span><input class="input" data-sf="button" value="${esc(x.button || "")}" placeholder="Виж повече"></label>
+            ${x.type === "product" ? "" : `<label class="field"><span>Връзка</span><input class="input" data-sf="href" value="${esc(x.href || "")}" placeholder="#/c/accessories"></label>
+            <label class="field"><span>Снимка (адрес)</span><input class="input" data-sf="image" value="${esc(x.image || "")}" placeholder="assets/img/…"></label>`}
+          </div>
+          <label class="field"><span>Текст</span><input class="input" data-sf="text" value="${esc(x.text || "")}"></label></div>`; }).join("")}</div></section>
       <section class="adm-box"><h2>Подбрани смартфони (${featured.length})</h2><p class="muted">Подредбата е както тук. Препоръчително 8.</p>
         <ol class="adm-order">${featured.map((s, i) => `<li><span>${esc(BY_SLUG.get(s)?.name || s)}</span>
           <button data-up="${i}" ${i ? "" : "disabled"} aria-label="Нагоре">↑</button><button data-down="${i}" ${i < featured.length - 1 ? "" : "disabled"} aria-label="Надолу">↓</button><button data-del="${i}" aria-label="Махни">✕</button></li>`).join("")}</ol>
@@ -312,6 +331,22 @@
     </div>`;
     bindPicker("heroPick", (s) => { O.store.heroSlug = s; O.store.heroImage = s === "samsung-galaxy-s26-ultra-model-119473" ? "" : "auto"; change(); renderHome(); });
     bindPicker("featPick", (s) => { const f = [...featured]; if (!f.includes(s)) f.push(s); O.store.featured = f; change(); renderHome(); });
+    $("#main").addEventListener("input", (e) => {
+      const box = e.target.closest("[data-si]"); const f = e.target.dataset.sf; if (!box || !f) return;
+      slides[+box.dataset.si][f] = f === "active" ? e.target.checked : e.target.value; saveSlides();
+    });
+    $("#main").addEventListener("change", (e) => {
+      const box = e.target.closest("[data-si]"); const f = e.target.dataset.sf; if (!box || !f) return;
+      slides[+box.dataset.si][f] = f === "active" ? e.target.checked : e.target.value; saveSlides();
+      if (f === "active") renderHome();
+    });
+    $("#main").addEventListener("click", (e) => {
+      const add = e.target.closest("[data-sadd]");
+      if (add) { slides.push(add.dataset.sadd === "product" ? { type: "product", slug: S0.featured[1] } : { type: "custom", title: "", text: "", href: "#/", button: "Виж повече" }); saveSlides(); return renderHome(); }
+      const box = e.target.closest("[data-si]"); if (!box) return; const i = +box.dataset.si;
+      if (e.target.closest("[data-sdel]")) { slides.splice(i, 1); saveSlides(); renderHome(); }
+      if (e.target.closest("[data-sup]") && i > 1) { [slides[i - 1], slides[i]] = [slides[i], slides[i - 1]]; saveSlides(); renderHome(); }
+    });
     $(".adm-order").addEventListener("click", (e) => {
       const f = [...featured], b = e.target.closest("button"); if (!b) return;
       const i = +(b.dataset.up ?? b.dataset.down ?? b.dataset.del);

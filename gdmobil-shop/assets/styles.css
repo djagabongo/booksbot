@@ -1356,3 +1356,25 @@ body:has(.sticky-buy.show) .chat-fab { bottom: 96px; }
 .g-faq__item p { margin: 0; padding: 0 18px 16px; line-height: 1.65; color: var(--muted); }
 .g-ask { display: flex; flex-wrap: wrap; gap: 16px 24px; justify-content: space-between; align-items: center; margin-top: 34px; padding: 22px 24px; border-radius: var(--r); background: var(--surface); border: 1px solid var(--line); max-width: 860px; }
 .g-ask p { margin: 4px 0 0; }
+
+/* стандартни кирилски форми в заглавията (без българските „в“ и „д“ на Unbounded) */
+html { font-feature-settings: "locl" 0; }
+
+/* ---------- въртяща се витрина ---------- */
+.hero-slider { grid-column: span 2; grid-row: span 2; display: grid; position: relative; border-radius: var(--r); }
+.hero-slider { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; }
+.hero-slider > .hero-slide { grid-column: 1 / 2; grid-row: 1 / 2; min-height: 560px; opacity: 0; visibility: hidden; transition: opacity .7s ease, visibility 0s .7s; }
+.hero-slider > .hero-slide.is-on { opacity: 1; visibility: visible; transition: opacity .7s ease; z-index: 1; }
+.hero-slider .tile:hover { transform: none; }
+.hero-dots { position: absolute; z-index: 3; left: 40px; bottom: 26px; display: flex; gap: 8px; }
+.hero-dots button { width: 9px; height: 9px; padding: 0; border-radius: 999px; border: 0; background: rgba(255,255,255,.35); cursor: pointer; transition: width .3s, background .3s; }
+.hero-dots button[aria-selected="true"] { width: 28px; background: var(--ember); }
+.tile__phone--wide { width: 52%; max-width: 420px; right: 3%; bottom: 8%; border-radius: 20px; filter: drop-shadow(0 30px 40px rgba(0,0,0,.55)); }
+@media (max-width: 1100px) { .hero-slider { grid-column: 1 / -1; grid-row: auto; } }
+@media (max-width: 760px) { .hero-dots { left: 22px; bottom: 18px; } .tile__phone--wide { width: 78%; right: 50%; transform: translateX(50%); bottom: 34px; } }
+@media (prefers-reduced-motion: reduce) { .hero-slider > .hero-slide { transition: none; } }
+.hero-slide .tile__phone--plinth { width: 40%; right: 3%; bottom: 10%; }
+@media (max-width: 760px) {
+  .hero-slide .tile__phone--plinth { width: 52%; right: 50%; transform: translateX(50%); bottom: 34px; }
+  .tile--hero.hero-slide:hover .tile__phone--plinth { transform: translateX(50%); }
+}
