@@ -1267,3 +1267,34 @@ body:has(.sticky-buy.show) .chat-fab { bottom: 96px; }
 .promo-row .input { flex: 1; text-transform: uppercase; }
 .promo-msg { margin: -4px 0 0; color: var(--ember-ink); min-height: 1em; }
 .promo-line { color: #17803d; font-weight: 600; }
+
+/* ---------- въртяща се лента с логата ---------- */
+.section--brands .section__head { margin-bottom: 18px; }
+.mq { overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); }
+.mq__track { display: flex; width: max-content; gap: 14px; padding: 6px 0; animation: mq var(--mq-dur, 40s) linear infinite; }
+.mq__dup { display: contents; }
+.mq:hover .mq__track, .mq:focus-within .mq__track { animation-play-state: paused; }
+@keyframes mq { to { transform: translateX(calc(-50% - 7px)); } }
+.mq__item { flex: none; display: flex; align-items: center; gap: 14px; min-width: 210px; padding: 14px 22px 14px 14px; border-radius: 22px; background: var(--surface); border: 1px solid var(--line); transition: transform .25s, box-shadow .25s, border-color .25s; }
+.mq__item:hover, .mq__item:focus-visible { transform: translateY(-3px); box-shadow: var(--shadow); border-color: var(--ember); }
+.mq__logo { width: 72px; height: 72px; flex: none; display: grid; place-items: center; border-radius: 18px; background: #fff; padding: 10px; }
+.mq__logo img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.mq__txt { display: grid; line-height: 1.25; }
+.mq__txt b { font-size: 1.05rem; font-weight: 600; }
+.mq__txt small { color: var(--muted); font-size: .82rem; }
+.mq--sm .mq__item { min-width: 0; padding: 10px; border-radius: 18px; }
+.mq--sm .mq__logo { width: 92px; height: 56px; padding: 6px 10px; }
+.svc-brands .mq { flex: 1; min-width: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .mq { overflow-x: auto; -webkit-mask-image: none; mask-image: none; scrollbar-width: none; }
+  .mq__track { animation: none; }
+  .mq__dup { display: none; }
+}
+@media (max-width: 640px) { .mq__item { min-width: 170px; padding: 10px 16px 10px 10px; } .mq__logo { width: 56px; height: 56px; } .mq--sm .mq__logo { width: 76px; height: 46px; } }
+.cat--svc .cat__img { overflow: hidden; }
+.cat--svc .cat__img img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.svc-brands > .mq { display: block; flex: 1 1 320px; }
+.svc-brands .mq img { width: auto; height: auto; filter: none; opacity: 1; padding: 0; background: none; border-radius: 0; }
+.mq__logo img { max-width: 52px; max-height: 52px; }
+.mq--sm .mq__logo img, .svc-brands .mq img { max-width: 72px; max-height: 40px; }
+@media (max-width: 640px) { .mq__logo img { max-width: 40px; max-height: 40px; } .mq--sm .mq__logo img, .svc-brands .mq img { max-width: 60px; max-height: 32px; } }

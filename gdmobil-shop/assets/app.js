@@ -259,7 +259,7 @@
     const counts = Object.fromEntries(window.CATEGORIES.map((c) => [c.key, PRODUCTS.filter((p) => p.cat === c.key).length]));
     const brandCounts = {};
     PRODUCTS.filter((p) => p.cat === "phones").forEach((p) => (brandCounts[p.brand] = (brandCounts[p.brand] || 0) + 1));
-    const brands = Object.entries(brandCounts).sort((a, b) => b[1] - a[1]).filter(([b]) => C.logos[b]).slice(0, 12);
+    const brands = Object.entries(brandCounts).filter(([b]) => C.logos[b]).sort((a, b) => a[0].localeCompare(b[0]));
     const recent = state.recent.map((s) => BY_SLUG.get(s)).filter(Boolean);
     const hasSale = PRODUCTS.some((p) => p.tags.sale && p.cat === "phones");
     const topTabs = ["Всички", "Нови", ...(hasSale ? ["Намалени"] : []), "Apple", "Samsung", "Xiaomi", "Honor"];
@@ -320,7 +320,14 @@
         ${window.CATEGORIES.map((c) => `<a class="cat" href="#/c/${c.key}">
           <span class="cat__img"><img src="${esc(c.img)}" alt="" loading="lazy"></span>
           <b>${esc(c.name)}</b><small>${plural(counts[c.key], "продукт", "продукта")}</small></a>`).join("")}
+        <a class="cat cat--svc" href="#/service"><span class="cat__img"><img src="assets/img/repair-workbench.jpg" alt="" loading="lazy"></span>
+          <b>Сервиз</b><small>Ремонт с ясна цена</small></a>
       </div>
+    </section>
+
+    <section class="section section--brands">
+      <div class="container section__head"><div><span class="eyebrow">Марки</span><h2>Пазарувай по марка</h2></div><a href="#/c/phones" class="link">Всички телефони ${icon("arrow")}</a></div>
+      ${logoMarquee(brands.map(([b, n]) => ({ name: b, logo: C.logos[b], href: `#/c/phones?brand=${encodeURIComponent(b)}`, sub: plural(n, "модел", "модела") })))}
     </section>
 
     <section class="container section">
@@ -339,29 +346,6 @@
       <div class="more"><a class="btn btn--ghost" id="accMore" href="#/c/accessories">Всички аксесоари ${icon("arrow")}</a></div>
     </section>
 
-    ${recent.length ? `<section class="container section">
-      <div class="section__head"><div><span class="eyebrow">За теб</span><h2>Последно разгледани</h2></div></div>
-      <div class="rail">${recent.slice(0, 8).map(card).join("")}</div></section>` : ""}
-
-    <section class="band">
-      <div class="container band__inner">
-        <div class="band__copy">
-          <span class="eyebrow eyebrow--dark">Сервиз GDMobil</span>
-          <h2>Ремонт с ясна цена – още преди да започнем.</h2>
-          <p>Изпрати модел и описание на проблема. Получаваш ориентировъчна цена и срок, а крайната оферта потвърждаваш след преглед.</p>
-          <div class="tile__row"><a class="btn btn--ember" href="#/service#form">Запитване за ремонт ${icon("arrow")}</a><a class="btn btn--glass" href="#/service#prices">Всички цени</a></div>
-        </div>
-        <ul class="band__prices">${window.REPAIRS.slice(0, 6).map((r) => `<li><span class="band__ic">${icon(r.icon)}</span><span>${esc(r.title)}</span><b>${esc(r.price)}</b></li>`).join("")}</ul>
-      </div>
-    </section>
-
-    <section class="container section">
-      <div class="section__head"><div><span class="eyebrow">Марки</span><h2>Пазарувай по марка</h2></div></div>
-      <div class="brands">
-        ${brands.map(([b, n]) => `<a class="brand" href="#/c/phones?brand=${encodeURIComponent(b)}"><img src="${esc(C.logos[b])}" alt="" loading="lazy"><span>${esc(b)}<small>${plural(n, "модел", "модела")}</small></span></a>`).join("")}
-      </div>
-    </section>
-
     <section class="container section">
       <div class="finder">
         <div class="finder__copy">
@@ -378,9 +362,23 @@
       </div>
     </section>
 
-    ${reviewsBlock()}
+    ${recent.length ? `<section class="container section">
+      <div class="section__head"><div><span class="eyebrow">За теб</span><h2>Последно разгледани</h2></div></div>
+      <div class="rail">${recent.slice(0, 8).map(card).join("")}</div></section>` : ""}
 
-    ${newsletterBlock()}
+    <section class="band">
+      <div class="container band__inner">
+        <div class="band__copy">
+          <span class="eyebrow eyebrow--dark">Сервиз GDMobil</span>
+          <h2>Ремонт с ясна цена – още преди да започнем.</h2>
+          <p>Изпрати модел и описание на проблема. Получаваш ориентировъчна цена и срок, а крайната оферта потвърждаваш след преглед.</p>
+          <div class="tile__row"><a class="btn btn--ember" href="#/service#form">Запитване за ремонт ${icon("arrow")}</a><a class="btn btn--glass" href="#/service#prices">Всички цени</a></div>
+        </div>
+        <ul class="band__prices">${window.REPAIRS.slice(0, 6).map((r) => `<li><span class="band__ic">${icon(r.icon)}</span><span>${esc(r.title)}</span><b>${esc(r.price)}</b></li>`).join("")}</ul>
+      </div>
+    </section>
+
+
 
     ${contactBlock()}`;
 
@@ -591,7 +589,7 @@
   }
 
   function filtersHtml(base) {
-    const brands = facet(base, (p) => p.brand).sort((a, b) => b[1] - a[1]);
+    const brands = facet(base, (p) => p.brand).sort((a, b) => a[0].localeCompare(b[0], "bg"));
     const subs = facet(base, (p) => p.sub).sort((a, b) => b[1] - a[1]);
     const memOrder = (s) => parseFloat(s) * (s.includes("TB") ? 1024 : s.includes("MB") ? 1 / 1024 : 1);
     const mems = facet(base, (p) => p.opts.storage).filter(([v]) => !/MB/i.test(v)).sort((a, b) => memOrder(a[0]) - memOrder(b[0]));
@@ -981,7 +979,7 @@
 
       <div class="svc-brands">
         <span>Ремонтираме устройства на</span>
-        <div>${repBrands.map((b) => `<img src="${esc(C.logos[b])}" alt="${esc(b)}" title="${esc(b)}" loading="lazy">`).join("")}</div>
+        ${logoMarquee(repBrands.map((b) => ({ name: b, logo: C.logos[b], href: PRODUCTS.some((p) => p.brand === b && p.cat !== "accessories") ? `#/c/phones?brand=${encodeURIComponent(b)}` : "#/service#book" })), "mq--sm")}
       </div>
 
       <div class="section" id="prices">
@@ -1111,6 +1109,14 @@
   };
   const socIcon = (n) => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${SOC_IC[n]}</svg>`;
   const socialButtons = (cls = "soc") => `<div class="${cls}">${SOCIAL().map(([k, n, u]) => `<a class="${cls}__btn ${cls}__btn--${k}" href="${esc(u)}" target="_blank" rel="noopener" aria-label="${n}">${socIcon(k)}<span>${n}</span></a>`).join("")}</div>`;
+
+  // Въртяща се лента с логата (спира при посочване; без анимация при „намалено движение“)
+  function logoMarquee(items, cls = "") {
+    const one = items.map((x) => `<a class="mq__item" href="${esc(x.href)}" title="${esc(x.name)}">
+      <span class="mq__logo"><img src="${esc(x.logo)}" alt="${esc(x.name)}" loading="lazy"></span>
+      ${x.sub !== undefined ? `<span class="mq__txt"><b>${esc(x.name)}</b>${x.sub ? `<small>${esc(x.sub)}</small>` : ""}</span>` : ""}</a>`).join("");
+    return `<div class="mq ${cls}" style="--mq-dur:${Math.max(20, items.length * 4)}s"><div class="mq__track">${one}<div class="mq__dup" aria-hidden="true">${one.replace(/<a /g, '<a tabindex="-1" ')}</div></div></div>`;
+  }
 
   function reviewsBlock() {
     const R = window.REVIEWS || {};
