@@ -139,7 +139,7 @@
   function render() {
     const m = $("#main"), fresh = m.cloneNode(false);
     m.replaceWith(fresh); // нов елемент – без натрупани обработчици от предишния раздел
-    ({ orders: renderOrders, products: renderProducts, labels: renderLabels, home: renderHome, store: renderStore, reviews: renderReviews, analytics: renderAnalytics })[tab]();
+    ({ watches: renderWatches, orders: renderOrders, products: renderProducts, labels: renderLabels, home: renderHome, store: renderStore, reviews: renderReviews, analytics: renderAnalytics })[tab]();
   }
 
   /* ===== ПРОДУКТИ ===== */
@@ -470,6 +470,51 @@
       <button class="btn btn--primary" id="oSave">Запази статуса</button>
       <p class="muted small">Връзка за клиента: <a href="${esc(link)}" target="_blank">${esc(link)}</a></p>
       <h3>История</h3><ol class="adm-hist">${o.history.slice().reverse().map((h) => `<li><b>${esc(S[h.status] || h.status)}</b> <span class="muted small">${fmt(h.at)}</span>${h.note ? `<br>${esc(h.note)}` : ""}</li>`).join("")}</ol>`;
+  }
+
+  /* ===== СЛЕДЕНИ ЦЕНИ („Кажи ми при намаление“) ===== */
+  const BY_VID = new Map(PRODUCTS.flatMap((p) => p.variants.map((v) => [String(v.id), { p, v }])));
+  function nowPrice(slug, id) {
+    const x = BY_VID.get(String(id)) || (BY_SLUG.get(slug) && { p: BY_SLUG.get(slug), v: BY_SLUG.get(slug).variants[0] });
+    if (!x) return null;
+    const base = O.prices[x.v.id] != null && O.prices[x.v.id] !== "" ? Number(O.prices[x.v.id]) : x.v.price;
+    const pct = O.labels.sale[x.v.id] ?? O.labels.sale[x.p.slug];
+    return base == null ? null : pct > 0 && pct < 100 ? Math.round(base * (100 - pct)) / 100 : base;
+  }
+  async function renderWatches() {
+    const m = $("#main");
+    m.innerHTML = `<div class="adm-page"><p class="muted">Зареждане…</p></div>`;
+    const r = await fetch("/api/orders?watches=1", { cache: "no-store", headers: { "x-admin-password": pw() } }).then((x) => x.json()).catch(() => null);
+    if (!$("#main").isConnected || tab !== "watches") return;
+    const groups = {};
+    (r?.watches || []).forEach((w) => (groups[w.slug] = groups[w.slug] || []).push(w));
+    const rows = Object.entries(groups).map(([slug, ws]) => {
+      const now = nowPrice(slug, ws[0].id), was = Math.min(...ws.map((w) => w.price || Infinity));
+      return { slug, ws, now, was, drop: now != null && was !== Infinity && now < was, name: ws[0].name };
+    }).sort((a, b) => b.drop - a.drop || b.ws.length - a.ws.length);
+    $("#main").innerHTML = `<div class="adm-page"><section class="adm-box"><h2>Следени цени (${rows.length} продукта, ${(r?.watches || []).length} абоната)</h2>
+      <p class="muted">Клиентите натискат „Кажи ми при намаление“ на продукта. Когато намалиш цената (в „Продукти“ или „Етикети“ → Запази), продуктът се маркира тук.
+      Натисни „Изпрати имейл“ – отваря се писмо до всички абонати (скрито копие) – и после „Готово“, за да изтриеш имейлите им.</p>
+      ${rows.length ? `<div class="adm-table-wrap"><table class="adm-table"><thead><tr><th>Продукт</th><th>Абонати</th><th>Цена при абониране</th><th>Сега</th><th></th></tr></thead><tbody>
+        ${rows.map((x) => `<tr data-slug="${esc(x.slug)}" class="${x.drop ? "sel" : ""}"><td><b>${esc(x.name)}</b><small class="muted">${esc(x.ws[0].variant || "")}</small></td><td>${x.ws.length}</td>
+          <td>${eur(x.was === Infinity ? null : x.was)}</td><td>${x.drop ? `<span class="adm-badge adm-badge--ready">${eur(x.now)} ↓</span>` : eur(x.now)}</td>
+          <td><div class="adm-row">${x.drop ? `<a class="btn btn--primary btn--sm" data-mail href="#">Изпрати имейл</a>` : ""}<button class="btn btn--ghost btn--sm" data-wdone>${x.drop ? "Готово" : "Изтрий"}</button></div></td></tr>`).join("")}
+      </tbody></table></div>` : `<p class="muted">Още няма абонати.</p>`}</section></div>`;
+    $("#main").addEventListener("click", async (e) => {
+      const tr = e.target.closest("tr[data-slug]"); if (!tr) return;
+      const x = rows.find((y) => y.slug === tr.dataset.slug);
+      if (e.target.closest("[data-mail]")) {
+        e.preventDefault();
+        const site = (st("siteUrl") || location.origin).replace(/\/$/, "");
+        const body = `Здравей!\n\nЦената на ${x.name}, която следиш, падна на ${eur(x.now)} (беше ${eur(x.was)}).\n\nВиж продукта: ${site}/p/${x.slug}/\n\nПоздрави,\nекипът на GDMobil\n${st("phone")} · ${st("address")}\n\nПолучаваш това писмо, защото поиска известие при намаление. Имейлът ти вече е изтрит от списъка.`;
+        location.href = `mailto:${encodeURIComponent(st("email"))}?bcc=${encodeURIComponent(x.ws.map((w) => w.email).join(","))}&subject=${encodeURIComponent("Намаление: " + x.name)}&body=${encodeURIComponent(body)}`;
+      }
+      if (e.target.closest("[data-wdone]")) {
+        if (!x.drop && !confirm(`Да изтрия ${x.ws.length} абоната за „${x.name}“?`)) return;
+        await fetch("/api/orders?watch_del=1", { method: "POST", headers: { "content-type": "application/json", "x-admin-password": pw() }, body: JSON.stringify({ keys: x.ws.map((w) => w.key) }) });
+        toast("Готово"); renderWatches();
+      }
+    });
   }
 
   /* ===== СТАТИСТИКА ===== */

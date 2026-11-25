@@ -139,6 +139,7 @@
 
   /* ---------- икони ---------- */
   const IC = {
+    bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
     star: '<path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
     heart: '<path d="M12 21s-7.5-4.6-9.5-9.3C1 8 3.4 4.5 7 4.5c2 0 3.5 1 5 2.8 1.5-1.8 3-2.8 5-2.8 3.6 0 6 3.5 4.5 7.2C19.5 16.4 12 21 12 21z"/>',
     swap: '<path d="M7 4 3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/>',
@@ -766,6 +767,7 @@
             <button class="btn btn--ghost btn--sm" data-fav="${p.slug}" id="pdFav">${icon("heart")} <span></span></button>
             ${canCompare(p) ? `<button class="btn btn--ghost btn--sm" data-cmp="${p.slug}" id="pdCmp">${icon("swap")} <span></span></button>` : ""}
             <button class="btn btn--ghost btn--sm" id="pdShare">${icon("share")} Сподели</button>
+            ${p.min != null ? `<button class="btn btn--ghost btn--sm" id="pdWatch">${icon("bell")} ${store.get("watch", []).includes(p.slug) ? "Следиш цената" : "Кажи ми при намаление"}</button>` : ""}
           </div>
           <div class="pd__perks">
             <div>${icon("store")}<span><b>Вземи от магазина</b><small>Без такса · ${esc(S.address)}</small></span></div>
@@ -858,6 +860,7 @@
       openZoom(galleryOf(p, cur), gi, p.name);
     });
     $("#pdShare").addEventListener("click", (e) => { e.stopPropagation(); shareMenu(p, e.currentTarget); });
+    $("#pdWatch")?.addEventListener("click", () => openWatch(p, cur));
     draw();
   }
 
@@ -966,7 +969,7 @@
           <span class="eyebrow eyebrow--dark">Сервиз GDMobil · Гоце Делчев</span>
           <h1>Ремонт на телефони и таблети – с ясна цена преди започване.</h1>
           <p class="muted">Смяна на дисплеи и батерии, ремонт на букси за зареждане, камери и бутони, софтуер и диагностика на платки. Избери проблема за ориентировъчна цена или ни пиши.</p>
-          <div class="hero__cta"><a class="btn btn--primary" href="#/service#calc">Колко ще струва?</a><a class="btn btn--ghost" href="#/service#form">Опиши проблема</a></div>
+          <div class="hero__cta"><a class="btn btn--primary" href="#/service#book">${icon("clock")} Запази час</a><a class="btn btn--ghost" href="#/service#calc">Колко ще струва?</a></div>
           <ul class="svc-facts">
             <li><b>8</b><span>вида ремонти</span></li>
             <li><b>от 15 €</b><span>ориентировъчно</span></li>
@@ -1012,6 +1015,8 @@
         </div>
       </div>
 
+      <div class="section" id="book">${bookingHtml()}</div>
+
       <div class="section svc-grid">
         <div id="form">${inquiryForm("service", q.get("model") || "", q.get("msg") || "")}</div>
         <div>
@@ -1042,6 +1047,7 @@
       </div>
     </section>`;
     $("[data-today3]").innerHTML = todayText();
+    initBooking();
 
     const fillForm = (repairTitle, model) => {
       const f = $("#inqForm");
@@ -1063,7 +1069,13 @@
       const dev = calc.dev.value, brand = calc.brand.value, model = calc.model.value.trim();
       $("#calcRes").innerHTML = `<div><small class="muted">${esc(dev)} · ${esc(model || brand)} · ${esc(r.title)}</small>
         <b class="calc__price">${esc(r.price)}</b><small class="muted">Ориентировъчно. Точната цена – след преглед.</small></div>
-        <button type="button" class="btn btn--primary" id="calcGo">Поискай точна оферта ${icon("arrow")}</button>`;
+        <div class="row-btns"><button type="button" class="btn btn--primary" id="calcGo">Поискай точна оферта ${icon("arrow")}</button>
+        <button type="button" class="btn btn--ghost" id="calcBook">${icon("clock")} Запази час</button></div>`;
+      $("#calcBook").onclick = () => {
+        const b = $("#bookForm");
+        b.problem.value = r.title; if (model || brand !== "Друга") b.model.value = model || brand + " ";
+        $("#book").scrollIntoView({ behavior: "smooth" });
+      };
       $("#calcGo").onclick = () => {
         const f = $("#inqForm");
         if (f) f.querySelector("[name=device]").value = dev;
@@ -1119,6 +1131,37 @@
         <p class="muted">Разкажи как е минало – отзивът ти помага на други клиенти и на нас да ставаме по-добри.</p></div>
         <button class="btn btn--primary" data-review>Напиши първия отзив</button></div>`}
     </section>`;
+  }
+
+  function openWatch(p, v) {
+    openModal(`<button class="icon-btn modal__close" data-close aria-label="Затвори">${icon("close")}</button>
+      <form class="review-form" id="watchForm">
+        <h2>${icon("bell")} Кажи ми при намаление</h2>
+        <p class="muted">${esc(p.name)}${varLabel(v) ? ` <small>(${esc(varLabel(v))})</small>` : ""} – сега <b>${eur(v.price, true)}</b>. Ще ти пишем, когато цената падне.</p>
+        <label class="field"><span>Имейл *</span><input class="input" type="email" name="email" required autocomplete="email" placeholder="твоят@имейл.bg"></label>
+        <label class="check check--consent"><input type="checkbox" name="ok" required><span>Съгласен/на съм GDMobil да ми изпрати имейл при намаление на този продукт. Имейлът се изтрива след известието. <a href="#/legal/privacy" target="_blank">Поверителност</a></span></label>
+        <button class="btn btn--primary btn--block" type="submit">Следи цената</button>
+        <p class="muted small rev-msg" aria-live="polite"></p>
+      </form>`);
+    $("#watchForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const f = e.target, btn = f.querySelector("[type=submit]");
+      btn.disabled = true;
+      let ok = false;
+      try {
+        const r = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "watch", email: f.email.value.trim(), consent: f.ok.checked, slug: p.slug, id: String(v.id), name: p.name, variant: varLabel(v), price: v.price }) });
+        ok = r.ok;
+      } catch {}
+      if (!ok) { btn.disabled = false; f.querySelector(".rev-msg").textContent = "Не успяхме да запишем имейла. Опитай отново след малко."; return; }
+      track("Следене на цена");
+      store.set("watch", [...new Set([...store.get("watch", []), p.slug])].slice(-50));
+      $("#pdWatch") && ($("#pdWatch").innerHTML = `${icon("bell")} Следиш цената`);
+      $("#modalBox").innerHTML = `<button class="icon-btn modal__close" data-close aria-label="Затвори">${icon("close")}</button>
+        <div class="success"><div class="success__check">${icon("check")}</div><h2>Готово!</h2>
+        <p class="muted">Ще ти пишем на <b>${esc(f.email.value.trim())}</b>, когато ${esc(p.name)} поевтинее.</p>
+        <button class="btn btn--primary" data-close>Затвори</button></div>`;
+    });
   }
 
   function openReview() {
@@ -1481,6 +1524,125 @@
     </div>`;
   }
 
+  /* ================= ЗАПИСВАНЕ НА ЧАС ================= */
+  // Официални празници (магазинът е затворен); Великден по православния календар.
+  const HOLIDAYS = new Set(["01-01", "03-03", "05-01", "05-06", "05-24", "09-06", "09-22", "12-24", "12-25", "12-26",
+    "2026-04-10", "2026-04-11", "2026-04-12", "2026-04-13", "2027-04-30", "2027-05-01", "2027-05-02", "2027-05-03"]);
+  const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  function dayHours(d) {
+    if (HOLIDAYS.has(ymd(d)) || HOLIDAYS.has(ymd(d).slice(5))) return null;
+    const row = S.hours[d.getDay() === 0 ? 2 : d.getDay() === 6 ? 1 : 0];
+    const m = String(row?.[1] || "").match(/(\d{1,2})[:.](\d{2})\s*[–-]\s*(\d{1,2})[:.](\d{2})/);
+    return m ? [+m[1] * 60 + +m[2], +m[3] * 60 + +m[4]] : null;
+  }
+  function bookDays() {
+    const out = [], d = new Date();
+    d.setHours(0, 0, 0, 0);
+    for (let i = 0; out.length < 10 && i < 30; i++, d.setDate(d.getDate() + 1)) {
+      const h = dayHours(d);
+      if (h && slotsFor(new Date(d), h).length) out.push(new Date(d));
+    }
+    return out;
+  }
+  function slotsFor(d, h = dayHours(d)) {
+    if (!h) return [];
+    const now = new Date(), out = [];
+    for (let t = h[0]; t + 30 <= h[1]; t += 30) {
+      const at = new Date(d); at.setHours(Math.floor(t / 60), t % 60, 0, 0);
+      if (at - now > 60 * 60 * 1000) out.push(`${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`);
+    }
+    return out;
+  }
+  const DAY_SHORT = ["нд", "пн", "вт", "ср", "чт", "пт", "сб"];
+  function bookingHtml() {
+    const days = bookDays();
+    return `<div class="book">
+      <div class="book__copy">
+        <span class="eyebrow">Без чакане</span>
+        <h2>Запази час за сервиз</h2>
+        <p class="muted">Избери ден и час, в който да донесеш устройството. Ще направим диагностика на място и ще ти кажем точната цена, преди да започнем.</p>
+        <ul class="book__points"><li>${icon("check")} Безплатна оценка на място</li><li>${icon("check")} Потвърждение по телефона</li><li>${icon("check")} Можеш да промениш или откажеш часа</li></ul>
+      </div>
+      <form class="form-card book__form" id="bookForm" novalidate>
+        <div class="book__label">1. Ден</div>
+        <div class="book__days" role="radiogroup" aria-label="Ден">${days.map((d, i) => `<label class="bday"><input type="radio" name="day" value="${ymd(d)}" ${i ? "" : "checked"}>
+          <span><small>${i === 0 && ymd(d) === ymd(new Date()) ? "днес" : DAY_SHORT[d.getDay()]}</small><b>${d.getDate()}</b><small>${["яну", "фев", "мар", "апр", "май", "юни", "юли", "авг", "сеп", "окт", "ное", "дек"][d.getMonth()]}</small></span></label>`).join("")}</div>
+        <div class="book__label">2. Час</div>
+        <div class="book__slots" id="bookSlots" role="radiogroup" aria-label="Час"></div>
+        <div class="book__label">3. Устройство и проблем</div>
+        <div class="two">
+          <label class="field"><span>Марка и модел *</span><input class="input" name="model" required placeholder="напр. iPhone 15 Pro"></label>
+          <label class="field"><span>Проблем *</span><select class="select" name="problem">${window.REPAIRS.map((r) => `<option>${esc(r.title)}</option>`).join("")}<option>Друго / не знам</option></select></label>
+        </div>
+        <label class="field"><span>Кратко описание</span><input class="input" name="msg" placeholder="напр. спукан екран, тъчът работи"></label>
+        <div class="two">
+          <label class="field"><span>Име *</span><input class="input" name="name" required autocomplete="name"></label>
+          <label class="field"><span>Телефон *</span><input class="input" name="phone" type="tel" required pattern="\\+?[0-9 ]{6,}" autocomplete="tel"></label>
+        </div>
+        <label class="check check--consent"><input type="checkbox" name="ok" required><span>Прочетох <a href="#/legal/privacy" target="_blank">информацията за личните данни</a>. *</span></label>
+        <button class="btn btn--primary btn--block" type="submit">${icon("clock")} Запази часа</button>
+        <p class="book__msg small" aria-live="polite"></p>
+      </form>
+    </div>`;
+  }
+  function initBooking() {
+    const f = $("#bookForm");
+    if (!f) return;
+    const draw = async () => {
+      const day = f.day.value, box = $("#bookSlots");
+      if (!day) { box.innerHTML = `<p class="muted small">Няма свободни дни в близките седмици – обади се на ${esc(S.phone)}.</p>`; return; }
+      const slots = slotsFor(new Date(day + "T00:00"));
+      box.innerHTML = slots.map((t) => `<label class="bslot"><input type="radio" name="time" value="${t}"><span>${t}</span></label>`).join("");
+      try {
+        const r = await fetch(`/api/orders?slots=${day}`);
+        if (r.ok && f.day.value === day) {
+          const { taken } = await r.json();
+          taken.forEach((t) => { const i = box.querySelector(`input[value="${t}"]`); if (i) { i.disabled = true; i.closest("label").title = "Зает час"; } });
+        }
+      } catch {}
+    };
+    f.addEventListener("change", (e) => { if (e.target.name === "day") draw(); });
+    draw();
+    f.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const msg = f.querySelector(".book__msg");
+      if (!f.time || !f.querySelector("[name=time]:checked")) { msg.textContent = "Избери час."; return; }
+      if (!f.reportValidity()) return;
+      const fd = Object.fromEntries(new FormData(f));
+      const when = `${fd.day}T${fd.time}`;
+      const whenTxt = new Date(when).toLocaleString("bg-BG", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+      const ref = refNo("R");
+      const text = [`Записан час за сервиз № ${ref}`, `Час: ${whenTxt}`, `Устройство: ${fd.model}`, `Проблем: ${fd.problem}`, fd.msg ? `Описание: ${fd.msg}` : false, "",
+        `Име: ${fd.name}`, `Телефон: ${fd.phone}`].filter((x) => x !== false).join("\n");
+      const btn = f.querySelector("[type=submit]");
+      btn.disabled = true; btn.textContent = "Записване…";
+      let res, data = {};
+      try {
+        res = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "repair", ref, appointment: when, title: `Час ${fd.day.slice(8)}.${fd.day.slice(5, 7)} ${fd.time} – ${fd.problem}`, device: fd.model, text,
+            customer: { name: fd.name, phone: fd.phone } }) });
+        data = await res.json();
+      } catch {}
+      if (res?.status === 409) { btn.disabled = false; btn.innerHTML = `${icon("clock")} Запази часа`; msg.textContent = "Току-що някой зае този час – избери друг."; draw(); return; }
+      if (!res?.ok) {
+        btn.disabled = false; btn.innerHTML = `${icon("clock")} Запази часа`;
+        msg.innerHTML = `Не успяхме да запишем часа. Обади се на <a href="tel:${tel}">${esc(S.phone)}</a> или <a href="${mailto("Час за сервиз " + ref, text)}">изпрати по имейл</a>.`;
+        return;
+      }
+      track("Записан час за сервиз");
+      const r2 = data.ref || ref;
+      store.set("orders", [...store.get("orders", []), { num: r2, phone: fd.phone, date: new Date().toISOString(), text }].slice(-20));
+      f.outerHTML = `<div class="form-card success">
+        <div class="success__check">${icon("check")}</div>
+        <h2>Часът е запазен</h2>
+        <p><b>${esc(whenTxt)}</b></p>
+        <p class="muted">Номер: <b>${r2}</b>. Ще ти се обадим на ${esc(fd.phone)} за потвърждение. Адрес: ${esc(S.address)}.</p>
+        <div class="row-btns"><a class="btn btn--ghost" href="${trackLink(r2, fd.phone)}">${icon("search")} Проследи</a>
+        <a class="btn btn--ghost" href="${esc(S.maps)}" target="_blank" rel="noopener">${icon("pin")} Упътване</a></div>
+      </div>`;
+    });
+  }
+
   /* ================= ПРАВНИ СТРАНИЦИ ================= */
   const LEGAL_ORDER = [["terms", "Общи условия"], ["delivery", "Доставка и плащане"], ["returns", "Гаранция и връщане"], ["privacy", "Поверителност"], ["cookies", "Бисквитки и локални настройки"]];
   function pageLegal(key, anchor) {
@@ -1763,6 +1925,7 @@
         <div class="track-card__head"><span class="muted small">${kind} ${esc(data.ref)}</span>
           <span class="track-status track-status--${esc(data.status)}">${esc(data.statusLabel)}</span></div>
         ${data.items?.length ? `<ul class="track-items">${data.items.map((i) => `<li>${esc(i.name)}${i.variant ? ` <span class="muted">(${esc(i.variant)})</span>` : ""} × ${i.qty}</li>`).join("")}</ul>` : ""}
+        ${data.appointment ? `<p class="small"><span class="muted">Час в сервиза:</span> <b>${esc(new Date(data.appointment).toLocaleString("bg-BG", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }))}</b></p>` : ""}
         ${data.device ? `<p class="small"><span class="muted">Устройство:</span> ${esc(data.device)}</p>` : ""}
         ${data.total != null ? `<p class="small"><span class="muted">Сума:</span> <b>${eur(data.total, true)}</b></p>` : ""}
         ${data.delivery ? `<p class="small"><span class="muted">Получаване:</span> ${esc(data.delivery)}</p>` : ""}

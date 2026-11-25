@@ -57,8 +57,9 @@ const publicView = (o) => ({
   ref: o.ref, type: o.type, status: o.status, statusLabel: STATUSES[o.type]?.[o.status] || o.status, createdAt: o.createdAt,
   history: (o.history || []).map((h) => ({ status: h.status, label: STATUSES[o.type]?.[h.status] || h.status, at: h.at, note: h.note || "" })),
   items: (o.items || []).map((i) => ({ name: i.name, variant: i.variant, qty: i.qty })), total: o.total ?? null,
-  delivery: o.delivery || "", tracking: o.tracking || "", device: o.device || "",
+  delivery: o.delivery || "", tracking: o.tracking || "", device: o.device || "", appointment: o.appointment || "",
 });
+const SLOT_RX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 const summary = (o) => ({ ref: o.ref, type: o.type, status: o.status, createdAt: o.createdAt, name: o.customer?.name || "", phone: o.customer?.phone || "", total: o.total ?? null, title: o.title || "" });
 
 export default async (req, context) => {
@@ -85,6 +86,17 @@ export default async (req, context) => {
       await store.delete(key);
       return json({ ok: true });
     }
+    if (req.method === "GET" && url.searchParams.has("watches")) {
+      const { blobs } = await store.list({ prefix: "watch/" });
+      const list = await Promise.all(blobs.map(async (b) => ({ key: b.key, ...(await store.get(b.key, { type: "json" })) })));
+      return json({ watches: list });
+    }
+    if (req.method === "POST" && url.searchParams.has("watch_del")) {
+      const body = await req.json().catch(() => ({}));
+      const keys = (Array.isArray(body.keys) ? body.keys : []).filter((k) => typeof k === "string" && k.startsWith("watch/")).slice(0, 500);
+      await Promise.all(keys.map((k) => store.delete(k)));
+      return json({ ok: true, deleted: keys.length });
+    }
     if (req.method === "GET" && url.searchParams.get("ref")) {
       const o = await store.get("o/" + url.searchParams.get("ref"), { type: "json" });
       return o ? json(o) : json({ error: "not_found" }, 404);
@@ -100,6 +112,7 @@ export default async (req, context) => {
       } else if (body.note) {
         o.history.push({ status: o.status, at: new Date().toISOString(), note: clean(body.note, 300) });
       }
+      if (o.appointment && ["cancelled", "done"].includes(o.status)) await store.delete("slot/" + o.appointment); // освобождава часа
       if (typeof body.tracking === "string") o.tracking = clean(body.tracking, 120);
       if (typeof body.internalNote === "string") o.internalNote = clean(body.internalNote, 2000);
       await store.setJSON("o/" + ref, o);
@@ -110,6 +123,14 @@ export default async (req, context) => {
       return json({ ok: true, order: o });
     }
     return json({ error: "bad_request" }, 400);
+  }
+
+  // ---------- заети часове за сервиза (публично, без лични данни) ----------
+  if (req.method === "GET" && url.searchParams.get("slots")) {
+    const day = url.searchParams.get("slots");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return json({ error: "bad_request" }, 400);
+    const { blobs } = await store.list({ prefix: "slot/" + day });
+    return json({ taken: blobs.map((b) => b.key.slice(-5)) });
   }
 
   // ---------- проследяване (публично) ----------
@@ -126,7 +147,16 @@ export default async (req, context) => {
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
   if (limited("new:" + ip, 12)) return json({ error: "rate_limited" }, 429);
   const b = await req.json().catch(() => null);
-  if (!b || !["order", "repair", "inquiry", "newsletter", "review"].includes(b.type)) return json({ error: "bad_request" }, 400);
+  if (!b || !["order", "repair", "inquiry", "newsletter", "review", "watch"].includes(b.type)) return json({ error: "bad_request" }, 400);
+
+  if (b.type === "watch") {
+    const email = clean(b.email, 200).toLowerCase();
+    const slug = clean(b.slug, 160), id = clean(b.id, 30);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !b.consent || !/^[\w-]+$/.test(slug)) return json({ error: "bad_request" }, 400);
+    const h = createHash("sha256").update(email).digest("hex").slice(0, 16);
+    await store.setJSON(`watch/${slug}/${h}`, { email, slug, id, name: clean(b.name, 200), variant: clean(b.variant, 120), price: Number(b.price) || null, at: new Date().toISOString() });
+    return json({ ok: true });
+  }
 
   if (b.type === "review") {
     const r = { name: clean(b.name, 60), rating: Math.max(1, Math.min(5, parseInt(b.rating) || 5)), text: clean(b.text, 1200), at: new Date().toISOString() };
@@ -146,6 +176,11 @@ export default async (req, context) => {
 
   const customer = { name: clean(b.customer?.name, 120), phone: clean(b.customer?.phone, 40), email: clean(b.customer?.email, 200) };
   if (!customer.name || digits(customer.phone).length < 6) return json({ error: "bad_request" }, 400);
+  const appointment = b.type === "repair" && SLOT_RX.test(b.appointment || "") ? b.appointment : "";
+  if (appointment) {
+    if (new Date(appointment + ":00+02:00") < new Date()) return json({ error: "slot_past" }, 400);
+    if (await store.get("slot/" + appointment)) return json({ error: "slot_taken" }, 409);
+  }
   let ref = /^(GD|R|Z)-\d{6}-\d{4}$/.test(b.ref || "") ? b.ref : newRef(b.type);
   if (await store.get("o/" + ref)) ref = newRef(b.type);
   const now = new Date().toISOString();
@@ -153,13 +188,14 @@ export default async (req, context) => {
     ref, type: b.type, status: "new", createdAt: now, history: [{ status: "new", at: now, note: "" }],
     customer, title: clean(b.title, 200), text: clean(b.text, 6000), device: clean(b.device, 120),
     items: (Array.isArray(b.items) ? b.items : []).slice(0, 50).map((i) => ({ id: clean(i.id, 30), name: clean(i.name, 200), variant: clean(i.variant, 200), qty: Math.max(1, Math.min(99, parseInt(i.qty) || 1)), price: Number(i.price) || 0 })),
-    total: typeof b.total === "number" ? b.total : null, delivery: clean(b.delivery, 300), payment: clean(b.payment, 80), tracking: "",
+    total: typeof b.total === "number" ? b.total : null, delivery: clean(b.delivery, 300), payment: clean(b.payment, 80), tracking: "", appointment,
   };
+  if (appointment) await store.setJSON("slot/" + appointment, { ref });
   await store.setJSON("o/" + ref, o);
   const index = (await store.get("index", { type: "json" })) || [];
   index.unshift(summary(o));
   await store.setJSON("index", index.slice(0, 5000));
-  const notified = await notifyTelegram(`${TYPE_LABEL[o.type]} ${ref}\n\n${o.text}`);
+  const notified = await notifyTelegram(`${appointment ? "📅 Записан час за сервиз" : TYPE_LABEL[o.type]} ${ref}\n\n${o.text}`);
   return json({ ok: true, ref, notified });
 };
 

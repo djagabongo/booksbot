@@ -1229,3 +1229,25 @@ body:has(.sticky-buy.show) .chat-fab { bottom: 96px; }
 .rate label:hover { transform: scale(1.12); }
 .rate input:focus-visible + label { outline: 2px solid var(--ember); outline-offset: 2px; border-radius: 4px; }
 .config__row > .select { width: 100%; }
+
+/* ---------- записване на час ---------- */
+.book { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 32px; align-items: start; }
+@media (max-width: 900px) { .book { grid-template-columns: 1fr; } }
+.book__points { list-style: none; padding: 0; margin: 18px 0 0; display: grid; gap: 10px; }
+.book__points li { display: flex; gap: 10px; align-items: center; }
+.book__points svg { width: 18px; height: 18px; color: var(--ember); flex: none; }
+.book__form { display: grid; gap: 12px; }
+.book__label { font-weight: 700; font-size: .9rem; margin-top: 4px; }
+.book__days { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+.bday, .bslot { position: relative; }
+.bday input, .bslot input { position: absolute; opacity: 0; pointer-events: none; }
+.bday span { display: grid; justify-items: center; min-width: 62px; padding: 8px 6px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); cursor: pointer; line-height: 1.15; transition: .15s; }
+.bday b { font-size: 1.3rem; }
+.bday small { font-size: .72rem; color: var(--muted); }
+.book__slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)); gap: 8px; min-height: 42px; }
+.bslot span { display: block; text-align: center; padding: 9px 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); cursor: pointer; font-weight: 600; font-size: .9rem; transition: .15s; }
+.bday input:checked + span, .bslot input:checked + span { background: var(--ink); color: #fff; border-color: var(--ink); }
+.bday input:checked + span small { color: rgba(255,255,255,.75); }
+.bday input:focus-visible + span, .bslot input:focus-visible + span { outline: 2px solid var(--ember); outline-offset: 2px; }
+.bslot input:disabled + span { opacity: .35; text-decoration: line-through; cursor: not-allowed; }
+.book__msg { color: var(--ember-ink); margin: 0; }
