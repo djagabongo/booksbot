@@ -262,7 +262,7 @@
     const brands = Object.entries(brandCounts).sort((a, b) => b[1] - a[1]).filter(([b]) => C.logos[b]).slice(0, 12);
     const recent = state.recent.map((s) => BY_SLUG.get(s)).filter(Boolean);
     const hasSale = PRODUCTS.some((p) => p.tags.sale && p.cat === "phones");
-    const topTabs = ["Всички", "Нови", ...(hasSale ? ["Намалени"] : []), "Apple", "Samsung", "Google", "Xiaomi"];
+    const topTabs = ["Всички", "Нови", ...(hasSale ? ["Намалени"] : []), "Apple", "Samsung", "Xiaomi", "Honor"];
     const accModels = [...new Set(FEATURED.map((p) => p.mk).filter((k) => k && PRODUCTS.some((x) => x.cat === "accessories" && (x.compat || []).includes(k))))].slice(0, 2);
     const accTabs = [["Препоръчани", "all"], ["Намаления", "sale"], ...accModels.map((k) => ["За " + (MODEL_NAMES[k] || k).replace(/^\S+\s/, ""), "model", k])];
 
@@ -960,7 +960,7 @@
 
   function pageService(anchor, q = new URLSearchParams()) {
     setTitle("Сервиз за телефони и таблети");
-    const repBrands = ["Apple", "Samsung", "Xiaomi", "Google", "Huawei", "Motorola", "Honor", "OPPO", "OnePlus", "Nokia", "Realme", "Nothing"].filter((b) => C.logos[b]);
+    const repBrands = ["Apple", "Samsung", "Xiaomi", "Huawei", "Motorola", "Honor", "Nokia", "Realme"].filter((b) => C.logos[b]);
     const phoneBrands = [...new Set(PRODUCTS.filter((p) => p.cat === "phones" || p.cat === "tablets").map((p) => p.brand))].sort((a, b) => a.localeCompare(b));
     view.innerHTML = `<section class="container page">
       ${crumbs([["Сервиз"]])}
@@ -1357,7 +1357,7 @@
       const pa = productAnswer(raw);
       if (pa) return { html: pa, chips: ["Доставка и плащане", "Аксесоари за моя модел", "Говори с човек"] };
       if (/търся|искам|препоръч|какъв телефон|кой телефон|до \d+/.test(t)) {
-        return { html: `С удоволствие! Напиши марка или модел (напр. „iPhone 17“, „Galaxy S26“, „Redmi Note 15“) или разгледай: ${link("#/c/phones?tag=new", "Нови телефони")} ${link("#/c/phones?sort=asc", "Телефони по цена")}`, chips: ["iPhone 17 Pro", "Galaxy S26", "Redmi Note 15", "Pixel 11"] };
+        return { html: `С удоволствие! Напиши марка или модел (напр. „iPhone 17“, „Galaxy S26“, „Redmi Note 15“) или разгледай: ${link("#/c/phones?tag=new", "Нови телефони")} ${link("#/c/phones?sort=asc", "Телефони по цена")}`, chips: ["iPhone 17 Pro", "Galaxy S26", "Redmi Note 15", "Xiaomi 17"] };
       }
       misses++;
       return {
@@ -2070,7 +2070,7 @@
     };
     tgl.addEventListener("click", () => (hdr.classList.contains("is-search") ? closeSearch() : openSearch()));
     $("#searchClose").addEventListener("click", () => { inp.value = ""; closeSearch(); tgl.focus(); });
-    const POPULAR = ["iPhone 17 Pro", "Galaxy S26 Ultra", "Pixel 11", "Redmi Note 15", "калъф", "протектор", "зарядно", "слушалки"];
+    const POPULAR = ["iPhone 17 Pro", "Galaxy S26 Ultra", "Xiaomi 17", "Redmi Note 15", "калъф", "протектор", "зарядно", "слушалки"];
     const render = () => {
       const toks = tokens(inp.value);
       if (!toks.length) {

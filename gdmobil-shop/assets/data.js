@@ -54,7 +54,7 @@ window.STORE = {
     "samsung-galaxy-s26-model-119515",
     "apple-iphone-18-pro-max-model-136316",
     "samsung-galaxy-z-fold-8-ultra-model-131082",
-    "google-pixel-11-pro-model-133234",
+    "xiaomi-17-ultra-model-119542",
     "xiaomi-17t-pro-model-125157",
   ],
 };

@@ -33,7 +33,7 @@ KEEP_LEGACY = "--keep-legacy" in sys.argv
 MIN_YEAR = int(sys.argv[sys.argv.index("--min-year") + 1]) if "--min-year" in sys.argv else 2023
 # Модели без година в данните, за които е известно, че са по-стари
 # Марки телефони/таблети, които не се продават в магазина
-EXCLUDE_BRANDS = {"maxcom", "evolveo", "gigaset", "mobiola"}
+EXCLUDE_BRANDS = {"maxcom", "evolveo", "gigaset", "mobiola", "oppo", "ulefone", "google", "oneplus", "nothing", "vivo", "cat", "blackview"}
 OLD_DEVICES = re.compile(r"\b(LG\s+Cam\s+Plus|Nokia\s+T21|Galaxy\s+Tab\s+Active\s*4)\b", re.I)
 ACCESSORIES_FILE = sys.argv[sys.argv.index("--accessories") + 1] if "--accessories" in sys.argv else None
 
@@ -351,7 +351,8 @@ def build_catalog(src):
             k = remap(m["key"])
             e = merged.setdefault(k, {"key": k, "name": m["name"], "brand": m["brand"], "count": 0})
             e["count"] += m["count"]
-        models = sorted(merged.values(), key=lambda m: (m["brand"], m["name"]))
+        excluded_mk = {k for k, m in merged.items() if m["brand"].lower() in EXCLUDE_BRANDS}
+        models = sorted((m for k, m in merged.items() if k not in excluded_mk), key=lambda m: (m["brand"], m["name"]))
         non_phone = re.compile(r"чанта|\bbag\b|handbag|портфейл|раница|backpack|несесер|purse|tote|клъч|куфар", re.I)
         laptop = re.compile(r"лаптоп|laptop|macbook|\b1[3-7](?:[.,]\d)?\s*(?:\"|”|''|inch|инча)", re.I)
         dropped = [it for it in cs["items"] if (it["sc"] == "Други аксесоари" and non_phone.search(it["n"])) or not it.get("im")
@@ -361,6 +362,11 @@ def build_catalog(src):
         for it in cs["items"]:
             it["cm"] = [remap(k) for k in it["cm"]]
             it.pop("src", None)
+        before = len(cs["items"])
+        cs["items"] = [it for it in cs["items"] if not (it["cm"] and all(k in excluded_mk for k in it["cm"]))]
+        for it in cs["items"]:
+            it["cm"] = [k for k in it["cm"] if k not in excluded_mk]
+        print(f"casestore.bg: махнати {before - len(cs['items'])} аксесоара за марки, които не се продават ({', '.join(sorted(EXCLUDE_BRANDS))})")
         acc_groups = group_accessories(cs["items"], {m["key"]: m["name"] for m in models})
         for g in acc_groups:
             groups[g["s"]] = g
