@@ -59,12 +59,16 @@
   }
 
   if (!/^https?:$/.test(location.protocol)) return start(null);
-  const cached = read();
+  // Запазените настройки (до 30 мин.) се ползват веднага – страницата не чака сървъра.
+  // Иначе се чака най-много 0,8 с. Новите настройки винаги се записват за следващото отваряне.
+  const box = read(), fresh = box && box.t && Date.now() - box.t < 30 * 60 * 1000;
+  const cached = box && box.t ? box.o : box;
   let done = false;
   const go = (o) => { if (!done) { done = true; start(o); } };
-  const timer = setTimeout(() => go(cached), 1500);
+  if (fresh) go(cached);
+  const timer = setTimeout(() => go(cached), 800);
   fetch("/api/settings", { cache: "no-cache" })
     .then((r) => (r.ok ? r.json() : null))
-    .then((o) => { if (o) write(o); clearTimeout(timer); go(o || cached); })
+    .then((o) => { if (o) write({ t: Date.now(), o }); clearTimeout(timer); go(o || cached); })
     .catch(() => { clearTimeout(timer); go(cached); });
 })();

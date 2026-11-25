@@ -266,6 +266,7 @@
     const accModels = [...new Set(FEATURED.map((p) => p.mk).filter((k) => k && PRODUCTS.some((x) => x.cat === "accessories" && (x.compat || []).includes(k))))].slice(0, 2);
     const accTabs = [["Препоръчани", "all"], ["Намаления", "sale"], ...accModels.map((k) => ["За " + (MODEL_NAMES[k] || k).replace(/^\S+\s/, ""), "model", k])];
 
+    const preHero = view.querySelector(".tile--hero .tile__phone"); // готовата снимка от страницата за Google – запазва се, без да се зарежда наново
     view.innerHTML = `
     <section class="container bento">
       ${hero ? `<a class="tile tile--hero" href="#/p/${hero.slug}">
@@ -301,7 +302,7 @@
         <span class="eyebrow eyebrow--dark">Аксесоари</span>
         <h3>${counts.accessories.toLocaleString("bg-BG")} аксесоара</h3>
         <p>Калъфи, протектори, зарядни, слушалки</p>
-        <img src="assets/img/airpods.png" alt="" class="tile__acc" loading="lazy">
+        <img src="assets/img/airpods.webp" alt="" class="tile__acc" loading="lazy">
       </a>
     </section>
 
@@ -392,6 +393,8 @@
       $$("#topTabs [data-top]").forEach((b) => b.setAttribute("aria-selected", b.dataset.top === brand));
     };
     $("#topTabs").addEventListener("click", (e) => { const b = e.target.closest("[data-top]"); if (b) drawTop(b.dataset.top); });
+    const newHero = view.querySelector(".tile--hero .tile__phone");
+    if (preHero && newHero && preHero.getAttribute("src") === newHero.getAttribute("src")) newHero.replaceWith(preHero);
     drawTop("Всички");
 
     const drawAcc = (i) => {
@@ -739,6 +742,7 @@
     const recent = state.recent.slice(1).map((s) => BY_SLUG.get(s)).filter(Boolean).slice(0, 8);
     const keySpecs = ["Дисплей", "Основна камера", "Батерия", "Процесор"].filter((k) => p.specs[k]);
 
+    const preImg = view.querySelector(".seo-pre .pd__stage img"); // снимката от страницата за Google – остава, без мигане
     view.innerHTML = `<section class="container page">
       ${crumbs([[CAT_NAMES[p.cat], `#/c/${p.cat}`], [p.name]])}
       <div class="pd">
@@ -789,12 +793,17 @@
     </section>
     <div class="sticky-buy" id="stickyBuy"></div>`;
 
+    let firstDraw = true;
     const drawGallery = () => {
       const g = galleryOf(p, cur);
       gi = Math.max(0, Math.min(gi, g.length - 1));
-      const img = $("#pdImg");
-      img.classList.remove("swap"); void img.offsetWidth; img.classList.add("swap");
-      img.src = full(g[gi]);
+      let img = $("#pdImg");
+      if (firstDraw && preImg && preImg.getAttribute("src") === full(g[gi])) {
+        preImg.id = "pdImg"; preImg.alt = p.name; preImg.removeAttribute("width"); preImg.removeAttribute("height");
+        img.replaceWith(preImg); img = preImg;
+      } else if (!firstDraw) { img.classList.remove("swap"); void img.offsetWidth; img.classList.add("swap"); }
+      firstDraw = false;
+      if (img.getAttribute("src") !== full(g[gi])) img.src = full(g[gi]);
       $("#pdCount").textContent = g.length > 1 ? `${gi + 1} / ${g.length}` : "";
       $("#pdMain").classList.toggle("multi", g.length > 1);
       if (g.length > 1) {
@@ -960,7 +969,7 @@
     setTitle("Сервиз за телефони и таблети");
     const repBrands = ["Apple", "Samsung", "Xiaomi", "Google", "Huawei", "Motorola", "Honor", "OPPO", "OnePlus", "Nokia", "Realme", "Nothing", "Vivo", "Blackview", "Ulefone", "CAT"].filter((b) => C.logos[b]);
     const phoneBrands = [...new Set(PRODUCTS.filter((p) => p.cat === "phones" || p.cat === "tablets").map((p) => p.brand))].sort((a, b) => a.localeCompare(b));
-    view.innerHTML = `<section class="container page">
+    const html = `<section class="container page">
       ${crumbs([["Сервиз"]])}
       <div class="svc-hero">
         <div>
@@ -1044,6 +1053,17 @@
         </div>
       </div>
     </section>`;
+    // Готовата страница за Google вече показва горната част – тя остава на място (без мигане), добавя се само останалото.
+    const pre = view.querySelector(".seo-pre .svc-hero");
+    if (pre) {
+      const tmp = document.createElement("div"); tmp.innerHTML = html;
+      const sec = tmp.firstElementChild, nh = sec.querySelector(".svc-hero"), ps = pre.parentElement;
+      [...ps.children].forEach((ch) => ch !== pre && ch.remove());
+      ps.className = sec.className;
+      let after = false;
+      [...sec.children].forEach((ch) => { if (ch === nh) { after = true; return; } if (after) ps.appendChild(ch); else ps.insertBefore(ch, pre); });
+      [...tmp.children].slice(1).forEach((n) => view.appendChild(n));
+    } else view.innerHTML = html;
     $("[data-today3]").innerHTML = todayText();
     initBooking();
 

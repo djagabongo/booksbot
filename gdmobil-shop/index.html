@@ -20,6 +20,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="GDMobil" />
   <link rel="preload" as="image" href="assets/img/galaxys26.webp" fetchpriority="high" />
+  <link rel="preload" as="script" href="assets/app.js" />
   <link rel="stylesheet" href="assets/styles.css" />
 </head>
 <body>
@@ -38,7 +39,7 @@
       <button class="icon-btn burger" id="burger" aria-label="Меню">
         <svg viewBox="0 0 24 24"><path d="M4 8h16M4 16h10"/></svg>
       </button>
-      <a href="#/" class="logo" aria-label="GDMobil начало"><img class="logo--d" src="assets/img/logo.webp" alt="GDMobil" width="146" height="40" /><img class="logo--l" src="assets/img/logo-light.webp" alt="GDMobil" width="146" height="40" /></a>
+      <a href="#/" class="logo" aria-label="GDMobil начало"><img class="logo--d" src="assets/img/logo.webp" alt="GDMobil" width="146" height="40" /><img class="logo--l" src="assets/img/logo-light.webp" alt="GDMobil" width="146" height="40" loading="lazy" /></a>
 
       <nav class="mainnav" aria-label="Категории">
         <a href="#/c/phones" data-nav="phones">Телефони</a>
@@ -95,18 +96,18 @@
         <img src="assets/img/logo-light.webp" alt="GDMobil" class="footer__logo" width="161" height="44" loading="lazy" />
         <p class="muted" data-tagline></p>
         <div class="socials" id="socials"></div>
-        <div class="footer__news"><h4>Бюлетин</h4><div id="footNews"></div></div>
+        <div class="footer__news"><h2 class="footer__h">Бюлетин</h2><div id="footNews"></div></div>
       </div>
       <div>
-        <h4>Каталог</h4>
+        <h2 class="footer__h">Каталог</h2>
         <a href="#/c/phones">Телефони</a><a href="#/c/accessories">Аксесоари</a><a href="#/c/tablets">Таблети</a>
       </div>
       <div>
-        <h4>Обслужване</h4>
+        <h2 class="footer__h">Обслужване</h2>
         <a href="#/service">Сервиз и ремонти</a><a href="#/inquiries">Запитвания и съдействие</a><a href="#/track">Проследи поръчка / ремонт</a><a href="#/legal/delivery">Доставка и плащане</a><a href="#/legal/returns">Гаранция и връщане</a>
       </div>
       <div>
-        <h4>Магазин в Гоце Делчев</h4>
+        <h2 class="footer__h">Магазин в Гоце Делчев</h2>
         <a data-maps target="_blank" rel="noopener" class="footer__addr" data-addr></a>
         <p class="footer__open" data-today2></p>
         <a href="#/contact">Работно време и контакти</a>
@@ -136,7 +137,7 @@
   </aside>
   <aside class="drawer drawer--left" id="menuDrawer" aria-label="Меню" aria-hidden="true">
     <div class="drawer__head">
-      <span class="logo"><img class="logo--d" src="assets/img/logo.webp" alt="GDMobil" height="34" width="124" /><img class="logo--l" src="assets/img/logo-light.webp" alt="GDMobil" height="34" width="124" /></span>
+      <span class="logo"><img class="logo--d" src="assets/img/logo.webp" alt="GDMobil" height="34" width="124" /><img class="logo--l" src="assets/img/logo-light.webp" alt="GDMobil" height="34" width="124" loading="lazy" /></span>
       <button class="icon-btn" data-close aria-label="Затвори"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     </div>
     <div class="drawer__body menu" id="menuBody"></div>

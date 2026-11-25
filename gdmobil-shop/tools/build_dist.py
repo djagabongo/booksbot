@@ -83,7 +83,7 @@ def main():
             return f"https://casestore.bg/cdn/img/products/{h[3:]}{'&' if '?' in h else '?'}width=600&height=600"
         if h.startswith("assets/") or h.startswith("https:"):
             return h
-        return f"assets/img/products/{h}.webp" if big or h in no_thumb else f"assets/img/products/{h}-sm.webp"
+        return f"assets/img/products/{h}.webp" if big or h in no_thumb or re.match(r"^cs\d+$", h) else f"assets/img/products/{h}-sm.webp"
 
     prepare_dist()
     template = open(os.path.join(ROOT, "index.html"), encoding="utf-8").read()
@@ -168,18 +168,35 @@ def main():
         by_brand = {}
         for p in items:
             by_brand.setdefault(p["brand"], []).append(p)
-        lists = "".join(f'<h2>{E(b)} ({len(ps)})</h2><ul class="seo-list seo-list--cols">' + "".join(
+        if c["key"] == "accessories":  # 3000+ продукта – показваме по 30 от вид; всички са в sitemap.xml
+            by_brand = {}
+            for p in sorted(items, key=lambda p: -len(p["variants"])):
+                by_brand.setdefault(p.get("sub") or "Аксесоари", []).append(p)
+            by_brand = {k: v[:30] for k, v in sorted(by_brand.items(), key=lambda kv: -len(kv[1]))}
+        lists = "".join(f'<h2>{E(b)}</h2><ul class="seo-list seo-list--cols">' + "".join(
             f'<li><a href="/p/{p["slug"]}/">{E(p["name"])}</a> – {E(("от " if len(p["variants"]) > 1 else "") + eur(min([v["price"] for v in p["variants"] if v["price"] is not None], default=None)))}</li>' for p in ps) + "</ul>"
             for b, ps in by_brand.items())
+        lo_of = lambda p: min([v["price"] for v in p["variants"] if v["price"] is not None], default=None)
+        top = sorted([p for p in items if lo_of(p) is not None], key=lambda p: -(lo_of(p) or 0))[:8]
+        cards = '<div class="grid grid--4">' + "".join(
+            f'<article class="card"><a class="card__media" href="/p/{p["slug"]}/"><img src="{E(img(p["img"], False))}" alt="{E(p["name"])}" width="300" height="300"></a>'
+            f'<div class="card__body"><span class="card__brand">{E(p["brand"] or p.get("sub", ""))}</span><a class="card__title" href="/p/{p["slug"]}/">{E(p["name"])}</a>'
+            f'<div class="card__foot"><div class="card__price"><span class="price">{"от " if len(p["variants"]) > 1 else ""}{E(eur(lo_of(p)))}</span></div></div></div></article>' for p in top) + "</div>"
         body = f'''<section class="container page seo-pre">{crumbs([(c["name"], None)])}<div class="cat-head"><h1>{E(c["name"])}</h1><p class="muted">{len(items)} продукта · {E(c["sub"])}</p></div>
-<p><a class="btn btn--primary" href="#/c/{c["key"]}">Разгледай с филтри</a></p>{lists}</section>'''
+{cards}<p><a class="btn btn--primary" href="#/c/{c["key"]}">Разгледай с филтри</a></p>{lists}</section>'''
         ld = {"@context": "https://schema.org", "@type": "CollectionPage", "name": f'{c["name"]} | GDMobil', "url": f'{site}/c/{c["key"]}/'}
         urls.append(page(f'/c/{c["key"]}/', f'{c["name"]} – {c["sub"]} | GDMobil Гоце Делчев', f'{c["name"]} в GDMobil: {len(items)} продукта с цени в евро. Поръчай онлайн или вземи от магазина в Гоце Делчев.', body, ld))
 
     # ---------- сервиз ----------
     rep = "".join(f'<li><b>{E(r["title"])}</b> – {E(r["price"])}. {E(r["text"])}</li>' for r in repairs)
-    body = f'''<section class="container page seo-pre">{crumbs([("Сервиз", None)])}<h1>Сервиз за телефони и таблети в Гоце Делчев</h1>
-<p>Смяна на дисплеи и батерии, ремонт на букси за зареждане, камери и бутони, софтуер и диагностика. Цените са ориентировъчни – точната сума се уточнява след преглед.</p>
+    body = f'''<section class="container page seo-pre">{crumbs([("Сервиз", None)])}
+<div class="svc-hero"><div><span class="eyebrow eyebrow--dark">Сервиз GDMobil · Гоце Делчев</span><h1>Ремонт на телефони и таблети – с ясна цена преди започване.</h1>
+<p class="muted">Смяна на дисплеи и батерии, ремонт на букси за зареждане, камери и бутони, софтуер и диагностика на платки. Избери проблема за ориентировъчна цена или ни пиши.</p>
+<div class="hero__cta"><a class="btn btn--primary" href="#/service#book"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Запази час</a><a class="btn btn--ghost" href="#/service#calc">Колко ще струва?</a></div>
+<ul class="svc-facts"><li><b>{len(repairs)}</b><span>вида ремонти</span></li><li><b>от 15 €</b><span>ориентировъчно</span></li><li><b>0 €</b><span>за запитване</span></li></ul></div>
+<figure class="svc-art"><img src="assets/img/service-hero.svg" alt="Отворен смартфон в сервиза с батерия, платка и инструменти"></figure></div>
+<h2>Сервиз за телефони и таблети в Гоце Делчев</h2>
+<p>Цените са ориентировъчни – точната сума се уточнява след преглед.</p>
 <ul class="seo-list">{rep}</ul><p><a class="btn btn--primary" href="#/service">Запитване за ремонт</a></p></section>'''
     ld = {"@context": "https://schema.org", "@type": "Service", "serviceType": "Ремонт на телефони и таблети", "areaServed": "Гоце Делчев",
           "provider": {"@type": "MobilePhoneStore", "name": "GDMobil", "telephone": store.get("phoneIntl"), "address": store.get("address")}}
@@ -193,7 +210,15 @@ def main():
 
     # ---------- начална страница (съдържание за Google, което SPA подменя) ----------
     featured = [p for s in store.get("featured", []) for p in products if p["slug"] == s]
-    body = f'''<section class="container page seo-pre"><h1>GDMobil – телефони, аксесоари и сервиз в Гоце Делчев</h1>
+    hero = next((p for p in products if p["slug"] == store.get("heroSlug")), None)
+    hero_html = ""
+    if hero and store.get("heroImage"):
+        hero_html = f'''<section class="container bento"><a class="tile tile--hero" href="/p/{hero["slug"]}/"><div class="tile__glow"></div>
+<div class="tile__copy"><span class="eyebrow eyebrow--dark">Магазин и сервиз · Гоце Делчев</span><h1 class="display">Новият ти телефон <em>е тук.</em></h1>
+<p>{E(hero["name"])} – избери памет и цвят. Вземи го от магазина без такса или с доставка до теб.</p>
+<div class="tile__row"><span class="btn btn--ember">Виж модела <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span><span class="tile__price"><small>от</small> {E(eur(min(v["price"] for v in hero["variants"] if v["price"] is not None)))}</span></div></div>
+<img src="{E(store["heroImage"])}" alt="{E(hero["name"])}" class="tile__phone" width="630" height="640" fetchpriority="high"></a></section>'''
+    body = hero_html + f'''<section class="container page seo-pre"><h{"2" if hero_html else "1"}>GDMobil – телефони, аксесоари и сервиз в Гоце Делчев</h{"2" if hero_html else "1"}>
 <p>{E(store.get("tagline", ""))} Избери памет и цвят, поръчай онлайн с доставка до офис или адрес, или вземи от магазина без такса.</p>
 <h2>Категории</h2><ul class="seo-list">{"".join(f'<li><a href="/c/{c["key"]}/">{E(c["name"])}</a> – {E(c["sub"])}</li>' for c in cats)}<li><a href="/service/">Сервиз за телефони и таблети</a></li></ul>
 <h2>Подбрани смартфони</h2><ul class="seo-list">{"".join(f'<li><a href="/p/{p["slug"]}/">{E(p["name"])}</a></li>' for p in featured)}</ul>
