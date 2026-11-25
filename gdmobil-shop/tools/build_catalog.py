@@ -13,6 +13,7 @@
 import json
 import os
 import re
+import zlib
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -225,6 +226,14 @@ def group_accessories(items, model_names):
     return groups
 
 
+OG_PRICE = 10
+# (slug, име, снимка, галерия, начало на артикулните номера)
+OG_PRODUCTS = [
+    ("og-premium-strong-steklen-protektor", "Стъклен протектор OG Premium Strong – Full Glass", "cs98610", [], 950_000_000),
+    ("og-premium-privacy-steklen-protektor", "Стъклен протектор Privacy OG Premium – със затъмняващ ефект", "cs98609", [], 960_000_000),
+]
+
+
 def build_catalog(src):
     items = json.load(open(os.path.join(src, "catalog-list.json"), encoding="utf-8"))
     models = json.load(open(os.path.join(src, "models.json"), encoding="utf-8"))
@@ -367,7 +376,24 @@ def build_catalog(src):
         for it in cs["items"]:
             it["cm"] = [k for k in it["cm"] if k not in excluded_mk]
         print(f"casestore.bg: махнати {before - len(cs['items'])} аксесоара за марки, които не се продават ({', '.join(sorted(EXCLUDE_BRANDS))})")
+        # OG Premium и Privacy OG Premium – собствени продукти за ВСИЧКИ телефони в магазина (цена OG_PRICE);
+        # отделните OG протектори от casestore.bg се заменят с тях.
+        og_rx = re.compile(r"\bOG\b.*(premium|strong|lite)|OG Premium", re.I)
+        before = len(cs["items"])
+        cs["items"] = [it for it in cs["items"] if not (it["sc"] == "Протектори" and og_rx.search(it["n"]))]
+        print(f"casestore.bg: махнати {before - len(cs['items'])} отделни OG протектора (заменени с общи продукти)")
         acc_groups = group_accessories(cs["items"], {m["key"]: m["name"] for m in models})
+        phones = sorted((g for g in groups.values() if g["c"] == "phones" and g.get("mk")),
+                        key=lambda g: (g["b"].lower() != "apple", g["b"].lower() != "samsung", g["b"].lower(), g["n"].lower()))
+        for slug, name, img, gal, base_id in OG_PRODUCTS:
+            variants = []
+            for g in phones:
+                label = re.sub(r"^" + re.escape(g["b"]) + r"\s+", "", g["n"]) if g["b"] in ("Apple", "Samsung") else g["n"]
+                vid = base_id + zlib.crc32(g["n"].encode()) % 9_000_000
+                variants.append([vid, "", "", "", "", OG_PRICE, img, "", 0, 1, gal, None, label, g["mk"]])
+            acc_groups.insert(0, {"s": slug, "n": name, "b": "OG Premium", "c": "accessories", "mk": "", "sc": "Протектори",
+                                  "cm": [g["mk"] for g in phones], "v": variants})
+        print(f"OG Premium: {len(OG_PRODUCTS)} продукта × {len(phones)} модела телефони по {OG_PRICE} €")
         for g in acc_groups:
             groups[g["s"]] = g
         multi_model = sum(1 for g in acc_groups if any(v[12] for v in g["v"]))

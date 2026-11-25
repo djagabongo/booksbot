@@ -736,7 +736,12 @@
     saveState("recent");
     setProductLd(p);
 
-    const compatAcc = p.kind === "g" && p.mk ? PRODUCTS.filter((x) => (x.compat || []).includes(p.mk) && x.min != null) : [];
+    // аксесоари за модела: първо OG Premium протекторите, после разнообразен избор (калъфи, протектори, зарядни…)
+    const compatAcc = p.kind === "g" && p.mk ? (() => {
+      const l = PRODUCTS.filter((x) => (x.compat || []).includes(p.mk) && x.min != null);
+      const og = l.filter((x) => x.brand === "OG Premium");
+      return [...og, ...diversify(l.filter((x) => !og.includes(x)).sort((a, b) => accRank(a) - accRank(b)).slice(0, 60))];
+    })() : [];
     const similar = PRODUCTS.filter((x) => x !== p && x.cat === p.cat && (p.cat === "accessories" ? x.sub === p.sub && (x.compat || []).some((k) => (p.compat || []).includes(k)) : x.brand === p.brand))
       .sort((a, b) => Math.abs((a.min ?? 0) - (p.min ?? 0)) - Math.abs((b.min ?? 0) - (p.min ?? 0))).slice(0, 8);
     const recent = state.recent.slice(1).map((s) => BY_SLUG.get(s)).filter(Boolean).slice(0, 8);
