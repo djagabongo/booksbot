@@ -1579,6 +1579,7 @@
           <label class="field"><span>Име *</span><input class="input" name="name" required autocomplete="name"></label>
           <label class="field"><span>Телефон *</span><input class="input" name="phone" type="tel" required pattern="\\+?[0-9 ]{6,}" autocomplete="tel"></label>
         </div>
+        <label class="field"><span>Имейл <small class="muted">(по избор – за потвърждение и напомняне ден преди часа)</small></span><input class="input" name="email" type="email" autocomplete="email"></label>
         <label class="check check--consent"><input type="checkbox" name="ok" required><span>Прочетох <a href="#/legal/privacy" target="_blank">информацията за личните данни</a>. *</span></label>
         <button class="btn btn--primary btn--block" type="submit">${icon("clock")} Запази часа</button>
         <p class="book__msg small" aria-live="polite"></p>
@@ -1620,7 +1621,7 @@
       try {
         res = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ type: "repair", ref, appointment: when, title: `Час ${fd.day.slice(8)}.${fd.day.slice(5, 7)} ${fd.time} – ${fd.problem}`, device: fd.model, text,
-            customer: { name: fd.name, phone: fd.phone } }) });
+            customer: { name: fd.name, phone: fd.phone, email: fd.email || "" } }) });
         data = await res.json();
       } catch {}
       if (res?.status === 409) { btn.disabled = false; btn.innerHTML = `${icon("clock")} Запази часа`; msg.textContent = "Току-що някой зае този час – избери друг."; draw(); return; }
@@ -1689,6 +1690,7 @@
   const lineInfo = (l) => BY_ID.get(l.id);
   const varLabel = (v) => [v.model && "за " + v.model, v.storage, v.ram && v.ram + " RAM", v.color, v.conn].filter(Boolean).join(" · ");
   const cartLines = () => state.cart.filter((l) => lineInfo(l) && lineInfo(l).v.price != null);
+  let OFFICES = null, officesPromise = null;
   const subtotal = () => cartLines().reduce((s, l) => s + lineInfo(l).v.price * l.qty, 0);
 
   function flyToCart(src) {
@@ -1761,7 +1763,7 @@
         <fieldset><legend>1. Данни за контакт</legend>
           <div class="two"><label class="field"><span>Име и фамилия *</span><input class="input" name="name" required autocomplete="name"></label>
           <label class="field"><span>Телефон *</span><input class="input" name="phone" type="tel" required pattern="\\+?[0-9 ]{6,}" title="Само цифри, напр. 0888 123 456" autocomplete="tel"></label></div>
-          <label class="field"><span>Имейл (по избор)</span><input class="input" name="email" type="email" autocomplete="email"></label>
+          <label class="field"><span>Имейл <small class="muted">(по избор – ще получиш потвърждение и статуса)</small></span><input class="input" name="email" type="email" autocomplete="email"></label>
         </fieldset>
         <fieldset><legend>2. Получаване</legend>
           <div class="radio-cards">
@@ -1771,24 +1773,44 @@
           </div>
           <div id="courierFields" hidden>
             <div class="seg"><label><input type="radio" name="dest" value="office" checked><span>До офис</span></label><label><input type="radio" name="dest" value="address"><span>До адрес</span></label></div>
-            <div class="two"><label class="field"><span>Населено място *</span><input class="input" name="city" autocomplete="address-level2"></label>
+            <div id="officeBox" hidden>
+              <label class="field"><span>Офис или Еконтомат *</span><input class="input" id="officeQ" placeholder="Търси по град, квартал или улица" autocomplete="off"></label>
+              <div class="office-pick" id="officePick" hidden></div>
+              <div class="office-list" id="officeList" role="listbox" aria-label="Офиси на Еконт"></div>
+            </div>
+            <div class="two" id="addrFields"><label class="field"><span>Населено място *</span><input class="input" name="city" autocomplete="address-level2"></label>
             <label class="field"><span id="addrLbl">Офис на куриера *</span><input class="input" name="addr" autocomplete="street-address"></label></div>
+            <p class="small" id="speedyHint" hidden><a class="link" href="https://www.speedy.bg/bg/speedy-offices" target="_blank" rel="noopener">Намери офис на Спиди →</a> и впиши името или адреса му.</p>
           </div>
           <p class="muted small" id="recvNote"></p>
         </fieldset>
         <fieldset><legend>3. Плащане</legend><div class="radio-cards" id="payCards"></div></fieldset>
         <label class="field"><span>Бележка към поръчката</span><textarea class="input" name="note" rows="2"></textarea></label>
+        <div class="promo-row"><input class="input" id="promoIn" placeholder="Промо код" autocapitalize="characters" autocomplete="off" aria-label="Промо код">
+          <button type="button" class="btn btn--ghost" id="promoBtn">Приложи</button></div>
+        <p class="small promo-msg" id="promoMsg" aria-live="polite"></p>
         <div class="summary" id="sum"></div>
         <label class="check check--consent"><input type="checkbox" required><span>Съгласен/на съм с <a href="#/legal/terms" target="_blank">общите условия</a> и <a href="#/legal/privacy" target="_blank">политиката за поверителност</a>. *</span></label>
         <button class="btn btn--primary btn--block btn--lg" type="submit">Изпрати заявка за поръчка</button>
         <p class="muted small center">Магазинът потвърждава наличността, сумата и срока преди изпълнение.</p>
       </form>`);
     const f = $("#checkoutForm");
-    let lastCourier = null;
+    let lastCourier = null, promo = null, office = null;
+    const promoDisc = (sub) => {
+      if (!promo) return 0;
+      const elig = cartLines().reduce((s, l) => { const { p, v } = lineInfo(l); return s + (promo.scope === "all" || p.cat === promo.scope ? v.price * l.qty : 0); }, 0);
+      if (!elig || sub < promo.min) return 0;
+      return Math.round(Math.min(elig, promo.kind === "fixed" ? promo.value : elig * promo.value / 100) * 100) / 100;
+    };
     const upd = () => {
       const recv = f.recv.value, courier = recv !== "pickup", dest = f.dest.value;
+      const econtOffice = recv === "Еконт" && dest === "office";
       $("#courierFields").hidden = !courier;
-      f.city.required = f.addr.required = courier;
+      $("#officeBox").hidden = !econtOffice;
+      $("#addrFields").hidden = econtOffice;
+      $("#speedyHint").hidden = !(recv === "Спиди" && dest === "office");
+      f.city.required = f.addr.required = courier && !econtOffice;
+      if (econtOffice && !OFFICES) loadOffices();
       $("#addrLbl").textContent = dest === "office" ? "Офис на куриера *" : "Адрес (улица, №, вх., ап.) *";
       $("#recvNote").textContent = courier
         ? "Това не генерира автоматично товарителница. Магазинът потвърждава възможността, таксата и очаквания срок за конкретната доставка."
@@ -1798,36 +1820,91 @@
         $("#payCards").innerHTML = pays.map(([v, s], i) => `<label class="radio-card"><input type="radio" name="pay" value="${v}" ${i === 0 ? "checked" : ""}><b>${v}</b><small>${s}</small></label>`).join("");
         lastCourier = courier;
       }
-      const sub = subtotal();
+      const sub = subtotal(), disc = promoDisc(sub);
       const fee = !courier ? 0 : dest === "office" ? S.deliveryOffice : S.deliveryAddress;
+      if (promo) $("#promoMsg").innerHTML = disc ? `✓ Код <b>${esc(promo.code)}</b>: −${eur(disc, true)}${promo.title ? ` · ${esc(promo.title)}` : ""}`
+        : `Код <b>${esc(promo.code)}</b> важи ${promo.min ? `при поръчка над ${eur(promo.min, true)}` : ""}${promo.scope !== "all" ? ` за ${esc((CAT_NAMES[promo.scope] || "").toLowerCase())}` : ""}.`;
       $("#sum").innerHTML = `
         ${cartLines().map((l) => { const { p, v } = lineInfo(l); return `<div class="row small"><span>${esc(p.name)}${varLabel(v) ? ` <span class="muted">(${esc(varLabel(v))})</span>` : ""} × ${l.qty}</span><span>${eur(v.price * l.qty, true)}</span></div>`; }).join("")}
         <hr><div class="row"><span class="muted">Стоки</span><span>${eur(sub, true)}</span></div>
+        ${disc ? `<div class="row promo-line"><span>Отстъпка (${esc(promo.code)})</span><span>−${eur(disc, true)}</span></div>` : ""}
         <div class="row"><span class="muted">Доставка</span><span>${fee === 0 ? "Без такса" : fee == null ? "Предстои уточняване" : eur(fee, true)}</span></div>
-        <div class="row row--total"><span>Общо${fee == null ? " <small class=\"muted\">(без доставка)</small>" : ""}</span><span>${eur(sub + (fee || 0), true)}</span></div>`;
-      return { courier, fee, sub };
+        <div class="row row--total"><span>Общо${fee == null ? " <small class=\"muted\">(без доставка)</small>" : ""}</span><span>${eur(sub - disc + (fee || 0), true)}</span></div>`;
+      return { courier, fee, sub, disc, econtOffice };
     };
-    f.addEventListener("change", upd);
+    f.addEventListener("change", (e) => { if (e.target.id !== "officeQ" && e.target.id !== "promoIn") upd(); });
     upd();
+
+    // промо код
+    const applyPromo = async () => {
+      const code = $("#promoIn").value.trim().toUpperCase();
+      if (!code) { promo = null; $("#promoMsg").textContent = ""; return upd(); }
+      $("#promoBtn").disabled = true;
+      let r = null;
+      try { r = await fetch(`/api/orders?promo=${encodeURIComponent(code)}`); } catch {}
+      $("#promoBtn").disabled = false;
+      if (r && r.ok) { promo = await r.json(); track("Промо код"); }
+      else { promo = null; $("#promoMsg").textContent = r && r.status === 404 ? "Този код не е валиден или е изтекъл." : "Кодът не може да се провери в момента."; }
+      upd();
+    };
+    $("#promoBtn").addEventListener("click", applyPromo);
+    $("#promoIn").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); applyPromo(); } });
+
+    // офиси на Еконт
+    const showOffices = () => {
+      const list = OFFICES || [], q = norm($("#officeQ").value).trim();
+      const toks = q.split(/\s+/).filter(Boolean);
+      const hits = !toks.length ? [] : list.filter((o) => { const t = norm(`${o[2]} ${o[1]} ${o[4]} ${o[3]}`); return toks.every((x) => t.includes(x)); })
+        .sort((a, b) => (norm(a[2]).startsWith(toks[0]) ? 0 : 1) - (norm(b[2]).startsWith(toks[0]) ? 0 : 1)).slice(0, 40);
+      $("#officeList").innerHTML = !OFFICES ? `<p class="muted small">Зареждане на офисите…</p>`
+        : !toks.length ? `<p class="muted small">Започни да пишеш – напр. „Гоце Делчев“ или „София Младост“.</p>`
+        : hits.length ? hits.map((o) => `<button type="button" class="office" data-office="${esc(o[0])}" role="option">
+            <b>${esc(o[1])}</b>${o[5] === "a" ? ' <span class="office__aps">Еконтомат</span>' : ""}<small>${esc(o[2])}${o[4] ? ", " + esc(o[4]) : ""}</small></button>`).join("")
+        : `<p class="muted small">Няма намерени офиси. Опитай само с името на града.</p>`;
+    };
+    const pickOffice = (o) => {
+      office = o;
+      $("#officePick").hidden = !o; $("#officeQ").closest(".field").hidden = !!o; $("#officeList").hidden = !!o;
+      if (o) $("#officePick").innerHTML = `${icon("pin")}<span><b>Еконт ${esc(o[1])}</b>${o[5] === "a" ? " (Еконтомат)" : ""}<small>${esc(o[2])}${o[4] ? ", " + esc(o[4]) : ""}</small></span><button type="button" class="link-btn" id="officeChange">Смени</button>`;
+    };
+    function loadOffices() {
+      if (OFFICES) return showOffices();
+      showOffices();
+      (officesPromise ||= fetch("assets/offices-econt.json").then((r) => r.json()).then((d) => (OFFICES = d.offices)).catch(() => (OFFICES = [])))
+        .then(() => { if (!OFFICES.length) { $("#officeBox").hidden = true; $("#addrFields").hidden = false; f.city.required = f.addr.required = true; } else showOffices(); });
+    }
+    $("#officeQ").addEventListener("input", showOffices);
+    $("#officeBox").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-office]");
+      if (b) pickOffice(OFFICES.find((o) => o[0] === b.dataset.office));
+      if (e.target.closest("#officeChange")) { pickOffice(null); $("#officeQ").focus(); showOffices(); }
+    });
     f.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const { courier, fee, sub } = upd();
+      const { courier, fee, sub, disc, econtOffice } = upd();
+      if (econtOffice && !office) { $("#officeQ").focus(); $("#officeList").innerHTML = `<p class="small promo-msg">Избери офис на Еконт от списъка.</p>`; return; }
+      if (promo) {
+        const r = await fetch(`/api/orders?promo=${encodeURIComponent(promo.code)}`).catch(() => null);
+        if (r && r.status === 404) { promo = null; upd(); $("#promoMsg").textContent = "Промо кодът вече не е валиден – провери новата сума."; return; }
+      }
       const fd = Object.fromEntries(new FormData(f));
       const num = refNo("GD");
       const items = cartLines().map((l) => { const { p, v } = lineInfo(l); return `• ${p.name}${varLabel(v) ? ` (${varLabel(v)})` : ""} – арт. ${v.id} × ${l.qty} = ${eur(v.price * l.qty, true)}`; });
-      const recvTxt = courier ? `${fd.recv}, ${fd.dest === "office" ? "до офис" : "до адрес"}: ${fd.city}, ${fd.addr}` : `Вземане от магазина (${S.address})`;
-      const text = [`Заявка за поръчка № ${num}`, "", ...items, "", `Стоки: ${eur(sub, true)}`,
-        `Доставка: ${fee === 0 ? "без такса" : fee == null ? "предстои уточняване" : eur(fee, true)}`, `Общо: ${eur(sub + (fee || 0), true)}`, "",
+      const recvTxt = econtOffice ? `Еконт, до офис: ${office[1]}${office[5] === "a" ? " (Еконтомат)" : ""} [код ${office[0]}], ${office[2]}${office[4] ? ", " + office[4] : ""}`
+        : courier ? `${fd.recv}, ${fd.dest === "office" ? "до офис" : "до адрес"}: ${fd.city}, ${fd.addr}` : `Вземане от магазина (${S.address})`;
+      const total = Math.round((sub - disc + (fee || 0)) * 100) / 100;
+      const text = [`Заявка за поръчка № ${num}`, "", ...items, "", `Стоки: ${eur(sub, true)}`, disc ? `Отстъпка (код ${promo.code}): −${eur(disc, true)}` : false,
+        `Доставка: ${fee === 0 ? "без такса" : fee == null ? "предстои уточняване" : eur(fee, true)}`, `Общо: ${eur(total, true)}`, "",
         `Клиент: ${fd.name}`, `Телефон: ${fd.phone}`, fd.email ? `Имейл: ${fd.email}` : false, `Получаване: ${recvTxt}`, `Плащане: ${fd.pay}`,
         fd.note ? `Бележка: ${fd.note}` : false].filter((x) => x !== false).join("\n");
       const btn = f.querySelector("[type=submit]");
       btn.disabled = true; btn.textContent = "Изпращане…";
       track("Изпратена заявка за поръчка");
-      const sent = await sendToStore(`Нова поръчка ${num} – ${eur(sub, true)}`, text, {
-        type: "order", ref: num, title: `${cartLines().length} продукт(а) – ${eur(sub + (fee || 0), true)}`,
+      const sent = await sendToStore(`Нова поръчка ${num} – ${eur(total, true)}`, text, {
+        type: "order", ref: num, title: `${cartLines().length} продукт(а) – ${eur(total, true)}`, ...(disc ? { promo: promo.code, discount: disc } : {}),
         customer: { name: fd.name, phone: fd.phone, email: fd.email || "" },
         items: cartLines().map((l) => { const { p, v } = lineInfo(l); return { id: v.id, name: p.name, variant: varLabel(v), qty: l.qty, price: v.price }; }),
-        total: Math.round((sub + (fee || 0)) * 100) / 100, delivery: recvTxt, payment: fd.pay });
+        total, delivery: recvTxt, payment: fd.pay });
       const ref = typeof sent === "string" ? sent : num;
       const orders = store.get("orders", []);
       orders.push({ num: ref, phone: fd.phone, date: new Date().toISOString(), text });

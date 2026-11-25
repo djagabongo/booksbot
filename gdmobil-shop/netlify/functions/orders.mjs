@@ -5,6 +5,8 @@
 // • Админ панелът (ADMIN_PASSWORD) вижда списъка и сменя статусите.
 import { getStore } from "@netlify/blobs";
 import { createHash, randomInt, timingSafeEqual } from "node:crypto";
+import { runDaily } from "./daily.mjs";
+import { sendMail, mailEnabled, layout, rows, itemsTable, storeInfo, siteUrl, eur, when } from "../lib/mail.mjs";
 
 export const STATUSES = {
   order: { new: "Приета", confirmed: "Потвърдена", shipped: "Изпратена", ready: "Готова за вземане", done: "Завършена", cancelled: "Отказана" },
@@ -60,7 +62,71 @@ const publicView = (o) => ({
   delivery: o.delivery || "", tracking: o.tracking || "", device: o.device || "", appointment: o.appointment || "",
 });
 const SLOT_RX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
-const summary = (o) => ({ ref: o.ref, type: o.type, status: o.status, createdAt: o.createdAt, name: o.customer?.name || "", phone: o.customer?.phone || "", total: o.total ?? null, title: o.title || "" });
+const summary = (o) => ({ ref: o.ref, type: o.type, status: o.status, createdAt: o.createdAt, name: o.customer?.name || "", phone: o.customer?.phone || "", total: o.total ?? null, title: o.title || "",
+  items: (o.items || []).map((i) => ({ id: i.id, name: i.name, qty: i.qty, price: i.price })), promo: o.promo?.code || "", discount: o.promo?.discount || 0, appointment: o.appointment || "" });
+const KIND = { order: "поръчка", repair: "заявка за ремонт", inquiry: "запитване" };
+
+// ---------- промо кодове (дефинирани в админ панела → Промо кодове) ----------
+async function findPromo(store, code) {
+  code = String(code || "").trim().toUpperCase();
+  if (!code) return null;
+  let list = [];
+  try { list = ((await getStore({ name: "gdmobil-settings" }).get("overrides", { type: "json" })) || {}).promos || []; } catch {}
+  const p = list.find((x) => String(x.code || "").toUpperCase() === code);
+  if (!p || p.active === false) return null;
+  if (p.until && new Date(p.until + "T23:59:59+02:00") < new Date()) return null;
+  if (p.limit > 0) {
+    const used = Number(await store.get("promo-uses/" + code)) || 0;
+    if (used >= p.limit) return null;
+  }
+  return { code, kind: p.kind === "fixed" ? "fixed" : "percent", value: Number(p.value) || 0, scope: p.scope || "all", min: Number(p.min) || 0, title: p.title || "" };
+}
+
+// ---------- имейли до клиента и магазина ----------
+async function mailNew(o) {
+  if (!mailEnabled()) return;
+  const S = await storeInfo(), site = siteUrl(S);
+  const track = `${site}/#/track?ref=${encodeURIComponent(o.ref)}&phone=${digits(o.customer.phone).slice(-4)}`;
+  const details = rows([
+    ["Номер", o.ref], o.appointment && ["Час в сервиза", when(o.appointment)], o.device && ["Устройство", o.device],
+    o.delivery && ["Получаване", o.delivery], o.payment && ["Плащане", o.payment], o.promo && ["Промо код", `${o.promo.code} (−${eur(o.promo.discount)})`],
+  ]);
+  const jobs = [];
+  if (o.customer.email) {
+    jobs.push(sendMail({
+      to: { email: o.customer.email, name: o.customer.name }, replyTo: S.email,
+      subject: o.appointment ? `Час за сервиз ${o.ref} – ${when(o.appointment)}` : `Получихме твоята ${KIND[o.type]} ${o.ref}`,
+      html: layout(S, {
+        title: o.appointment ? "Часът ти е запазен" : `Благодарим, ${o.customer.name.split(" ")[0]}!`,
+        intro: o.type === "order" ? "Получихме заявката ти. Ще ти се обадим, за да потвърдим наличността, сумата и срока." :
+          o.appointment ? "Очакваме те в сервиза. Ако не можеш да дойдеш, обади ни се, за да преместим часа." : "Получихме съобщението ти и ще отговорим възможно най-скоро.",
+        body: details + itemsTable(o.items, o.total), button: { text: "Проследи статуса", url: track },
+        footer: "Отговори на това писмо, ако имаш въпрос.",
+      }),
+    }));
+  }
+  jobs.push(sendMail({
+    to: process.env.MAIL_OWNER || process.env.MAIL_FROM, replyTo: o.customer.email || undefined,
+    subject: `${o.appointment ? "📅 Час за сервиз" : o.type === "order" ? "🛒 Нова поръчка" : o.type === "repair" ? "🔧 Ремонт" : "✉️ Запитване"} ${o.ref} – ${o.customer.name}${o.total != null ? " – " + eur(o.total) : ""}`,
+    html: layout(S, { title: `${o.title || o.ref}`, body: `<pre style="white-space:pre-wrap;font:14px/1.5 Arial,sans-serif;margin:0">${String(o.text).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]))}</pre>`,
+      button: { text: "Отвори в админ панела", url: `${site}/admin.html` } }),
+  }));
+  await Promise.all(jobs);
+}
+async function mailStatus(o, note) {
+  if (!mailEnabled() || !o.customer?.email) return false;
+  const S = await storeInfo(), site = siteUrl(S);
+  const label = STATUSES[o.type]?.[o.status] || o.status;
+  return sendMail({
+    to: { email: o.customer.email, name: o.customer.name }, replyTo: S.email,
+    subject: `${o.ref}: ${label}`,
+    html: layout(S, {
+      title: `Статус: ${label}`, intro: `Има ново по твоята ${KIND[o.type] || "заявка"} <b>${o.ref}</b>.`,
+      body: rows([["Статус", label], note && ["Съобщение", note], o.tracking && ["Товарителница", o.tracking], o.appointment && ["Час", when(o.appointment)]]) + itemsTable(o.items, o.total),
+      button: { text: "Виж подробности", url: `${site}/#/track?ref=${encodeURIComponent(o.ref)}&phone=${digits(o.customer.phone).slice(-4)}` },
+    }),
+  });
+}
 
 export default async (req, context) => {
   const store = getStore({ name: "gdmobil-orders", consistency: "strong" });
@@ -97,6 +163,14 @@ export default async (req, context) => {
       await Promise.all(keys.map((k) => store.delete(k)));
       return json({ ok: true, deleted: keys.length });
     }
+    if (req.method === "POST" && url.searchParams.has("rundaily")) return json(await runDaily());
+    if (req.method === "GET" && url.searchParams.has("mailcheck")) return json({ mail: mailEnabled(), telegram: !!(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) });
+    if (req.method === "GET" && url.searchParams.has("promouses")) {
+      const { blobs } = await store.list({ prefix: "promo-uses/" });
+      const out = {};
+      for (const b of blobs) out[b.key.slice(11)] = Number(await store.get(b.key)) || 0;
+      return json({ uses: out });
+    }
     if (req.method === "GET" && url.searchParams.get("ref")) {
       const o = await store.get("o/" + url.searchParams.get("ref"), { type: "json" });
       return o ? json(o) : json({ error: "not_found" }, 404);
@@ -106,6 +180,7 @@ export default async (req, context) => {
       const o = await store.get("o/" + ref, { type: "json" });
       if (!o) return json({ error: "not_found" }, 404);
       const body = await req.json().catch(() => ({}));
+      const before = { status: o.status, tracking: o.tracking };
       if (body.status && STATUSES[o.type]?.[body.status] && body.status !== o.status) {
         o.status = body.status;
         o.history.push({ status: body.status, at: new Date().toISOString(), note: clean(body.note, 300) });
@@ -120,9 +195,19 @@ export default async (req, context) => {
       const i = index.findIndex((x) => x.ref === ref);
       if (i > -1) index[i] = summary(o);
       await store.setJSON("index", index);
-      return json({ ok: true, order: o });
+      const changed = before.status !== o.status || before.tracking !== o.tracking || !!clean(body.note, 300);
+      const mailed = changed && body.notify !== false ? await mailStatus(o, clean(body.note, 300)) : false;
+      return json({ ok: true, order: o, mailed });
     }
     return json({ error: "bad_request" }, 400);
+  }
+
+  // ---------- проверка на промо код (публично) ----------
+  if (req.method === "GET" && url.searchParams.has("promo")) {
+    if (limited("promo:" + ip, 20)) return json({ error: "rate_limited" }, 429);
+    const p = await findPromo(store, url.searchParams.get("promo"));
+    if (!p) { await wait(300); return json({ error: "invalid" }, 404); }
+    return json(p);
   }
 
   // ---------- заети часове за сервиза (публично, без лични данни) ----------
@@ -181,6 +266,12 @@ export default async (req, context) => {
     if (new Date(appointment + ":00+02:00") < new Date()) return json({ error: "slot_past" }, 400);
     if (await store.get("slot/" + appointment)) return json({ error: "slot_taken" }, 409);
   }
+  let promo = null;
+  if (b.type === "order" && b.promo) {
+    const p = await findPromo(store, b.promo);
+    if (!p) return json({ error: "promo_invalid" }, 400);
+    promo = { code: p.code, discount: Math.max(0, Math.round((Number(b.discount) || 0) * 100) / 100) };
+  }
   let ref = /^(GD|R|Z)-\d{6}-\d{4}$/.test(b.ref || "") ? b.ref : newRef(b.type);
   if (await store.get("o/" + ref)) ref = newRef(b.type);
   const now = new Date().toISOString();
@@ -188,14 +279,18 @@ export default async (req, context) => {
     ref, type: b.type, status: "new", createdAt: now, history: [{ status: "new", at: now, note: "" }],
     customer, title: clean(b.title, 200), text: clean(b.text, 6000), device: clean(b.device, 120),
     items: (Array.isArray(b.items) ? b.items : []).slice(0, 50).map((i) => ({ id: clean(i.id, 30), name: clean(i.name, 200), variant: clean(i.variant, 200), qty: Math.max(1, Math.min(99, parseInt(i.qty) || 1)), price: Number(i.price) || 0 })),
-    total: typeof b.total === "number" ? b.total : null, delivery: clean(b.delivery, 300), payment: clean(b.payment, 80), tracking: "", appointment,
+    total: typeof b.total === "number" ? b.total : null, delivery: clean(b.delivery, 300), payment: clean(b.payment, 80), tracking: "", appointment, ...(promo ? { promo } : {}),
   };
+  if (promo) await store.set("promo-uses/" + promo.code, String((Number(await store.get("promo-uses/" + promo.code)) || 0) + 1));
   if (appointment) await store.setJSON("slot/" + appointment, { ref });
   await store.setJSON("o/" + ref, o);
   const index = (await store.get("index", { type: "json" })) || [];
   index.unshift(summary(o));
   await store.setJSON("index", index.slice(0, 5000));
-  const notified = await notifyTelegram(`${appointment ? "📅 Записан час за сервиз" : TYPE_LABEL[o.type]} ${ref}\n\n${o.text}`);
+  const [notified] = await Promise.all([
+    notifyTelegram(`${appointment ? "📅 Записан час за сервиз" : TYPE_LABEL[o.type]} ${ref}\n\n${o.text}`),
+    mailNew(o),
+  ]);
   return json({ ok: true, ref, notified });
 };
 

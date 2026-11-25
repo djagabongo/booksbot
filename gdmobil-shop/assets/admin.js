@@ -55,7 +55,7 @@
   async function api(method, body, query = "") {
     const r = await fetch("/api/settings" + query, {
       method, cache: "no-store",
-      headers: { "content-type": "application/json", ...(method === "POST" ? { "x-admin-password": pw() } : {}) },
+      headers: { "content-type": "application/json", ...(pw() ? { "x-admin-password": pw() } : {}) },
       body: body ? JSON.stringify(body) : undefined,
     });
     let data = null;
@@ -136,10 +136,11 @@
     $$("#tabs [data-tab]").forEach((x) => x.setAttribute("aria-selected", x === b));
     render();
   });
+  function freshMain() { const m = $("#main"); const f = m.cloneNode(true); m.replaceWith(f); return f; } // без натрупани обработчици
   function render() {
     const m = $("#main"), fresh = m.cloneNode(false);
     m.replaceWith(fresh); // нов елемент – без натрупани обработчици от предишния раздел
-    ({ watches: renderWatches, orders: renderOrders, products: renderProducts, labels: renderLabels, home: renderHome, store: renderStore, reviews: renderReviews, analytics: renderAnalytics })[tab]();
+    ({ dash: renderDash, promos: renderPromos, watches: renderWatches, orders: renderOrders, products: renderProducts, labels: renderLabels, home: renderHome, store: renderStore, reviews: renderReviews, analytics: renderAnalytics })[tab]();
   }
 
   /* ===== ПРОДУКТИ ===== */
@@ -147,6 +148,7 @@
     O.labels.sale[p.slug] != null || p.variants.some((v) => O.prices[v.id] != null || O.stock[v.id] === 0 || O.labels.sale[v.id] != null);
   let q = "", qCat = "", onlyChanged = false;
   function renderProducts() {
+    freshMain();
     $("#main").innerHTML = `<div class="adm-split">
       <aside class="adm-list">
         <div class="adm-list__tools">
@@ -243,6 +245,7 @@
 
   /* ===== ЕТИКЕТИ ===== */
   function renderLabels() {
+    freshMain();
     const name = (s) => esc(BY_SLUG.get(s)?.name || s);
     const sales = Object.entries(O.labels.sale);
     $("#main").innerHTML = `<div class="adm-page">
@@ -295,6 +298,7 @@
 
   /* ===== НАЧАЛНА СТРАНИЦА ===== */
   function renderHome() {
+    freshMain();
     const featured = O.store.featured || [...S0.featured];
     const hero = st("heroSlug");
     $("#main").innerHTML = `<div class="adm-page">
@@ -320,6 +324,7 @@
 
   /* ===== МАГАЗИН ===== */
   function renderStore() {
+    freshMain();
     const hours = st("hours"), social = { ...S0.social, ...(O.store.social || {}) };
     const f = (k, label, type = "text", ph = "") => `<label class="field"><span>${label}</span><input class="input" data-k="${k}" type="${type}" value="${esc(st(k) ?? "")}" placeholder="${esc(ph)}" /></label>`;
     $("#main").innerHTML = `<div class="adm-page">
@@ -348,6 +353,7 @@
 
   /* ===== ОТЗИВИ ===== */
   function renderReviews() {
+    freshMain();
     const R = O.reviews;
     $("#main").innerHTML = `<div class="adm-page">
       <section class="adm-box"><h2>Google профил</h2><div class="adm-grid">
@@ -417,6 +423,7 @@
   }
   const fmt = (s) => new Date(s).toLocaleString("bg-BG", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
   async function renderOrders() {
+    freshMain();
     const m = $("#main");
     if (!OL) {
       m.innerHTML = `<div class="adm-page"><p class="muted">Зареждане…</p></div>`;
@@ -447,11 +454,13 @@
         const r = await ordersApi("GET", "?ref=" + encodeURIComponent(tr.dataset.ref));
         if (r.ok) { oSel = r.data; renderOrders(); }
       }
+      const pb = e.target.closest("[data-print]");
+      if (pb && oSel) printDoc(pb.dataset.print, oSel);
       if (e.target.id === "oSave") {
-        const b = { status: $("#oStatus").value, note: $("#oNote").value.trim(), tracking: $("#oTrack").value.trim(), internalNote: $("#oInternal").value };
+        const b = { status: $("#oStatus").value, note: $("#oNote").value.trim(), tracking: $("#oTrack").value.trim(), internalNote: $("#oInternal").value, notify: !!$("#oNotify")?.checked };
         e.target.disabled = true;
         const r = await ordersApi("POST", "?update=" + encodeURIComponent(oSel.ref), b);
-        if (r.ok) { oSel = r.data.order; OL = null; toast("✓ Заявката е обновена"); renderOrders(); }
+        if (r.ok) { oSel = r.data.order; OL = null; toast(r.data.mailed ? "✓ Обновено · имейлът е изпратен" : "✓ Заявката е обновена"); renderOrders(); }
         else { e.target.disabled = false; toast("Грешка (" + r.status + ")"); }
       }
     });
@@ -467,7 +476,10 @@
       <label class="field"><span>Бележка към клиента (вижда се при проследяване)</span><input class="input" id="oNote" placeholder="напр. Очакваме частта до четвъртък"></label>
       ${o.type === "order" ? `<label class="field"><span>Номер на товарителница</span><input class="input" id="oTrack" value="${esc(o.tracking || "")}" placeholder="Еконт / Спиди"></label>` : `<input type="hidden" id="oTrack" value="${esc(o.tracking || "")}">`}
       <label class="field"><span>Вътрешна бележка (само за магазина)</span><textarea class="input" id="oInternal" rows="2">${esc(o.internalNote || "")}</textarea></label>
-      <button class="btn btn--primary" id="oSave">Запази статуса</button>
+      ${o.customer.email ? `<label class="check"><input type="checkbox" id="oNotify" checked><span>Изпрати имейл на клиента при промяна</span></label>` : `<p class="muted small">Клиентът не е оставил имейл – обади се на ${esc(o.customer.phone)}.</p>`}
+      <div class="adm-row"><button class="btn btn--primary" id="oSave">Запази статуса</button>
+        ${o.type === "order" ? `<button class="btn btn--ghost" data-print="receipt">🖨 Стокова разписка</button>` : `<button class="btn btn--ghost" data-print="intake">🖨 Приемателен протокол</button>`}
+        <button class="btn btn--ghost" data-print="summary">🖨 Печат</button></div>
       <p class="muted small">Връзка за клиента: <a href="${esc(link)}" target="_blank">${esc(link)}</a></p>
       <h3>История</h3><ol class="adm-hist">${o.history.slice().reverse().map((h) => `<li><b>${esc(S[h.status] || h.status)}</b> <span class="muted small">${fmt(h.at)}</span>${h.note ? `<br>${esc(h.note)}` : ""}</li>`).join("")}</ol>`;
   }
@@ -482,6 +494,7 @@
     return base == null ? null : pct > 0 && pct < 100 ? Math.round(base * (100 - pct)) / 100 : base;
   }
   async function renderWatches() {
+    freshMain();
     const m = $("#main");
     m.innerHTML = `<div class="adm-page"><p class="muted">Зареждане…</p></div>`;
     const r = await fetch("/api/orders?watches=1", { cache: "no-store", headers: { "x-admin-password": pw() } }).then((x) => x.json()).catch(() => null);
@@ -495,12 +508,20 @@
     $("#main").innerHTML = `<div class="adm-page"><section class="adm-box"><h2>Следени цени (${rows.length} продукта, ${(r?.watches || []).length} абоната)</h2>
       <p class="muted">Клиентите натискат „Кажи ми при намаление“ на продукта. Когато намалиш цената (в „Продукти“ или „Етикети“ → Запази), продуктът се маркира тук.
       Натисни „Изпрати имейл“ – отваря се писмо до всички абонати (скрито копие) – и после „Готово“, за да изтриеш имейлите им.</p>
+      <div class="adm-row" id="mailState"></div>
       ${rows.length ? `<div class="adm-table-wrap"><table class="adm-table"><thead><tr><th>Продукт</th><th>Абонати</th><th>Цена при абониране</th><th>Сега</th><th></th></tr></thead><tbody>
         ${rows.map((x) => `<tr data-slug="${esc(x.slug)}" class="${x.drop ? "sel" : ""}"><td><b>${esc(x.name)}</b><small class="muted">${esc(x.ws[0].variant || "")}</small></td><td>${x.ws.length}</td>
           <td>${eur(x.was === Infinity ? null : x.was)}</td><td>${x.drop ? `<span class="adm-badge adm-badge--ready">${eur(x.now)} ↓</span>` : eur(x.now)}</td>
           <td><div class="adm-row">${x.drop ? `<a class="btn btn--primary btn--sm" data-mail href="#">Изпрати имейл</a>` : ""}<button class="btn btn--ghost btn--sm" data-wdone>${x.drop ? "Готово" : "Изтрий"}</button></div></td></tr>`).join("")}
       </tbody></table></div>` : `<p class="muted">Още няма абонати.</p>`}</section></div>`;
+    mailState($("#mailState"), true);
     $("#main").addEventListener("click", async (e) => {
+      if (e.target.id === "runDaily") {
+        e.target.disabled = true;
+        const r = await fetch("/api/orders?rundaily=1", { method: "POST", headers: { "x-admin-password": pw() } }).then((x) => x.json()).catch(() => null);
+        toast(r ? `Изпратени: ${r.priceAlerts} известия за намаление, ${r.reminders} напомняния` : "Грешка");
+        return renderWatches();
+      }
       const tr = e.target.closest("tr[data-slug]"); if (!tr) return;
       const x = rows.find((y) => y.slug === tr.dataset.slug);
       if (e.target.closest("[data-mail]")) {
@@ -517,8 +538,176 @@
     });
   }
 
+  /* ===== СЪСТОЯНИЕ НА ИМЕЙЛИТЕ ===== */
+  async function mailState(el, withRun) {
+    const r = await fetch("/api/orders?mailcheck=1", { headers: { "x-admin-password": pw() } }).then((x) => x.json()).catch(() => null);
+    if (!el.isConnected || !r) return;
+    el.innerHTML = `<span class="adm-badge ${r.mail ? "adm-badge--ready" : "adm-badge--new"}">${r.mail ? "✓ Автоматични имейли: включени" : "Автоматични имейли: изключени"}</span>
+      <span class="adm-badge ${r.telegram ? "adm-badge--ready" : ""}">${r.telegram ? "✓ Telegram: включен" : "Telegram: изключен"}</span>
+      ${r.mail && withRun ? `<button class="btn btn--ghost btn--sm" id="runDaily">Провери и изпрати сега</button><span class="muted small">Автоматично всеки ден в 17:05.</span>` : ""}
+      ${r.mail ? "" : `<span class="muted small">Добави BREVO_API_KEY и MAIL_FROM в Netlify (виж README).</span>`}`;
+  }
+
+  /* ===== ПРОМО КОДОВЕ ===== */
+  const SCOPES = { all: "Всички продукти", phones: "Само телефони", accessories: "Само аксесоари", tablets: "Само таблети" };
+  async function renderPromos() {
+    freshMain();
+    O.promos = O.promos || [];
+    const P = O.promos;
+    const uses = (await fetch("/api/orders?promouses=1", { headers: { "x-admin-password": pw() } }).then((x) => x.json()).catch(() => null))?.uses || {};
+    if (tab !== "promos") return;
+    $("#main").innerHTML = `<div class="adm-page"><section class="adm-box"><div class="adm-row"><h2>Промо кодове (${P.length})</h2><button class="btn btn--primary btn--sm" id="addPromo">+ Нов код</button></div>
+      <p class="muted">Клиентът въвежда кода при поръчката. Кодовете не се виждат публично – проверяват се от сървъра. След промяна натисни „Запази“.</p>
+      ${P.length ? `<div class="adm-promos">${P.map((p, i) => `<div class="adm-rev adm-promo ${p.active === false ? "off" : ""}" data-i="${i}">
+        <div class="adm-grid">
+          <label class="field"><span>Код</span><input class="input" data-p="code" value="${esc(p.code || "")}" placeholder="GDMOBIL10" style="text-transform:uppercase"></label>
+          <label class="field"><span>Вид</span><select class="select" data-p="kind"><option value="percent" ${p.kind !== "fixed" ? "selected" : ""}>Процент (%)</option><option value="fixed" ${p.kind === "fixed" ? "selected" : ""}>Сума (€)</option></select></label>
+          <label class="field"><span>Стойност</span><input class="input" type="number" min="0" step="0.01" data-p="value" value="${esc(p.value ?? "")}"></label>
+          <label class="field"><span>Важи за</span><select class="select" data-p="scope">${Object.entries(SCOPES).map(([k, l]) => `<option value="${k}" ${(p.scope || "all") === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+          <label class="field"><span>Мин. поръчка (€)</span><input class="input" type="number" min="0" data-p="min" value="${esc(p.min ?? "")}" placeholder="0"></label>
+          <label class="field"><span>Валиден до</span><input class="input" type="date" data-p="until" value="${esc(p.until || "")}"></label>
+          <label class="field"><span>Макс. използвания</span><input class="input" type="number" min="0" data-p="limit" value="${esc(p.limit ?? "")}" placeholder="без ограничение"></label>
+          <label class="field"><span>Описание (вижда се от клиента)</span><input class="input" data-p="title" value="${esc(p.title || "")}" placeholder="Черен петък"></label>
+        </div>
+        <div class="adm-row"><label class="check"><input type="checkbox" data-p="active" ${p.active === false ? "" : "checked"}><span>Активен</span></label>
+          <span class="muted small">Използван: <b>${uses[String(p.code || "").toUpperCase()] || 0}</b> пъти</span><button class="btn btn--ghost btn--sm" data-pdel>Изтрий</button></div></div>`).join("")}</div>`
+        : `<p class="muted">Няма кодове. Създай първия – напр. GDMOBIL10 за −10% на аксесоарите.</p>`}</section></div>`;
+    const m = $("#main");
+    m.addEventListener("input", (e) => {
+      const t = e.target, k = t.dataset.p; if (!k) return;
+      const p = P[+t.closest("[data-i]").dataset.i];
+      p[k] = k === "active" ? t.checked : k === "code" ? t.value.trim().toUpperCase().replace(/\s+/g, "") : ["value", "min", "limit"].includes(k) ? (t.value === "" ? "" : Number(t.value)) : t.value;
+      change();
+    });
+    m.addEventListener("change", (e) => { if (e.target.dataset.p === "active") { P[+e.target.closest("[data-i]").dataset.i].active = e.target.checked; change(); } });
+    m.addEventListener("click", (e) => {
+      if (e.target.id === "addPromo") { P.unshift({ code: "", kind: "percent", value: 10, scope: "all", min: "", until: "", limit: "", title: "", active: true }); change(); renderPromos(); }
+      if (e.target.closest("[data-pdel]")) { P.splice(+e.target.closest("[data-i]").dataset.i, 1); change(); renderPromos(); }
+    });
+  }
+
+  /* ===== ТАБЛО ===== */
+  let dashDays = 30;
+  async function renderDash() {
+    freshMain();
+    const m = $("#main");
+    if (!OL) {
+      m.innerHTML = `<div class="adm-page"><p class="muted">Зареждане…</p></div>`;
+      const r = await ordersApi("GET", "?list=1");
+      if (!r.ok) { m.innerHTML = `<div class="adm-page"><section class="adm-box"><p>Данните не могат да се заредят (${r.status}).</p></section></div>`; return; }
+      OL = r.data;
+    }
+    if (tab !== "dash") return;
+    const DAY = 864e5, now = new Date(), start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dashDays + 1);
+    const inRange = (o) => new Date(o.createdAt) >= start;
+    const prevStart = new Date(start - dashDays * DAY);
+    const all = OL.orders, cur = all.filter(inRange), prev = all.filter((o) => new Date(o.createdAt) >= prevStart && new Date(o.createdAt) < start);
+    const sales = (l) => l.filter((o) => o.type === "order" && o.status !== "cancelled");
+    const sum = (l) => l.reduce((s, o) => s + (Number(o.total) || 0), 0);
+    const S1 = sales(cur), S0 = sales(prev), rev = sum(S1), rev0 = sum(S0);
+    const delta = (a, b) => (!b ? "" : `<small class="${a >= b ? "up" : "down"}">${a >= b ? "▲" : "▼"} ${Math.abs(Math.round((a / b - 1) * 100))}% спрямо предходните ${dashDays} дни</small>`);
+    // по дни
+    const days = Array.from({ length: dashDays }, (_, i) => { const d = new Date(start.getTime() + i * DAY); return { d, key: d.toDateString(), v: 0, n: 0 }; });
+    const byKey = new Map(days.map((x) => [x.key, x]));
+    S1.forEach((o) => { const x = byKey.get(new Date(o.createdAt).toDateString()); if (x) { x.v += Number(o.total) || 0; x.n++; } });
+    const max = Math.max(...days.map((x) => x.v), 1);
+    // най-продавани
+    const top = new Map();
+    S1.forEach((o) => (o.items || []).forEach((i) => { const t = top.get(i.name) || { name: i.name, qty: 0, rev: 0 }; t.qty += i.qty || 1; t.rev += (i.price || 0) * (i.qty || 1); top.set(i.name, t); }));
+    const topList = [...top.values()].sort((a, b) => b.rev - a.rev).slice(0, 8), topMax = Math.max(...topList.map((t) => t.rev), 1);
+    const repairs = cur.filter((o) => o.type === "repair"), booked = repairs.filter((o) => o.appointment);
+    const promoUsed = S1.filter((o) => o.promo), promoDisc = promoUsed.reduce((s, o) => s + (o.discount || 0), 0);
+    const open = all.filter((o) => !["done", "cancelled", "closed"].includes(o.status));
+    const upcoming = all.filter((o) => o.appointment && new Date(o.appointment) >= new Date(now.toDateString()) && !["done", "cancelled"].includes(o.status)).sort((a, b) => a.appointment.localeCompare(b.appointment)).slice(0, 6);
+    const W = 720, H = 200, bw = W / dashDays, fmtD = (d) => `${d.getDate()}.${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const ticks = [0, 0.5, 1].map((t) => Math.round(max * t));
+    m.innerHTML = `<div class="adm-page">
+      <div class="adm-row"><h2 style="margin:0">Табло</h2><div class="adm-chips" style="margin:0">${[7, 30, 90].map((n) => `<button class="adm-chip ${dashDays === n ? "on" : ""}" data-days="${n}">${n} дни</button>`).join("")}</div>
+        <button class="btn btn--ghost btn--sm" id="dReload">Обнови</button></div>
+      <div class="dash-kpis">
+        <div class="kpi"><span>Оборот (поръчки)</span><b>${eur(rev)}</b>${delta(rev, rev0)}</div>
+        <div class="kpi"><span>Поръчки</span><b>${S1.length}</b>${delta(S1.length, S0.length)}</div>
+        <div class="kpi"><span>Средна поръчка</span><b>${eur(S1.length ? rev / S1.length : null)}</b></div>
+        <div class="kpi"><span>Ремонти / записани часове</span><b>${repairs.length} <small>/ ${booked.length}</small></b></div>
+        <div class="kpi"><span>Отворени заявки</span><b>${open.length}</b><small>${open.filter((o) => o.status === "new").length} нови</small></div>
+        <div class="kpi"><span>Промо кодове</span><b>${promoUsed.length}</b><small>отстъпки ${eur(promoDisc)}</small></div>
+      </div>
+      <section class="adm-box"><h3>Оборот по дни</h3>
+        ${rev ? `<div class="dash-chart"><svg viewBox="0 -12 ${W + 50} ${H + 38}" role="img" aria-label="Оборот по дни за последните ${dashDays} дни">
+          ${ticks.map((t) => { const y = H - (t / max) * H; return `<line x1="50" x2="${W + 50}" y1="${y}" y2="${y}" class="grid"/><text x="44" y="${y + 4}" text-anchor="end" class="axis">${t ? t.toLocaleString("bg-BG") + " €" : "0"}</text>`; }).join("")}
+          ${days.map((x, i) => { const h = x.v ? Math.max(3, (x.v / max) * H) : 0, bx = 50 + i * bw + 1, w = Math.max(1, bw - 2);
+            return `<g class="bar" tabindex="0"><title>${fmtD(x.d)}: ${eur(x.v)} · ${x.n} поръчки</title><rect class="hit" x="${50 + i * bw}" y="0" width="${bw}" height="${H}"/>
+              ${h ? `<path d="M${bx},${H} v${-(h - Math.min(4, w / 2, h))} q0,${-Math.min(4, w / 2, h)} ${Math.min(4, w / 2)},${-Math.min(4, w / 2, h)} h${w - 2 * Math.min(4, w / 2)} q${Math.min(4, w / 2)},0 ${Math.min(4, w / 2)},${Math.min(4, w / 2, h)} v${h - Math.min(4, w / 2, h)} z" class="fill"/>` : ""}</g>`; }).join("")}
+          <line x1="50" x2="${W + 50}" y1="${H}" y2="${H}" class="base"/>
+          ${days.map((x, i) => (i % Math.ceil(dashDays / 8) === 0 ? `<text x="${50 + i * bw + bw / 2}" y="${H + 18}" text-anchor="middle" class="axis">${fmtD(x.d)}</text>` : "")).join("")}
+        </svg></div>
+        <details><summary class="muted small">Таблица</summary><div class="adm-table-wrap"><table class="adm-table"><thead><tr><th>Ден</th><th>Поръчки</th><th>Оборот</th></tr></thead><tbody>${days.filter((x) => x.n).map((x) => `<tr><td>${fmtD(x.d)}</td><td>${x.n}</td><td>${eur(x.v)}</td></tr>`).join("")}</tbody></table></div></details>`
+        : `<p class="muted">Няма поръчки в този период.</p>`}
+      </section>
+      <div class="dash-two">
+        <section class="adm-box"><h3>Най-продавани</h3>${topList.length ? `<ol class="dash-top">${topList.map((t) => `<li><span class="dash-top__name">${esc(t.name)}</span><span class="dash-top__bar"><i style="width:${(t.rev / topMax) * 100}%"></i></span><b>${eur(t.rev)}</b><small class="muted">${t.qty} бр.</small></li>`).join("")}</ol>` : `<p class="muted">Още няма данни. (Продуктите се отчитат за поръчки след това обновяване.)</p>`}</section>
+        <section class="adm-box"><h3>Предстоящи часове в сервиза</h3>${upcoming.length ? `<ul class="dash-list">${upcoming.map((o) => `<li><b>${new Date(o.appointment).toLocaleString("bg-BG", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</b><span>${esc(o.name)} · ${esc(o.title.replace(/^Час [\d. :]+– /, ""))}</span><a href="tel:${esc(o.phone)}">${esc(o.phone)}</a></li>`).join("")}</ul>` : `<p class="muted">Няма записани часове.</p>`}
+          <h3>Състояние</h3><div class="adm-row" id="mailState2"></div></section>
+      </div></div>`;
+    mailState($("#mailState2"), false);
+    m.addEventListener("click", (e) => {
+      const d = e.target.closest("[data-days]"); if (d) { dashDays = +d.dataset.days; renderDash(); }
+      if (e.target.id === "dReload") { OL = null; renderDash(); }
+    });
+  }
+
+  /* ===== ПЕЧАТ ===== */
+  function printDoc(kind, o) {
+    const C = { company: "ИН-ТЕЛ ЕООД", eik: "101560088", name: "GDMobil", address: st("address"), phone: st("phone"), email: st("email") };
+    const d = (s) => new Date(s).toLocaleString("bg-BG", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    const items = o.items || [], subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
+    const head = (title) => `<header><div><b class="logo">GD<span>Mobil</span></b><div>${esc(C.company)} · ЕИК ${C.eik}<br>${esc(C.address)}<br>${esc(C.phone)} · ${esc(C.email)}</div></div>
+      <div class="r"><h1>${title}</h1><div>№ <b>${esc(o.ref)}</b><br>${d(o.createdAt)}</div></div></header>`;
+    const client = `<section class="box"><h3>Клиент</h3><p><b>${esc(o.customer.name)}</b><br>Тел.: ${esc(o.customer.phone)}${o.customer.email ? `<br>${esc(o.customer.email)}` : ""}</p></section>`;
+    const sign = (a, b) => `<div class="sign"><div>${a}<span></span></div><div>${b}<span></span></div></div>`;
+    let body = "";
+    if (kind === "receipt") {
+      body = `${head("Стокова разписка")}${client}
+        <table><thead><tr><th>#</th><th>Артикул</th><th>Код</th><th>К-во</th><th>Ед. цена</th><th>Сума</th></tr></thead><tbody>
+        ${items.map((i, n) => `<tr><td>${n + 1}</td><td>${esc(i.name)}${i.variant ? `<br><small>${esc(i.variant)}</small>` : ""}</td><td>${esc(i.id)}</td><td>${i.qty}</td><td>${eur(i.price)}</td><td>${eur(i.price * i.qty)}</td></tr>`).join("")}</tbody>
+        <tfoot><tr><td colspan="5">Стоки</td><td>${eur(subtotal)}</td></tr>${o.promo ? `<tr><td colspan="5">Отстъпка (${esc(o.promo.code)})</td><td>−${eur(o.promo.discount)}</td></tr>` : ""}
+        ${o.total != null && Math.abs(o.total - subtotal + (o.promo?.discount || 0)) > 0.009 ? `<tr><td colspan="5">Доставка</td><td>${eur(o.total - subtotal + (o.promo?.discount || 0))}</td></tr>` : ""}
+        <tr class="tot"><td colspan="5">Общо (с ДДС)</td><td>${eur(o.total ?? subtotal)}</td></tr></tfoot></table>
+        <p>Получаване: ${esc(o.delivery || "—")}<br>Плащане: ${esc(o.payment || "—")}${o.tracking ? `<br>Товарителница: ${esc(o.tracking)}` : ""}</p>
+        <p class="small">Стоката е с минимум 2 години законова гаранция. При покупка от разстояние клиентът има право на отказ в 14-дневен срок. Този документ не е фискален бон или фактура.</p>
+        ${sign("Предал:", "Получил:")}`;
+    } else if (kind === "intake") {
+      body = `${head("Приемателен протокол за ремонт")}${client}
+        <section class="box"><h3>Устройство</h3><table class="kv">
+          <tr><td>Марка и модел</td><td>${esc(o.device || "")}</td></tr><tr><td>IMEI / сериен №</td><td class="blank"></td></tr>
+          <tr><td>Цвят</td><td class="blank"></td></tr><tr><td>Код за отключване</td><td class="blank">☐ предоставен ☐ не е предоставен</td></tr>
+          <tr><td>Окомплектовка</td><td class="blank">☐ калъф ☐ SIM карта ☐ карта памет ☐ зарядно ☐ друго: ______</td></tr>
+          <tr><td>Външно състояние</td><td class="blank">☐ без забележки ☐ драскотини ☐ удари ☐ счупено стъкло ☐ влага</td></tr></table></section>
+        <section class="box"><h3>Описан проблем</h3><p>${esc(o.title || "")}</p><pre>${esc(o.text || "")}</pre></section>
+        <section class="box"><h3>Оценка</h3><table class="kv"><tr><td>Ориентировъчна цена</td><td class="blank"></td></tr><tr><td>Очакван срок</td><td class="blank"></td></tr>
+          <tr><td>Капаро</td><td class="blank"></td></tr>${o.appointment ? `<tr><td>Записан час</td><td>${d(o.appointment)}</td></tr>` : ""}</table></section>
+        <p class="small">Ремонтът започва само след потвърждение на цената от клиента. Сервизът не носи отговорност за данни в устройството – препоръчваме резервно копие.
+        Устройство, непотърсено до 3 месеца след уведомяване за готовност, може да бъде предадено за рециклиране. Статус: ${esc(location.origin)}/#/track (номер ${esc(o.ref)} + последните 4 цифри от телефона).</p>
+        ${sign("Приел (сервиз):", "Предал (клиент):")}`;
+    } else {
+      body = `${head("Заявка")}${client}<pre>${esc(o.text || "")}</pre>`;
+    }
+    const w = window.open("", "_blank");
+    if (!w) return toast("Разреши изскачащите прозорци за печат");
+    w.document.write(`<!doctype html><html lang="bg"><head><meta charset="utf-8"><title>${esc(o.ref)}</title><style>
+      *{box-sizing:border-box} body{font:13px/1.45 Arial,Helvetica,sans-serif;color:#111;margin:0;padding:28px} header{display:flex;justify-content:space-between;gap:20px;border-bottom:2px solid #111;padding-bottom:12px;margin-bottom:16px}
+      .logo{font-size:22px} .logo span{color:#e8511b} h1{font-size:18px;margin:0 0 6px} .r{text-align:right} .box{border:1px solid #ccc;border-radius:8px;padding:10px 14px;margin:0 0 12px} .box h3{margin:0 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:#555}
+      table{width:100%;border-collapse:collapse;margin:8px 0 12px} th,td{border-bottom:1px solid #ddd;padding:6px 8px;text-align:left;vertical-align:top} th{background:#f2f2f2;font-size:12px}
+      td:nth-last-child(-n+3),th:nth-last-child(-n+3){text-align:right} .kv td,.kv td:nth-last-child(-n+3){text-align:left} .kv td:first-child{width:32%;color:#555} .blank{height:28px}
+      tfoot td{border:0;text-align:right} .tot td{font-weight:bold;font-size:15px;border-top:2px solid #111} pre{white-space:pre-wrap;font:inherit;margin:0} .small{font-size:11px;color:#444}
+      .sign{display:flex;gap:40px;margin-top:40px} .sign div{flex:1} .sign span{display:block;border-bottom:1px solid #111;height:34px} @media print{body{padding:0}}
+    </style></head><body>${body}<script>window.onload=()=>{window.print()}<\/script></body></html>`);
+    w.document.close();
+  }
+
   /* ===== СТАТИСТИКА ===== */
   function renderAnalytics() {
+    freshMain();
     const A = O.analytics;
     const P = [
       ["", "Изключена", "", []],

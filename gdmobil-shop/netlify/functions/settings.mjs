@@ -29,6 +29,11 @@ export default async (req) => {
 
   if (req.method === "GET") {
     const data = (await store.get(KEY, { type: "json" })) || {};
+    if (req.headers.has("x-admin-password")) {
+      if (!passwordOk(req.headers.get("x-admin-password"))) { await wait(900); return json({ error: "unauthorized" }, 401); }
+      return json(data, 200, { "cache-control": "no-store" });
+    }
+    delete data.promos; // промо кодовете не се показват публично – проверяват се в /api/orders?promo=
     // кратък кеш, за да се виждат промените бързо
     return json(data, 200, { "cache-control": "public, max-age=10, stale-while-revalidate=60" });
   }

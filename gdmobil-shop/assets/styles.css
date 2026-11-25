@@ -1,3 +1,4 @@
+[hidden] { display: none !important; }
 /* Шрифтове: Onest и Unbounded (SIL Open Font License), качени на сайта */
 @font-face {
   font-family: 'Onest';
@@ -1251,3 +1252,18 @@ body:has(.sticky-buy.show) .chat-fab { bottom: 96px; }
 .bday input:focus-visible + span, .bslot input:focus-visible + span { outline: 2px solid var(--ember); outline-offset: 2px; }
 .bslot input:disabled + span { opacity: .35; text-decoration: line-through; cursor: not-allowed; }
 .book__msg { color: var(--ember-ink); margin: 0; }
+
+/* ---------- поръчка: офиси и промо код ---------- */
+.office-list { display: grid; gap: 6px; max-height: 260px; overflow-y: auto; margin-top: 6px; }
+.office { display: grid; gap: 2px; text-align: left; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); cursor: pointer; font: inherit; color: inherit; }
+.office:hover, .office:focus-visible { border-color: var(--ember); }
+.office small { color: var(--muted); }
+.office__aps { font-size: .72rem; font-weight: 700; color: var(--ember-ink); background: var(--ember-soft); padding: 1px 7px; border-radius: 999px; }
+.office-pick { display: flex; gap: 10px; align-items: center; padding: 12px 14px; border: 1.5px solid var(--ember); border-radius: 14px; background: var(--ember-soft); }
+.office-pick svg { width: 20px; height: 20px; color: var(--ember-ink); flex: none; }
+.office-pick span { display: grid; flex: 1; }
+.office-pick small { color: var(--muted); }
+.promo-row { display: flex; gap: 8px; }
+.promo-row .input { flex: 1; text-transform: uppercase; }
+.promo-msg { margin: -4px 0 0; color: var(--ember-ink); min-height: 1em; }
+.promo-line { color: #17803d; font-weight: 600; }

@@ -114,3 +114,30 @@
 .adm-pre { white-space: pre-wrap; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px; font: .85rem/1.5 inherit; max-height: 320px; overflow: auto; }
 .adm-hist { padding-left: 18px; display: grid; gap: 8px; font-size: .9rem; }
 .adm-table--orders td:first-child b { white-space: nowrap; }
+
+/* табло */
+.dash-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 14px 0; }
+.kpi { display: grid; gap: 4px; padding: 16px 18px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); }
+.kpi span { font-size: .8rem; color: var(--muted); }
+.kpi b { font-size: 1.6rem; font-weight: 700; letter-spacing: -.02em; }
+.kpi b small, .kpi > small { font-size: .78rem; font-weight: 500; color: var(--muted); }
+.kpi small.up { color: #17803d; } .kpi small.down { color: #b42318; }
+.dash-chart svg { width: 100%; height: auto; display: block; }
+.dash-chart .grid { stroke: var(--line); stroke-width: 1; }
+.dash-chart .base { stroke: var(--muted); stroke-width: 1; opacity: .6; }
+.dash-chart .axis { font-size: 11px; fill: var(--muted); }
+.dash-chart .fill { fill: #e8511b; }
+.dash-chart .hit { fill: transparent; }
+.dash-chart .bar:hover .hit, .dash-chart .bar:focus .hit { fill: rgba(232, 81, 27, .08); }
+.dash-chart .bar:focus { outline: none; }
+.dash-two { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+@media (max-width: 900px) { .dash-two { grid-template-columns: 1fr; } }
+.dash-top { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.dash-top li { display: grid; grid-template-columns: minmax(0, 1fr) 90px auto auto; gap: 10px; align-items: center; font-size: .9rem; }
+.dash-top__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-top__bar { height: 8px; background: var(--surface-2, #f1efe9); border-radius: 4px; overflow: hidden; }
+.dash-top__bar i { display: block; height: 100%; background: #e8511b; border-radius: 0 4px 4px 0; }
+.dash-list { list-style: none; padding: 0; margin: 0 0 14px; display: grid; gap: 8px; }
+.dash-list li { display: grid; grid-template-columns: 150px 1fr auto; gap: 10px; font-size: .9rem; }
+.adm-promo.off { opacity: .6; }
+.adm-promos { display: grid; gap: 12px; }
