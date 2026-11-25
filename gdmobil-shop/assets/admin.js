@@ -140,7 +140,7 @@
   function render() {
     const m = $("#main"), fresh = m.cloneNode(false);
     m.replaceWith(fresh); // нов елемент – без натрупани обработчици от предишния раздел
-    ({ dash: renderDash, promos: renderPromos, watches: renderWatches, orders: renderOrders, products: renderProducts, labels: renderLabels, home: renderHome, store: renderStore, reviews: renderReviews, analytics: renderAnalytics })[tab]();
+    ({ chat: renderChat, dash: renderDash, promos: renderPromos, watches: renderWatches, orders: renderOrders, products: renderProducts, labels: renderLabels, home: renderHome, store: renderStore, reviews: renderReviews, analytics: renderAnalytics })[tab]();
   }
 
   /* ===== ПРОДУКТИ ===== */
@@ -536,6 +536,58 @@
         toast("Готово"); renderWatches();
       }
     });
+  }
+
+  /* ===== ЧАТ АСИСТЕНТ: указания, готови отговори, въпроси без отговор ===== */
+  async function renderChat() {
+    freshMain();
+    O.chat = O.chat || {};
+    const CH = O.chat; CH.qa = CH.qa || [];
+    $("#main").innerHTML = `<div class="adm-page">
+      <section class="adm-box"><h2>Как да „обучиш“ асистента</h2>
+        <p class="muted">Асистентът вече знае цените на ремонтите, доставката, гаранцията, въпросите и отговорите и ръководствата от сайта, и вижда намерените продукти с цени.
+        Тук добавяш <b>своите</b> правила и отговори. Те важат веднага след „Запази“ и са с предимство пред общите. <a class="link" href="./#/" target="_blank">Пробвай чата в сайта →</a></p>
+        <label class="field"><span>Указания (свободен текст)</span><textarea class="input" id="chNotes" rows="7" placeholder="Напр.: Изкупуваме стари телефони срещу отстъпка – клиентът да донесе телефона за оценка.&#10;Изплащане предлагаме чрез TBI Bank в магазина.&#10;През август работим и в събота до 16:00.">${esc(CH.notes || "")}</textarea></label>
+        <p class="muted small">Пиши кратки и конкретни изречения. Не пиши лични данни или пароли – текстът се изпраща на AI модела при всеки въпрос.</p></section>
+      <section class="adm-box"><div class="adm-row"><h2>Готови отговори (${CH.qa.length})</h2><button class="btn btn--primary btn--sm" id="qaAdd">+ Нов отговор</button></div>
+        <div class="adm-reviews" id="qaList">${CH.qa.map((x, i) => `<div class="adm-rev" data-i="${i}">
+          <label class="field"><span>Въпрос</span><input class="input" data-qa="q" value="${esc(x.q || "")}" placeholder="Купувате ли стари телефони?"></label>
+          <label class="field"><span>Отговор</span><textarea class="input" rows="3" data-qa="a" placeholder="Отговорът, който асистентът да дава">${esc(x.a || "")}</textarea></label>
+          <div class="adm-row"><button class="btn btn--ghost btn--sm" data-qadel>Изтрий</button>${x.a ? "" : `<span class="adm-badge adm-badge--new">Попълни отговора</span>`}</div></div>`).join("") || `<p class="muted">Още няма. Добави от „Въпроси без отговор“ по-долу или с „+ Нов отговор“.</p>`}</div></section>
+      <section class="adm-box" id="chLog"><h2>Въпроси без отговор</h2><p class="muted">Зареждане…</p></section></div>`;
+    const m = $("#main");
+    m.addEventListener("input", (e) => {
+      const t = e.target;
+      if (t.id === "chNotes") { CH.notes = t.value; change(); }
+      if (t.dataset.qa) {
+        const box = t.closest("[data-i]"); CH.qa[+box.dataset.i][t.dataset.qa] = t.value; change();
+        if (t.dataset.qa === "a") box.querySelector(".adm-badge")?.toggleAttribute("hidden", !!t.value.trim());
+      }
+    });
+    m.addEventListener("click", async (e) => {
+      if (e.target.id === "qaAdd") { CH.qa.unshift({ q: "", a: "" }); change(); return renderChat(); }
+      if (e.target.closest("[data-qadel]")) { CH.qa.splice(+e.target.closest("[data-i]").dataset.i, 1); change(); return renderChat(); }
+      const it = e.target.closest("[data-key]");
+      if (it && e.target.closest("[data-learn]")) {
+        CH.qa.unshift({ q: it.dataset.q, a: "" }); change();
+        await fetch("/api/chat?logdel=" + encodeURIComponent(it.dataset.key), { method: "POST", headers: { "x-admin-password": pw() } });
+        toast("Добавен – напиши отговора и натисни „Запази“"); return renderChat();
+      }
+      if (it && e.target.closest("[data-ldel]")) {
+        await fetch("/api/chat?logdel=" + encodeURIComponent(it.dataset.key), { method: "POST", headers: { "x-admin-password": pw() } });
+        it.remove();
+      }
+    });
+    const r = await fetch("/api/chat?log=1", { cache: "no-store", headers: { "x-admin-password": pw() } }).then((x) => x.json()).catch(() => null);
+    const box = $("#chLog"); if (!box || !box.isConnected) return;
+    const items = r?.items || [];
+    box.innerHTML = `<h2>Въпроси без отговор (${items.length})</h2>
+      <p class="muted">Въпроси, при които асистентът е препратил клиента към колега (последните 30 дни). Добави отговор и следващия път той ще знае.</p>
+      ${items.length ? `<div class="adm-reviews">${items.map((x) => `<div class="adm-rev" data-key="${esc(x.key)}" data-q="${esc(x.q)}">
+        <p><b>${esc(x.q)}</b> <span class="muted small">${new Date(x.at).toLocaleString("bg-BG")}</span></p>
+        <p class="muted small">Асистентът отговори: ${esc(x.a)}</p>
+        <div class="adm-row"><button class="btn btn--primary btn--sm" data-learn>Добави отговор</button><button class="btn btn--ghost btn--sm" data-ldel>Изтрий</button></div></div>`).join("")}</div>`
+        : `<p class="muted">Няма такива въпроси. 👍</p>`}`;
   }
 
   /* ===== СЪСТОЯНИЕ НА ИМЕЙЛИТЕ ===== */
