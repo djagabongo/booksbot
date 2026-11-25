@@ -960,7 +960,7 @@
 
   function pageService(anchor, q = new URLSearchParams()) {
     setTitle("Сервиз за телефони и таблети");
-    const repBrands = ["Apple", "Samsung", "Xiaomi", "Huawei", "Motorola", "Honor", "Nokia", "Realme"].filter((b) => C.logos[b]);
+    const repBrands = ["Apple", "Samsung", "Xiaomi", "Google", "Huawei", "Motorola", "Honor", "OPPO", "OnePlus", "Nokia", "Realme", "Nothing", "Vivo", "Blackview", "Ulefone", "CAT"].filter((b) => C.logos[b]);
     const phoneBrands = [...new Set(PRODUCTS.filter((p) => p.cat === "phones" || p.cat === "tablets").map((p) => p.brand))].sort((a, b) => a.localeCompare(b));
     view.innerHTML = `<section class="container page">
       ${crumbs([["Сервиз"]])}
