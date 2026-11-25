@@ -320,7 +320,7 @@
         ${window.CATEGORIES.map((c) => `<a class="cat" href="#/c/${c.key}">
           <span class="cat__img"><img src="${esc(c.img)}" alt="" loading="lazy"></span>
           <b>${esc(c.name)}</b><small>${plural(counts[c.key], "продукт", "продукта")}</small></a>`).join("")}
-        <a class="cat cat--svc" href="#/service"><span class="cat__img"><img src="assets/img/repair-workbench.jpg" alt="" loading="lazy"></span>
+        <a class="cat cat--svc" href="#/service"><span class="cat__img"><img src="assets/img/service-hero.svg" alt="" loading="lazy"></span>
           <b>Сервиз</b><small>Ремонт с ясна цена</small></a>
       </div>
     </section>
@@ -974,7 +974,7 @@
             <li><b>0 €</b><span>за запитване</span></li>
           </ul>
         </div>
-        <figure><img src="assets/img/repair-workbench.jpg" alt="Работно място в сервиза"><figcaption>Илюстративна снимка</figcaption></figure>
+        <figure class="svc-art"><img src="assets/img/service-hero.svg" alt="Отворен смартфон в сервиза с батерия, платка и инструменти"></figure>
       </div>
 
       <div class="svc-brands">

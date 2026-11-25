@@ -397,7 +397,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 10px 0; width: 100%; 
 
 /* ---------- band (service) ---------- */
 .band { margin-top: 90px; background: var(--ink); color: #fff; position: relative; overflow: hidden; isolation: isolate; }
-.band::before { content: ""; position: absolute; inset: 0; z-index: -1; background: radial-gradient(50% 80% at 100% 0%, rgba(255,90,31,.35), transparent 70%), url("img/repair-workbench.jpg") center / cover; opacity: .9; }
+.band::before { content: ""; position: absolute; inset: 0; z-index: -1; background: radial-gradient(50% 80% at 100% 0%, rgba(255,90,31,.35), transparent 70%), url("img/service-hero.svg") 70% center / cover; opacity: .32; }
 .band::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(13,13,15,.96) 30%, rgba(13,13,15,.75)); }
 .band__inner { display: grid; grid-template-columns: 1.1fr 1fr; gap: 50px; align-items: center; padding: 80px 0; }
 .band h2 { font-size: clamp(1.6rem, 3vw, 2.5rem); }
@@ -1298,3 +1298,7 @@ body:has(.sticky-buy.show) .chat-fab { bottom: 96px; }
 .mq__logo img { max-width: 52px; max-height: 52px; }
 .mq--sm .mq__logo img, .svc-brands .mq img { max-width: 72px; max-height: 40px; }
 @media (max-width: 640px) { .mq__logo img { max-width: 40px; max-height: 40px; } .mq--sm .mq__logo img, .svc-brands .mq img { max-width: 60px; max-height: 32px; } }
+
+.svc-art img { background: #0b0b0c; }
+.cat--svc .cat__img img { object-position: 55% 45%; transform: scale(1.35); }
+.cat--svc:hover .cat__img img { transform: scale(1.45) rotate(-3deg); }
