@@ -57,7 +57,7 @@ def prepare_dist():
         except OSError:
             shutil.copy2(src, dst)
     # HTML и малките файлове се КОПИРАТ (не се свързват), защото index.html в dist се презаписва
-    for f in ["index.html", "admin.html", "manifest.webmanifest", "sw.js", "_headers"]:
+    for f in ["index.html", "admin.html", "manifest.webmanifest", "sw.js", "_headers", "favicon.png"]:
         shutil.copy2(os.path.join(ROOT, f), os.path.join(DIST, f))
     shutil.copytree(os.path.join(ROOT, "assets"), os.path.join(DIST, "assets"), copy_function=link_or_copy)
 
@@ -96,7 +96,7 @@ def main():
         head = re.sub(r'<meta name="description" content="[^"]*" />', f'<meta name="description" content="{E(desc)}" />', head, count=1)
         head = re.sub(r'<meta property="og:title" content="[^"]*" />', f'<meta property="og:title" content="{E(title)}" />', head, count=1)
         head = re.sub(r'<meta property="og:description" content="[^"]*" />', f'<meta property="og:description" content="{E(desc)}" />', head, count=1)
-        og = image if image and image.startswith("https:") else site + "/" + (image or "assets/img/logo.webp")
+        og = image if image and image.startswith("https:") else site + "/" + (image or "assets/img/og.jpg")
         head = re.sub(r'<meta property="og:image" content="[^"]*" />', f'<meta property="og:image" content="{E(og)}" />', head, count=1)
         extra = f'  <link rel="canonical" href="{E(url)}" />\n  <meta property="og:url" content="{E(url)}" />\n'
         if path == "/" and store.get("googleVerify"):
@@ -198,7 +198,7 @@ def main():
 <h2>Категории</h2><ul class="seo-list">{"".join(f'<li><a href="/c/{c["key"]}/">{E(c["name"])}</a> – {E(c["sub"])}</li>' for c in cats)}<li><a href="/service/">Сервиз за телефони и таблети</a></li></ul>
 <h2>Подбрани смартфони</h2><ul class="seo-list">{"".join(f'<li><a href="/p/{p["slug"]}/">{E(p["name"])}</a></li>' for p in featured)}</ul>
 <p>{E(store.get("address", ""))} · {E(store.get("phone", ""))} · {E(store.get("email", ""))}</p></section>'''
-    ld = {"@context": "https://schema.org", "@type": "MobilePhoneStore", "name": "GDMobil", "url": site + "/", "telephone": store.get("phoneIntl"), "email": store.get("email"),
+    ld = {"@context": "https://schema.org", "@type": "MobilePhoneStore", "name": "GDMobil", "url": site + "/", "logo": site + "/assets/img/icon.webp", "image": site + "/assets/img/og.jpg", "telephone": store.get("phoneIntl"), "email": store.get("email"),
           "address": {"@type": "PostalAddress", "streetAddress": "ул. „Солун“ 21", "addressLocality": "Гоце Делчев", "postalCode": store.get("postcode", "2900"), "addressCountry": "BG"},
           "openingHours": ["Mo-Fr 09:30-18:00", "Sa 10:00-14:00"], "sameAs": [v for v in store.get("social", {}).values() if v]}
     home = page("/", "GDMobil — Телефони, аксесоари и сервиз в Гоце Делчев", "Телефони, таблети и аксесоари с цени в евро. Поръчай онлайн или вземи от GDMobil в Гоце Делчев. Сервиз за телефони и таблети.", body, ld)

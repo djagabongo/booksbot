@@ -10,9 +10,9 @@
   <meta property="og:site_name" content="GDMobil" />
   <meta property="og:title" content="GDMobil — Телефони, аксесоари и сервиз" />
   <meta property="og:description" content="Телефони, таблети и аксесоари. Поръчай онлайн или вземи от магазина в Гоце Делчев." />
-  <meta property="og:image" content="assets/img/logo.webp" />
+  <meta property="og:image" content="assets/img/og.jpg" />
   <meta property="og:locale" content="bg_BG" />
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23e2492a'/%3E%3Ctext x='32' y='42' font-family='Arial' font-weight='800' font-size='26' text-anchor='middle' fill='white'%3EGD%3C/text%3E%3C/svg%3E" />
+  <link rel="icon" type="image/png" href="favicon.png" />
   <link rel="preload" href="assets/fonts/onest-cyrillic-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="preload" href="assets/fonts/unbounded-cyrillic-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="manifest" href="manifest.webmanifest" />
@@ -38,7 +38,7 @@
       <button class="icon-btn burger" id="burger" aria-label="Меню">
         <svg viewBox="0 0 24 24"><path d="M4 8h16M4 16h10"/></svg>
       </button>
-      <a href="#/" class="logo" aria-label="GDMobil начало"><img src="assets/img/logo.webp" alt="GDMobil" width="174" height="50" /></a>
+      <a href="#/" class="logo" aria-label="GDMobil начало"><img class="logo--d" src="assets/img/logo.webp" alt="GDMobil" width="146" height="40" /><img class="logo--l" src="assets/img/logo-light.webp" alt="GDMobil" width="146" height="40" /></a>
 
       <nav class="mainnav" aria-label="Категории">
         <a href="#/c/phones" data-nav="phones">Телефони</a>
@@ -92,7 +92,7 @@
     </div>
     <div class="container footer__inner">
       <div>
-        <img src="assets/img/logo.webp" alt="GDMobil" class="footer__logo" width="160" height="46" loading="lazy" />
+        <img src="assets/img/logo-light.webp" alt="GDMobil" class="footer__logo" width="161" height="44" loading="lazy" />
         <p class="muted" data-tagline></p>
         <div class="socials" id="socials"></div>
         <div class="footer__news"><h4>Бюлетин</h4><div id="footNews"></div></div>
@@ -136,7 +136,7 @@
   </aside>
   <aside class="drawer drawer--left" id="menuDrawer" aria-label="Меню" aria-hidden="true">
     <div class="drawer__head">
-      <img src="assets/img/logo.webp" alt="GDMobil" height="36" width="125" />
+      <span class="logo"><img class="logo--d" src="assets/img/logo.webp" alt="GDMobil" height="34" width="124" /><img class="logo--l" src="assets/img/logo-light.webp" alt="GDMobil" height="34" width="124" /></span>
       <button class="icon-btn" data-close aria-label="Затвори"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     </div>
     <div class="drawer__body menu" id="menuBody"></div>

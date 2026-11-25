@@ -11,7 +11,7 @@
 
 .adm-top { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 16px; padding: 10px 18px; background: color-mix(in srgb, var(--surface) 90%, transparent); backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); }
 .adm-logo { display: flex; align-items: center; gap: 8px; font-weight: 700; flex: none; }
-.adm-logo img { border-radius: 8px; width: auto; }
+.adm-logo img { width: auto; }
 .adm-tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; flex: 1; }
 .adm-tabs button { padding: 9px 14px; border-radius: 999px; font-weight: 500; color: var(--muted); white-space: nowrap; }
 .adm-tabs button:hover { background: var(--surface-2); color: var(--text); }
