@@ -41,7 +41,7 @@ ${it.gal.map((u) => `<g:additional_image_link>${X(abs(u))}</g:additional_image_l
 <g:price>${money(regular)}</g:price>
 ${salePrice ? `<g:sale_price>${money(salePrice)}</g:sale_price>` : ""}
 <g:condition>new</g:condition>
-<g:brand>${X(it.b || "GDMobil")}</g:brand>
+${it.b ? `<g:brand>${X(it.b)}</g:brand>` : ""}
 <g:identifier_exists>no</g:identifier_exists>
 <g:google_product_category>${base.gcat[it.c] || "264"}</g:google_product_category>
 <g:product_type>${X([base.cats[it.c], it.sub].filter(Boolean).join(" > "))}</g:product_type>

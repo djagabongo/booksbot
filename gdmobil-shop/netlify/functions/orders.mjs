@@ -11,7 +11,7 @@ export const STATUSES = {
   repair: { new: "Приета", diagnostics: "Диагностика", quote: "Изпратена оферта", repairing: "В ремонт", ready: "Готов за вземане", done: "Завършен", cancelled: "Отказан" },
   inquiry: { new: "Получено", answered: "Отговорено", closed: "Затворено" },
 };
-const TYPE_LABEL = { order: "🛒 Нова поръчка", repair: "🔧 Запитване за ремонт", inquiry: "✉️ Ново запитване", newsletter: "📰 Нов абонат" };
+const TYPE_LABEL = { order: "🛒 Нова поръчка", repair: "🔧 Запитване за ремонт", inquiry: "✉️ Ново запитване", newsletter: "📰 Нов абонат", review: "⭐ Нов отзив (чака одобрение)" };
 
 const json = (data, status = 200, headers = {}) =>
   new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...headers } });
@@ -74,6 +74,17 @@ export default async (req, context) => {
       const index = (await store.get("index", { type: "json" })) || [];
       return json({ orders: index.slice(0, 1000), statuses: STATUSES });
     }
+    if (req.method === "GET" && url.searchParams.has("reviews")) {
+      const { blobs } = await store.list({ prefix: "review/" });
+      const list = await Promise.all(blobs.map(async (b) => ({ key: b.key, ...(await store.get(b.key, { type: "json" })) })));
+      return json({ reviews: list.sort((a, b) => String(b.at).localeCompare(String(a.at))) });
+    }
+    if (req.method === "POST" && url.searchParams.get("review_del")) {
+      const key = url.searchParams.get("review_del");
+      if (!key.startsWith("review/")) return json({ error: "bad_request" }, 400);
+      await store.delete(key);
+      return json({ ok: true });
+    }
     if (req.method === "GET" && url.searchParams.get("ref")) {
       const o = await store.get("o/" + url.searchParams.get("ref"), { type: "json" });
       return o ? json(o) : json({ error: "not_found" }, 404);
@@ -115,7 +126,15 @@ export default async (req, context) => {
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
   if (limited("new:" + ip, 12)) return json({ error: "rate_limited" }, 429);
   const b = await req.json().catch(() => null);
-  if (!b || !["order", "repair", "inquiry", "newsletter"].includes(b.type)) return json({ error: "bad_request" }, 400);
+  if (!b || !["order", "repair", "inquiry", "newsletter", "review"].includes(b.type)) return json({ error: "bad_request" }, 400);
+
+  if (b.type === "review") {
+    const r = { name: clean(b.name, 60), rating: Math.max(1, Math.min(5, parseInt(b.rating) || 5)), text: clean(b.text, 1200), at: new Date().toISOString() };
+    if (!r.name || r.text.length < 10 || !b.consent) return json({ error: "bad_request" }, 400);
+    await store.setJSON(`review/${Date.now()}-${randomInt(1000, 10000)}`, r);
+    await notifyTelegram(`${TYPE_LABEL.review}\n${"★".repeat(r.rating)} ${r.name}\n${r.text}`);
+    return json({ ok: true });
+  }
 
   if (b.type === "newsletter") {
     const email = clean(b.email, 200).toLowerCase();

@@ -14,7 +14,7 @@
   /* ---------- продукти от каталога ---------- */
   const PRODUCTS = [
     ...C.groups.map((g) => ({ slug: g.s, name: g.n, brand: g.b, cat: g.c, kind: "g",
-      variants: g.v.map((v) => ({ id: v[0], label: [v[1], v[2] && v[2] + " RAM", v[3], v[4]].filter(Boolean).join(" · ") || "Стандартен", price: v[5] })) })),
+      variants: g.v.map((v) => ({ id: v[0], label: [v[12] && "за " + v[12], v[1], v[2] && v[2] + " RAM", v[3], v[4]].filter(Boolean).join(" · ") || "Стандартен", price: v[5] })) })),
     ...C.items.map((i) => ({ slug: i.s, name: i.n, brand: i.b, cat: i.c, kind: "i", sub: i.sc, variants: [{ id: i.i, label: i.sc || "Артикул", price: i.p }] })),
   ];
   const BY_SLUG = new Map(PRODUCTS.map((p) => [p.slug, p]));
@@ -356,6 +356,7 @@
         <label class="field"><span>Среден рейтинг</span><input class="input" data-r="rating" type="number" min="1" max="5" step="0.1" value="${esc(R.rating || "")}" placeholder="4.9" /></label>
         <label class="field"><span>Брой отзиви</span><input class="input" data-r="count" type="number" min="0" value="${esc(R.count || "")}" /></label></div>
         <p class="muted small">Връзката за отзив се взима от Google Business Profile → „Поискай отзиви“. Рейтингът и броят се обновяват ръчно.</p></section>
+      <section class="adm-box" id="pendingBox"><h2>Нови отзиви от клиенти</h2><p class="muted">Зареждане…</p></section>
       <section class="adm-box"><h2>Отзиви на началната страница (${(R.items || []).length})</h2>
         <p class="muted">Копирай истински отзиви от Google (с името, както е там). Показват се до 6.</p>
         <div class="adm-reviews">${(R.items || []).map((r, i) => `<div class="adm-rev" data-i="${i}">
@@ -378,6 +379,32 @@
       if (e.target.closest("[data-rup]")) { [R.items[i - 1], R.items[i]] = [R.items[i], R.items[i - 1]]; change(); renderReviews(); }
     });
     $("#addRev").addEventListener("click", () => { R.items = R.items || []; R.items.push({ name: "", rating: 5, date: "", text: "" }); change(); renderReviews(); });
+    loadPending();
+  }
+  async function loadPending() {
+    const box = $("#pendingBox");
+    const r = await fetch("/api/orders?reviews=1", { cache: "no-store", headers: { "x-admin-password": pw() } }).then((x) => x.json()).catch(() => null);
+    if (!box.isConnected) return;
+    const list = r?.reviews || [];
+    box.innerHTML = `<h2>Нови отзиви от клиенти (${list.length})</h2>
+      ${list.length ? `<p class="muted">Изпратени от сайта. „Публикувай“ ги добавя към отзивите по-долу – после натисни „Запази“.</p>
+      <div class="adm-reviews">${list.map((x) => `<div class="adm-rev" data-key="${esc(x.key)}">
+        <p><b>${esc(x.name)}</b> · ${"★".repeat(x.rating)}${"☆".repeat(5 - x.rating)} · <span class="muted small">${new Date(x.at).toLocaleString("bg-BG")}</span></p>
+        <p>${esc(x.text)}</p>
+        <div class="adm-row"><button class="btn btn--primary btn--sm" data-pub>Публикувай</button><button class="btn btn--ghost btn--sm" data-pdel>Изтрий</button></div></div>`).join("")}</div>`
+      : `<p class="muted">Няма нови отзиви. Клиентите оставят отзив от бутона „Остави отзив“ на началната страница.</p>`}`;
+    box.addEventListener("click", async (e) => {
+      const el = e.target.closest("[data-key]"); if (!el) return;
+      const x = list.find((y) => y.key === el.dataset.key);
+      if (e.target.closest("[data-pub]")) {
+        O.reviews.items = O.reviews.items || [];
+        O.reviews.items.unshift({ name: x.name, rating: x.rating, date: new Date(x.at).toLocaleDateString("bg-BG", { month: "long", year: "numeric" }), text: x.text });
+        change();
+      } else if (!e.target.closest("[data-pdel]")) return;
+      await fetch("/api/orders?review_del=" + encodeURIComponent(x.key), { method: "POST", headers: { "x-admin-password": pw() } });
+      toast(e.target.closest("[data-pub]") ? "Добавен – натисни „Запази“" : "Изтрит");
+      renderReviews();
+    });
   }
 
   /* ===== ПОРЪЧКИ, РЕМОНТИ, ЗАПИТВАНИЯ ===== */

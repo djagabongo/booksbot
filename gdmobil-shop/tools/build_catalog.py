@@ -50,7 +50,7 @@ LEGAL_FIXES = [
     ("След заявяване получавате номер и лична връзка за статус. При изпращане магазинът може да добави номер на товарителница. Не публикувайте личната връзка за проследяване.",
      "След заявяване получавате номер на заявката. Статусът се проверява в страницата „Проследяване“ с номера и последните 4 цифри от телефона, посочен в заявката. При изпращане магазинът може да добави номер на товарителница."),
     ("Данните се записват в защитена база към сайта и са достъпни за упълномощения собственик при обслужването.",
-     "Заявките, запитванията за ремонт и абонаментите за бюлетина се записват в защитено хранилище към сайта (Netlify Blobs) и са достъпни само за упълномощения собственик при обслужването. Известието до собственика (Telegram) съдържа данните от заявката. Ако записът не е възможен, заявката се изпраща по имейл от Вашия имейл клиент."),
+     "Заявките, запитванията за ремонт, изпратените отзиви и абонаментите за бюлетина се записват в защитено хранилище към сайта (Netlify Blobs) и са достъпни само за упълномощения собственик при обслужването. Известието до собственика (Telegram) съдържа данните от заявката. Ако записът не е възможен, заявката се изпраща по имейл от Вашия имейл клиент."),
     ("Сайтът използва инфраструктура на OpenAI Sites и Cloudflare. Някои продуктови изображения се зареждат от външен доставчик и съответният сървър получава техническата заявка.",
      "Сайтът се хоства при Netlify. Шрифтовете и продуктовите изображения се зареждат от самия сайт. Картата в раздел „Контакти“ се зарежда от Google Maps само ако я поискате с бутона „Покажи картата“ – тогава Google получава техническата заявка."),
     (" Личната връзка за поръчката показва статуса, артикулите и сумите на всеки, който я притежава; пазете я и не я споделяйте публично.", ""),
@@ -132,6 +132,97 @@ def group_colors(items):
         first = lst[0][2]
         groups.append({"s": first["s"], "n": lst[0][0], "b": first["b"], "c": "accessories", "mk": "", "sc": first["sc"], "cm": first["cm"], "v": variants})
     return groups, singles
+
+
+# Марки на аксесоарите (производител), разпознати в името
+MAKERS = ["Karl Lagerfeld", "Mercedes", "Ferrari", "Lacoste", "Guess", "DKNY", "BMW", "AMG", "Spigen", "Hoco", "PITAKA",
+          "Nimmy", "BLUEO", "ROAR", "Mr.Monkey", "Baseus", "Ugreen", "Puro", "Tech-Protect", "ESR", "Nillkin", "Uniq",
+          "Ringke", "Otterbox", "UAG", "Mophie", "Belkin", "Anker", "JBL", "Xiaomi", "Samsung", "Apple", "Huawei", "Tactical",
+          "Joyroom", "Borofone", "Red Bull", "Energea", "USAMS", "Devia", "Kingxbar", "Hama", "Defender", "Remax", "Forcell", "Tumi", "Adidas", "Puma", "Moschino", "Hello Kitty", "Disney", "Marvel"]
+_MAKER_RX = [(m, re.compile(r"(?<![\w-])" + re.escape(m) + r"(?![\w-])", re.I)) for m in MAKERS]
+# Устройство в името: „за SAMSUNG S26 Ultra“, „iPhone 17 Pro Max 6.9"“, „Galaxy Tab S11“ …
+_DEV = r"(?:apple\s+|samsung\s+|xiaomi\s+|google\s+|huawei\s+)?(?:iphone|ipad|galaxy|samsung|xiaomi|redmi|poco|honor|pixel|oppo|realme|motorola|moto|nothing\s+phone|oneplus|huawei|airpods|apple\s+watch)"
+_TOK = r"(?:\s*(?:/|\+|&|,(?=\s*\d)|\((?:[a-z]?\d+\w*|\d+/\d+(?:/\d+)*mm)\)|\d+(?:[.,]\d+)?\s*(?:\"|”|''|mm|inch)|[a-z]?\d+[a-z+]*|pro|max|plus|ultra|mini|air|lite|fe|edge|neo|5g|4g|lte|fold\s*\d*|flip\s*\d*|z|note|tab|s|a|e|se|classic|series|reno|nord|find|razr|mate|pura|nova|magic|gt|redmi|poco|gen(?:eration)?|20\d\d)(?![\w]))*"
+DEVICE_RX = re.compile(r"(?:\s+(?:за|for|съвместим\s+с)(?=\s))?\s+" + _DEV + _TOK, re.I)
+
+
+def norm_color(c):
+    c = re.sub(r"^(тъмно|светло)\s+", r"\1", (c or "").strip(), flags=re.I)
+    return c[:1].upper() + c[1:].lower() if c else ""
+
+
+def maker_of(name):
+    for m, rx in _MAKER_RX:
+        if rx.search(name):
+            return m
+    return ""
+
+
+def tidy_name(name):
+    name = re.sub(r"^Кейс за телефон\s+", "Кейс ", name)
+    name = re.sub(r"\s{2,}", " ", name).strip(" ,-–/")
+    return name
+
+
+def split_device(name):
+    """„Кейс BLINK за SAMSUNG S26 Ultra“ → („Кейс BLINK“, „SAMSUNG S26 Ultra“)."""
+    best = None
+    for m in DEVICE_RX.finditer(name):
+        if best is None or len(m.group(0)) > len(best.group(0)):
+            best = m
+    if not best:
+        return name, ""
+    phrase = re.sub(r"^\s*(?:за|for|съвместим\s+с)\s+", "", best.group(0).strip(), flags=re.I).strip(" ,/")
+    base = (name[: best.start()] + " " + name[best.end():]).strip()
+    return base, phrase
+
+
+def group_accessories(items, model_names):
+    """Обединява аксесоари, които се различават само по цвят и/или модел устройство, в един продукт
+    с избор „За модел“ и „Цвят“. Всеки аксесоар става продукт с варианти (дори с един вариант),
+    за да се показват цветът и моделът отделно от името."""
+    buckets, old = {}, []
+    for it in items:
+        base, color = split_color(it["n"])
+        base2, phrase = split_device(base)
+        if not color:
+            base2, color = split_color(base2)
+        color = norm_color(color)
+        mk = it["cm"][0] if it["cm"] else ""
+        if not mk and phrase and re.search(r"\d", phrase):
+            old.append(it["n"])  # устройство, което не е сред моделите в магазина (стар модел)
+            continue
+        model = model_names.get(mk) or phrase
+        if not model or len(base2) < 6:
+            base2 = base
+        key = (re.sub(r"[^\w]+", " ", base2.lower()).strip(), it["sc"])
+        buckets.setdefault(key, []).append((base2, color or "", model, mk, it))
+    groups = []
+    for key, lst in buckets.items():
+        seen, variants, cms, rest = set(), [], [], []
+        for base, color, model, mk, it in sorted(lst, key=lambda x: (x[2], x[4]["p"] or 0, x[1])):
+            k = (model.lower(), color.lower())
+            if k in seen:
+                rest.append((base, color, model, mk, it))
+                continue
+            seen.add(k)
+            if mk and mk not in cms:
+                cms.append(mk)
+            variants.append([it["i"], "", "", color, "", it["p"], it["im"], "", 0, it.get("st", 1), [], it.get("op"), model, mk])
+        if len({v[12] for v in variants}) <= 1:
+            for v in variants:
+                v[12] = ""  # един модел – няма избор, моделът остава в името
+            base_name = split_color(lst[0][4]["n"])[0]
+        else:
+            base_name = lst[0][0]
+        first = lst[0][4]
+        groups.append({"s": first["s"], "n": tidy_name(base_name), "b": maker_of(lst[0][0]) or (maker_of(first["n"]) if first["sc"] not in ("Калъфи", "Протектори") else ""), "c": "accessories", "mk": "",
+                       "sc": first["sc"], "cm": cms, "v": variants})
+        for base, color, model, mk, it in rest:  # дубликати (същият модел и цвят) – отделни продукти
+            groups.append({"s": it["s"], "n": tidy_name(split_color(it["n"])[0]), "b": maker_of(it["n"]), "c": "accessories", "mk": "",
+                           "sc": it["sc"], "cm": it["cm"], "v": [[it["i"], "", "", color, "", it["p"], it["im"], "", 0, it.get("st", 1), [], it.get("op"), "", mk]]})
+    print(f"casestore.bg: махнати {len(old)} аксесоара за стари модели, които не са в магазина (напр. {old[:2]})")
+    return groups
 
 
 def build_catalog(src):
@@ -270,11 +361,13 @@ def build_catalog(src):
         for it in cs["items"]:
             it["cm"] = [remap(k) for k in it["cm"]]
             it.pop("src", None)
-        acc_groups, acc_singles = group_colors(cs["items"])
-        singles.extend(acc_singles)
+        acc_groups = group_accessories(cs["items"], {m["key"]: m["name"] for m in models})
         for g in acc_groups:
             groups[g["s"]] = g
-        print(f"casestore.bg: {sum(len(g['v']) for g in acc_groups)} аксесоара в {len(acc_groups)} продукта с избор на цвят, {len(acc_singles)} самостоятелни")
+        multi_model = sum(1 for g in acc_groups if any(v[12] for v in g["v"]))
+        multi_color = sum(1 for g in acc_groups if len({v[3] for v in g["v"]}) > 1)
+        print(f"casestore.bg: {len(cs['items'])} аксесоара → {len(acc_groups)} продукта "
+              f"(с избор на модел: {multi_model}, с избор на цвят: {multi_color}, с марка: {sum(1 for g in acc_groups if g['b'])})")
         linked = sum(1 for m in models if any(g.get("mk") == m["key"] for g in groups.values()))
         print(f"casestore.bg: {len(cs['items'])} аксесоара, {len(models)} модела (свързани с телефони/таблети в магазина: {linked})")
 

@@ -33,8 +33,9 @@
   const PRODUCTS = [];
   const BY_SLUG = new Map();
   const BY_ID = new Map();
-  const OPT_KEYS = ["storage", "color", "ram", "conn"];
-  const OPT_LABEL = { storage: "Вградена памет", color: "Цвят", ram: "RAM", conn: "Свързаност" };
+  const OPT_KEYS = ["model", "storage", "color", "ram", "conn"];
+  const OPT_LABEL = { model: "За модел", storage: "Вградена памет", color: "Цвят", ram: "RAM", conn: "Свързаност" };
+  let cardModel = ""; // избран модел в каталога → картата отваря продукта с този модел
 
   const L = window.LABELS || {};
   const SALE = L.sale || {};
@@ -74,7 +75,7 @@
   for (const g of C.groups) {
     addProduct({
       kind: "g", slug: g.s, name: g.n, brand: g.b, cat: g.c, mk: g.mk, specs: g.sp || {}, sub: g.sc, compat: g.cm,
-      variants: g.v.map((a) => ({ id: a[0], storage: a[1], ram: a[2], color: a[3], conn: a[4], base: a[5], img: a[6], code: a[7], disc: a[8], stock: a[9], gal: a[10] || [], old: a[11] })),
+      variants: g.v.map((a) => ({ id: a[0], storage: a[1], ram: a[2], color: a[3], conn: a[4], base: a[5], img: a[6], code: a[7], disc: a[8], stock: a[9], gal: a[10] || [], old: a[11], model: a[12] || "", vmk: a[13] || "" })),
     });
   }
   for (const i of C.items) {
@@ -138,6 +139,7 @@
 
   /* ---------- икони ---------- */
   const IC = {
+    star: '<path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
     heart: '<path d="M12 21s-7.5-4.6-9.5-9.3C1 8 3.4 4.5 7 4.5c2 0 3.5 1 5 2.8 1.5-1.8 3-2.8 5-2.8 3.6 0 6 3.5 4.5 7.2C19.5 16.4 12 21 12 21z"/>',
     swap: '<path d="M7 4 3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/>',
     share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/>',
@@ -206,11 +208,12 @@
       opts = `<div class="card__opts">
         ${cols.length ? `<span class="dots" title="${esc(cols.join(", "))}">${cols.slice(0, 5).map((c) => `<i style="background:${colorHex(c)}"></i>`).join("")}${cols.length > 5 ? `<em>+${cols.length - 5}</em>` : ""}</span>` : ""}
         ${st.length ? `<span class="card__mem">${esc(st[0])}${st.length > 1 ? ` – ${esc(st[st.length - 1])}` : ""}</span>` : ""}
-      </div>${p.cat === "accessories" ? `<div class="card__sub">${esc(p.sub || "")}</div>` : ""}`;
+      </div>${p.cat === "accessories" ? `<div class="card__sub">${esc(p.sub || "")}${accModelsTxt(p)}</div>` : ""}`;
     } else {
       opts = `<div class="card__sub">${esc(p.sub || CAT_NAMES[p.cat] || "")}${p.compat && p.compat.length ? ` · ${esc(MODEL_NAMES[p.compat[0]] || "")}${p.compat.length > 1 ? ` +${p.compat.length - 1}` : ""}` : ""}</div>`;
     }
-    const href = `#/p/${p.slug}`;
+    const mv = cardModel && p.variants.find((v) => v.vmk === cardModel);
+    const href = `#/p/${p.slug}${mv && mv !== p.def ? `?v=${mv.id}` : ""}`;
     const action =
       p.kind === "g" && p.variants.length > 1
         ? `<a class="card__go" href="${href}" aria-label="Избери вариант на ${esc(p.name)}">${icon("arrow")}</a>`
@@ -226,12 +229,19 @@
         <button class="card__tool card__tool--qv" data-qv="${p.slug}" aria-label="Бърз преглед на ${esc(p.name)}" title="Бърз преглед">${icon("eye")}</button>
       </div>
       <div class="card__body">
-        <span class="card__brand">${esc(p.brand)}</span>
+        <span class="card__brand">${esc(p.brand || p.sub || "")}</span>
         <a class="card__title" href="${href}">${esc(p.name.replace(new RegExp("^" + p.brand.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s+", "i"), ""))}</a>
         ${opts}
         <div class="card__foot"><div class="card__price">${priceHtml(p)}</div>${action}</div>
       </div>
     </article>`;
+  }
+
+  function accModelsTxt(p) {
+    const ms = p.opts.model || [];
+    if (ms.length > 1) return ` · ${cardModel && MODEL_NAMES[cardModel] ? esc(MODEL_NAMES[cardModel].replace(/^\S+\s/, "")) + " и още " + (ms.length - 1) : ms.length + " модела"}`;
+    const k = (p.compat || [])[0];
+    return k && MODEL_NAMES[k] && !norm(p.name).includes(norm(MODEL_NAMES[k].replace(/^\S+\s/, ""))) ? ` · ${esc(MODEL_NAMES[k])}` : "";
   }
 
   const crumbs = (items) =>
@@ -252,6 +262,8 @@
     const recent = state.recent.map((s) => BY_SLUG.get(s)).filter(Boolean);
     const hasSale = PRODUCTS.some((p) => p.tags.sale && p.cat === "phones");
     const topTabs = ["Всички", "Нови", ...(hasSale ? ["Намалени"] : []), "Apple", "Samsung", "Google", "Xiaomi"];
+    const accModels = [...new Set(FEATURED.map((p) => p.mk).filter((k) => k && PRODUCTS.some((x) => x.cat === "accessories" && (x.compat || []).includes(k))))].slice(0, 2);
+    const accTabs = [["Препоръчани", "all"], ["Намаления", "sale"], ...accModels.map((k) => ["За " + (MODEL_NAMES[k] || k).replace(/^\S+\s/, ""), "model", k])];
 
     view.innerHTML = `
     <section class="container bento">
@@ -318,6 +330,14 @@
       <div class="more"><a class="btn btn--ghost" id="topMore" href="#/c/phones">Всички телефони ${icon("arrow")}</a></div>
     </section>
 
+    <section class="container section">
+      <div class="section__head"><div><span class="eyebrow">Аксесоари</span><h2>Хитове в аксесоарите</h2></div>
+        <div class="seg seg--tabs" role="tablist" id="accTabs">${accTabs.map(([t], i) => `<button role="tab" aria-selected="${i === 0}" data-acc="${i}">${esc(t)}</button>`).join("")}</div>
+      </div>
+      <div class="grid grid--4" id="accGrid"></div>
+      <div class="more"><a class="btn btn--ghost" id="accMore" href="#/c/accessories">Всички аксесоари ${icon("arrow")}</a></div>
+    </section>
+
     ${recent.length ? `<section class="container section">
       <div class="section__head"><div><span class="eyebrow">За теб</span><h2>Последно разгледани</h2></div></div>
       <div class="rail">${recent.slice(0, 8).map(card).join("")}</div></section>` : ""}
@@ -374,6 +394,20 @@
     };
     $("#topTabs").addEventListener("click", (e) => { const b = e.target.closest("[data-top]"); if (b) drawTop(b.dataset.top); });
     drawTop("Всички");
+
+    const drawAcc = (i) => {
+      const [, kind, val] = accTabs[i];
+      const all = PRODUCTS.filter((p) => p.cat === "accessories" && p.min != null);
+      const list = (kind === "sale" ? all.filter((p) => p.disc >= 10) : kind === "model" ? all.filter((p) => (p.compat || []).includes(val)) : all)
+        .sort((a, b) => accRank(a) - accRank(b));
+      cardModel = kind === "model" ? val : "";
+      $("#accGrid").innerHTML = (kind === "all" ? mixSubs(list) : diversify(list.slice(0, 60)).slice(0, 8)).map((x) => card(x)).join("");
+      cardModel = "";
+      $("#accMore").href = kind === "sale" ? "#/c/accessories?tag=sale&sort=sale" : kind === "model" ? `#/c/accessories?model=${encodeURIComponent(val)}` : "#/c/accessories";
+      $$("#accTabs [data-acc]").forEach((b) => b.setAttribute("aria-selected", b.dataset.acc === String(i)));
+    };
+    $("#accTabs").addEventListener("click", (e) => { const b = e.target.closest("[data-acc]"); if (b) drawAcc(+b.dataset.acc); });
+    drawAcc(0);
 
     $("#finderForm").addEventListener("submit", (e) => {
       e.preventDefault();
@@ -505,6 +539,7 @@
         (featuredRank.get(a) ?? 99) - (featuredRank.get(b) ?? 99) ||
         catRank[a.cat] - catRank[b.cat] ||
         (a.cat === "accessories" ? accRank(a) - accRank(b) || a.name.localeCompare(b.name, "bg") : (b.min ?? -1) - (a.min ?? -1)));
+      if (cat.key === "accessories") return diversify(list);
     }
     return list;
   }
@@ -512,9 +547,40 @@
   // аксесоари: първо за подбраните модели, после калъфи/протектори, после нови модели, накрая универсални
   const FEAT_MK = new Set(FEATURED.map((p) => p.mk).filter(Boolean));
   const SUB_RANK = { "Калъфи": 0, "Протектори": 1, "Зарядни": 2, "Слушалки": 3, "Кабели": 4, "Power Bank": 5, "Стойки": 6 };
+  const NEW_MODEL_RE = /iphone (1[78]|air|duo)|galaxy (s2[56]|z (fold|flip) ?7|a[3-5][67])|redmi note 15|pixel 1[01]|xiaomi 1[56]/i;
+  const accCache = new Map();
   function accRank(p) {
-    const forFeatured = (p.compat || []).some((k) => FEAT_MK.has(k)) ? 0 : 1;
-    return forFeatured * 100 + (p.compat && p.compat.length ? 0 : 50) + (SUB_RANK[p.sub] ?? 9);
+    if (accCache.has(p)) return accCache.get(p);
+    const ks = p.compat || [];
+    const model = ks.some((k) => FEAT_MK.has(k)) ? 0 : ks.some((k) => NEW_MODEL_RE.test(MODEL_NAMES[k] || "")) ? 1 : ks.length ? 3 : 4;
+    // по-малко = по-напред: модел → вид → известна марка → повече варианти/модели → намаление
+    const r = model * 1000 + (SUB_RANK[p.sub] ?? 9) * 60 + (p.brand ? 0 : 30) - Math.min(p.variants.length, 20) - (p.disc > 0 ? 8 : 0);
+    accCache.set(p, r);
+    return r;
+  }
+  // „Препоръчани“ на началната страница: калъфи, протектори, зарядни, слушалки… вместо само калъфи
+  function mixSubs(list) {
+    const order = ["Калъфи", "Протектори", "Зарядни", "Калъфи", "Слушалки", "Power Bank", "Калъфи", "Кабели"];
+    const used = new Set(), out = [], brands = new Set();
+    for (const sub of order) {
+      const x = list.find((p) => p.sub === sub && !used.has(p) && !brands.has(p.brand + sub)) || list.find((p) => p.sub === sub && !used.has(p));
+      if (x) { used.add(x); brands.add(x.brand + sub); out.push(x); }
+    }
+    return out.concat(list.filter((p) => !used.has(p))).slice(0, 8);
+  }
+  // разбърква подредбата, за да не стоят една до друга карти от една марка и вид
+  function diversify(list) {
+    const out = [], pool = list.slice(), last = [];
+    while (pool.length) {
+      let i = pool.findIndex((x, j) => j < 14 && !last.includes((x.brand || "") + "|" + x.sub));
+      if (i < 0) i = 0;
+      const [x] = pool.splice(i, 1);
+      out.push(x);
+      last.push((x.brand || "") + "|" + x.sub);
+      if (last.length > 2) last.shift();
+      if (out.length > 300) return out.concat(pool); // по-надолу няма нужда
+    }
+    return out;
   }
 
   function facet(base, fn) {
@@ -558,9 +624,11 @@
     $("#filtersAside").innerHTML = fh;
     $("#filterBody").innerHTML = fh.replaceAll('name="fsub"', 'name="fsub2"');
     $("#resCount").textContent = plural(list.length, "продукт", "продукта");
-    $("#grid").innerHTML = list.slice(0, cat.shown).map(card).join("") ||
+    cardModel = cat.model || "";
+    $("#grid").innerHTML = list.slice(0, cat.shown).map((x) => card(x)).join("") ||
       `<div class="empty"><p>😕 Няма продукти по тези критерии.</p><button class="btn btn--ghost" data-reset>Изчисти филтрите</button>
        <p class="muted">Не намираш търсеното? <a class="link" href="#/inquiries${cat.q ? "?topic=" + encodeURIComponent(cat.q) : ""}">Изпрати запитване</a></p></div>`;
+    cardModel = "";
     const left = list.length - cat.shown;
     $("#more").innerHTML = left > 0 ? `<button class="btn btn--ghost" id="moreBtn">Покажи още ${Math.min(left, PAGE)} <small class="muted">(остават ${left})</small></button>` : "";
     $("#moreBtn")?.addEventListener("click", () => { cat.shown += PAGE; refreshCatalog(); });
@@ -632,7 +700,9 @@
     if (p.kind !== "g") return "";
     const keys = Object.keys(p.opts).filter((k) => p.opts[k].length > 1 || k === "color");
     return `${compact ? "" : `<div class="config__head"><b>Конфигурация</b><small class="muted">${plural(p.variants.length, "вариант", "варианта")}</small></div>`}
-      ${keys.map((k) => `<div class="config__row">
+      ${keys.map((k) => k === "model" && p.opts.model.length > 6 ? `<div class="config__row">
+        <div class="config__label"><span>${OPT_LABEL[k]} <small class="muted">(${p.opts.model.length})</small></span><b>${esc(cur.model || "—")}</b></div>
+        <select class="select" data-optsel="model" aria-label="Избери модел">${p.opts.model.map((val) => `<option ${cur.model === val ? "selected" : ""}>${esc(val)}</option>`).join("")}</select></div>` : `<div class="config__row">
         <div class="config__label"><span>${OPT_LABEL[k]}</span><b>${esc(cur[k] || "—")}</b></div>
         <div class="opts ${k === "color" ? "opts--color" : ""}">${p.opts[k].map((val) => {
           const target = pickVariant(p, cur, k, val);
@@ -665,7 +735,7 @@
     setProductLd(p);
 
     const compatAcc = p.kind === "g" && p.mk ? PRODUCTS.filter((x) => (x.compat || []).includes(p.mk) && x.min != null) : [];
-    const similar = PRODUCTS.filter((x) => x !== p && x.cat === p.cat && (p.kind === "g" ? x.brand === p.brand : x.sub === p.sub && x.brand === p.brand))
+    const similar = PRODUCTS.filter((x) => x !== p && x.cat === p.cat && (p.cat === "accessories" ? x.sub === p.sub && (x.compat || []).some((k) => (p.compat || []).includes(k)) : x.brand === p.brand))
       .sort((a, b) => Math.abs((a.min ?? 0) - (p.min ?? 0)) - Math.abs((b.min ?? 0) - (p.min ?? 0))).slice(0, 8);
     const recent = state.recent.slice(1).map((s) => BY_SLUG.get(s)).filter(Boolean).slice(0, 8);
     const keySpecs = ["Дисплей", "Основна камера", "Батерия", "Процесор"].filter((k) => p.specs[k]);
@@ -684,7 +754,7 @@
           <div class="pd__thumbs" id="pdThumbs"></div>
         </div>
         <div class="pd__info">
-          <div class="pd__brand">${C.logos[p.brand] ? `<img src="${esc(C.logos[p.brand])}" alt="">` : ""}<span>${esc(p.brand)} / ${esc(CAT_NAMES[p.cat])}${p.sub ? " / " + esc(p.sub) : ""}</span></div>
+          <div class="pd__brand">${C.logos[p.brand] ? `<img src="${esc(C.logos[p.brand])}" alt="">` : ""}<span>${esc([p.brand, CAT_NAMES[p.cat], p.sub].filter(Boolean).join(" / "))}</span></div>
           ${badgesHtml(p, "pd__badges")}
           <h1>${esc(p.name)}</h1>
           <p class="muted pd__codes" id="pdCodes"></p>
@@ -712,9 +782,9 @@
 
       ${compatAcc.length ? `<div class="pd-section"><div class="section__head"><div><span class="eyebrow">Допълни</span><h2>Аксесоари за ${esc(p.name.replace(p.brand + " ", ""))}</h2></div>
         <a class="link" href="#/c/accessories?model=${p.mk}">Всички ${compatAcc.length} ${icon("arrow")}</a></div>
-        <div class="rail">${compatAcc.slice(0, 12).map(card).join("")}</div></div>` : ""}
+        <div class="rail">${((cardModel = p.mk), "")}${compatAcc.slice(0, 12).map((x) => card(x)).join("")}${((cardModel = ""), "")}</div></div>` : ""}
 
-      ${similar.length ? `<div class="pd-section"><div class="section__head"><div><span class="eyebrow">Още от ${esc(p.brand)}</span><h2>Подобни продукти</h2></div></div><div class="rail">${similar.map(card).join("")}</div></div>` : ""}
+      ${similar.length ? `<div class="pd-section"><div class="section__head"><div><span class="eyebrow">${p.cat === "accessories" ? "За същия модел" : "Още от " + esc(p.brand)}</span><h2>Подобни продукти</h2></div></div><div class="rail">${similar.map(card).join("")}</div></div>` : ""}
       ${recent.length ? `<div class="pd-section"><div class="section__head"><div><span class="eyebrow">За теб</span><h2>Последно разгледани</h2></div></div><div class="rail">${recent.map(card).join("")}</div></div>` : ""}
     </section>
     <div class="sticky-buy" id="stickyBuy"></div>`;
@@ -768,6 +838,7 @@
     };
 
     $("#config").addEventListener("click", (e) => { const b = e.target.closest("[data-opt]"); if (b) { cur = pickVariant(p, cur, b.dataset.opt, b.dataset.val); draw(); } });
+    $("#config").addEventListener("change", (e) => { const s = e.target.closest("[data-optsel]"); if (s) { cur = pickVariant(p, cur, s.dataset.optsel, s.value); draw(); } });
     $("#pdThumbs").addEventListener("click", (e) => {
       const t = e.target.closest("[data-gi]");
       if (t) { gi = +t.dataset.gi; return drawGallery(); }
@@ -827,6 +898,7 @@
     openModal("", "modal__box--wide");
     render();
     $("#modalBox").onclick = (e) => { const b = e.target.closest("[data-opt]"); if (b) { cur = pickVariant(p, cur, b.dataset.opt, b.dataset.val); render(); } };
+    $("#modalBox").onchange = (e) => { const s = e.target.closest("[data-optsel]"); if (s) { cur = pickVariant(p, cur, s.dataset.optsel, s.value); render(); } };
   }
 
   function syncProductTools(p) {
@@ -1031,19 +1103,53 @@
   function reviewsBlock() {
     const R = window.REVIEWS || {};
     const items = (R.items || []).filter((r) => r && r.text).slice(0, 6);
-    if (!items.length && !R.googleUrl) return "";
     const stars = (n) => `<span class="stars" aria-label="${n} от 5">${"★".repeat(Math.round(n))}${"☆".repeat(5 - Math.round(n))}</span>`;
     const rating = Number(R.rating) || 0;
     return `<section class="container section" id="reviews">
       <div class="section__head"><div><span class="eyebrow">Отзиви</span><h2>Какво казват клиентите</h2></div>
         <div class="rev-summary">${rating ? `<b>${rating.toFixed(1).replace(".", ",")}</b>${stars(rating)}<small>${R.count ? `${esc(R.count)} отзива в Google` : "в Google"}</small>` : ""}
           ${R.googleUrl ? `<a class="btn btn--ghost btn--sm" href="${esc(R.googleUrl)}" target="_blank" rel="noopener">Виж всички в Google</a>` : ""}
-          ${R.writeUrl ? `<a class="btn btn--primary btn--sm" href="${esc(R.writeUrl)}" target="_blank" rel="noopener">Остави отзив</a>` : ""}</div></div>
+          ${items.length ? `<button class="btn btn--primary btn--sm" data-review>${icon("star")} Остави отзив</button>` : ""}</div></div>
       ${items.length ? `<div class="reviews">${items.map((r) => `<figure class="review">
         ${stars(Number(r.rating) || 5)}<blockquote>${esc(r.text)}</blockquote>
         <figcaption><span class="review__ava">${esc((r.name || "?").trim().charAt(0).toUpperCase())}</span><span><b>${esc(r.name || "Клиент")}</b><small>${esc(r.date || "")}${R.googleUrl ? " · Google" : ""}</small></span></figcaption>
-      </figure>`).join("")}</div>` : ""}
+      </figure>`).join("")}</div>` : `<div class="rev-empty">
+        <div class="rev-empty__stars">★★★★★</div>
+        <div><b>Пазарувал/а си при нас или си ремонтирал/а телефон?</b>
+        <p class="muted">Разкажи как е минало – отзивът ти помага на други клиенти и на нас да ставаме по-добри.</p></div>
+        <button class="btn btn--primary" data-review>Напиши първия отзив</button></div>`}
     </section>`;
+  }
+
+  function openReview() {
+    const R = window.REVIEWS || {};
+    openModal(`<button class="icon-btn modal__close" data-close aria-label="Затвори">${icon("close")}</button>
+      <form class="review-form" id="revForm">
+        <h2>Твоят отзив за GDMobil</h2>
+        <div class="rate" role="radiogroup" aria-label="Оценка">${[5, 4, 3, 2, 1].map((n) => `<input type="radio" name="rating" id="rt${n}" value="${n}" ${n === 5 ? "checked" : ""}><label for="rt${n}" title="${n} от 5">★</label>`).join("")}</div>
+        <label class="field"><span>Име *</span><input class="input" name="name" required maxlength="60" placeholder="напр. Мария К." autocomplete="given-name"></label>
+        <label class="field"><span>Отзив *</span><textarea class="input" name="text" rows="4" required minlength="10" maxlength="1200" placeholder="Какво купи или ремонтира и как беше обслужването?"></textarea></label>
+        <label class="check check--consent"><input type="checkbox" name="consent" required><span>Съгласен/на съм отзивът и името ми да бъдат публикувани в сайта след преглед от магазина.</span></label>
+        <button class="btn btn--primary btn--block" type="submit">Изпрати отзива</button>
+        <p class="muted small rev-msg" aria-live="polite"></p>
+      </form>`);
+    $("#revForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const f = e.target, btn = f.querySelector("[type=submit]");
+      btn.disabled = true; btn.textContent = "Изпращане…";
+      track("Отзив");
+      let ok = false;
+      try {
+        const r = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "review", name: f.name.value.trim(), rating: +f.rating.value, text: f.text.value.trim(), consent: f.consent.checked }) });
+        ok = r.ok;
+      } catch {}
+      if (!ok) { btn.disabled = false; btn.textContent = "Изпрати отзива"; f.querySelector(".rev-msg").textContent = "Не успяхме да изпратим отзива. Опитай отново след малко."; return; }
+      $("#modalBox").innerHTML = `<button class="icon-btn modal__close" data-close aria-label="Затвори">${icon("close")}</button>
+        <div class="success"><div class="success__check">${icon("check")}</div><h2>Благодарим за отзива!</h2>
+        <p class="muted">Ще се появи в сайта след кратък преглед.</p>
+        ${R.writeUrl ? `<p>Ще ни помогнеш много, ако го споделиш и в Google:</p><a class="btn btn--primary" href="${esc(R.writeUrl)}" target="_blank" rel="noopener">Оцени ни в Google</a>` : `<button class="btn btn--primary" data-close>Затвори</button>`}</div>`;
+    });
   }
 
   function newsletterBlock() {
@@ -1419,7 +1525,7 @@
 
   /* ================= КОЛИЧКА ================= */
   const lineInfo = (l) => BY_ID.get(l.id);
-  const varLabel = (v) => [v.storage, v.ram && v.ram + " RAM", v.color, v.conn].filter(Boolean).join(" · ");
+  const varLabel = (v) => [v.model && "за " + v.model, v.storage, v.ram && v.ram + " RAM", v.color, v.conn].filter(Boolean).join(" · ");
   const cartLines = () => state.cart.filter((l) => lineInfo(l) && lineInfo(l).v.price != null);
   const subtotal = () => cartLines().reduce((s, l) => s + lineInfo(l).v.price * l.qty, 0);
 
@@ -2010,6 +2116,7 @@
         $("#map").innerHTML = `<iframe title="Карта – GDMobil, ${esc(S.address)}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://maps.google.com/maps?q=${encodeURIComponent("GDMobil, " + S.address)}&z=16&output=embed"></iframe>`;
         return;
       }
+      if (e.target.closest("[data-review]")) return openReview();
       const t = e.target.closest("[data-add],[data-qv],[data-fav],[data-cmp],[data-inc],[data-dec],[data-rm],[data-close],[data-reset],[data-unf],[data-expand],#checkoutBtn");
       if (!t) {
         if (e.target.closest(".drawer a[href^='#/']")) closeDrawers();

@@ -121,8 +121,8 @@ def main():
     # ---------- продукти ----------
     products = []
     for g in catalog["groups"]:
-        variants = [{"id": v[0], "storage": v[1], "ram": v[2], "color": v[3], "conn": v[4], "price": v[5], "img": v[6]} for v in g["v"]]
-        products.append({"slug": g["s"], "name": g["n"], "brand": g["b"], "cat": g["c"], "variants": variants, "specs": g.get("sp", {}), "img": variants[0]["img"]})
+        variants = [{"id": v[0], "storage": v[1], "ram": v[2], "color": v[3], "conn": v[4], "price": v[5], "img": v[6], "model": v[12] if len(v) > 12 else ""} for v in g["v"]]
+        products.append({"slug": g["s"], "name": g["n"], "brand": g["b"], "cat": g["c"], "sub": g.get("sc", ""), "compat": g.get("cm", []), "variants": variants, "specs": g.get("sp", {}), "img": variants[0]["img"]})
     for i in catalog["items"]:
         products.append({"slug": i["s"], "name": i["n"], "brand": i["b"], "cat": i["c"], "sub": i.get("sc", ""), "compat": i.get("cm", []),
                          "variants": [{"id": i["i"], "storage": "", "ram": "", "color": "", "conn": "", "price": i["p"], "img": i["im"]}], "specs": {}, "img": i["im"]})
@@ -142,19 +142,21 @@ def main():
         var_list = ""
         if many:
             var_list = "<h2>Конфигурации и цени</h2><ul class=\"seo-list\">" + "".join(
-                f'<li>{E(" · ".join(x for x in [v["storage"], v["ram"] and v["ram"] + " RAM", v["color"], v["conn"]] if x) or "Стандартна")} – <b>{E(eur(v["price"]))}</b></li>'
+                f'<li>{E(" · ".join(x for x in [v["model"] and "за " + v["model"], v["storage"], v["ram"] and v["ram"] + " RAM", v["color"], v["conn"]] if x) or "Стандартна")} – <b>{E(eur(v["price"]))}</b></li>'
                 for v in p["variants"]) + "</ul>"
         compat = ""
         if p.get("compat"):
             compat = "<h2>Съвместим с</h2><p>" + ", ".join(E(model_names.get(k, k)) for k in p["compat"]) + "</p>"
         body = f'''<section class="container page seo-pre">{crumbs([(cat, f"/c/{p['cat']}/"), (p["name"], None)])}
 <div class="pd"><div class="pd__gallery"><div class="pd__main"><div class="pd__stage"><img src="{E(img(p["img"]))}" alt="{E(p["name"])}" width="600" height="600"></div></div></div>
-<div class="pd__info"><div class="pd__brand"><span>{E(p["brand"])} / {E(cat)}{(" / " + E(p.get("sub"))) if p.get("sub") else ""}</span></div><h1>{E(p["name"])}</h1>
+<div class="pd__info"><div class="pd__brand"><span>{E(" / ".join(x for x in [p["brand"], cat, p.get("sub")] if x))}</span></div><h1>{E(p["name"])}</h1>
 <div class="pd__buy"><div class="pd__price"><span class="price">{E(price_txt)}</span><small class="muted">с ДДС</small></div><p class="stock"><i></i>В наличност</p>
 <a class="btn btn--primary btn--lg btn--block" href="#/p/{p["slug"]}">Избери и поръчай</a></div>{var_list}{compat}</div></div>
 {f'<div class="pd-section"><h2>Технически характеристики</h2><div class="specgrid">{"".join(rows)}</div></div>' if rows else ""}</section>'''
         ld = {"@context": "https://schema.org", "@type": "Product", "name": p["name"], "brand": {"@type": "Brand", "name": p["brand"]},
               "image": img(p["img"]) if img(p["img"]).startswith("https:") else f'{site}/{img(p["img"])}', "sku": str(p["variants"][0]["id"]), "category": cat, "url": f'{site}/p/{p["slug"]}/'}
+        if not p["brand"]:
+            ld.pop("brand")
         if lo is not None:
             ld["offers"] = {"@type": "AggregateOffer", "priceCurrency": "EUR", "lowPrice": lo, "highPrice": hi, "offerCount": len(priced),
                             "availability": "https://schema.org/InStock", "seller": {"@type": "Organization", "name": "GDMobil"}}
@@ -214,7 +216,7 @@ def main():
         sp = g.get("sp") or {}
         spec_txt = "; ".join(f"{k}: {v}" for k, v in list(sp.items())[:8])
         for v in g["v"]:
-            title = " ".join(x for x in [g["n"], v[1], v[2] and v[2] + " RAM", v[3]] if x)
+            title = " ".join(x for x in [g["n"], len(v) > 12 and v[12] and "за " + v[12], v[1], v[2] and v[2] + " RAM", v[3]] if x)
             rows.append({"id": v[0], "g": g["s"] if len(g["v"]) > 1 else "", "s": g["s"], "t": title[:150], "b": g["b"], "c": g["c"], "sub": g.get("sc", ""),
                          "color": v[3], "mem": v[1], "p": v[5], "d": v[8], "o": v[11] if len(v) > 11 else None, "st": v[9],
                          "im": img(v[6]), "gal": [img(x) for x in (v[10] or [])[:5]],
