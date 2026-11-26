@@ -166,10 +166,32 @@ PL_WORDS = [(r"\bDържач Uchwyt\b", "Държач"), (r"\bMagnetyczny uchwyt
             (r"\bszary\b", "сив"), (r"\bbrazowy\b", "кафяв"), (r"\bmarmur\b", "мрамор"), (r"\bJeleń\b", "Елен"), (r"\bKoń\b", "Кон"), (r"\bOrzeł\b", "Орел"), (r"\bEtui\b", "Кейс")]
 
 
+# Фабрични кодове в имената (EP-T1510NBEGEU, GUCBMSLRD, MWTY3ZM/A …) се махат – остават в артикулния номер
+SKU_KEEP={'MAGSAFE','USB','LED','HD','MAG','PD','QC','TWS','ANC','ENC','IML','PRO','MAX','ROAR','BLUEO','PITAKA','NIMMY','CLEAR','SMART','BOOK','FANCY','MAGNETO','COLORFUL','JELLY','DEFENDER','BLINK','TENDER','SENSITIVE','ELECTRO','HOCO','UAG','DKNY','BMW','AMG','ALL','DAY','FULL','BOX','SILK','ARMOR','SLIM','LITE','STRONG','MATT','GLASS','PRIVACY','EZ','FIT','OG','ESD','NFC','GPS','AUX','RGB','IPHONE','SAMSUNG','XIAOMI','REDMI','HONOR','MAGNETIC','CARBON','KEVLAR','SPIGEN','GUESS','LACOSTE','FERRARI','MERCEDES','KARL','HYBRID','CRYSTAL','LIQUID','TOUGH','RUGGED','ULTRA','AIR','CASE','MINI','PLUS','SE','FE','QI2','QI','STARRY','GALAXY'}
+def is_code(t):
+    w=t.strip('()[],.;:"“”')
+    if len(w)<6 or w.upper() in SKU_KEEP: return False
+    if '/' in w: return bool(re.fullmatch(r'[A-Z0-9]{4,}[A-Z]{2}/A', w))  # код на Apple, напр. MWTY3ZM/A
+    if not re.fullmatch(r'[A-Z0-9][A-Z0-9\-]+', w): return False
+    letters=re.sub(r'[^A-Z]','',w); digits=re.sub(r'\D','',w)
+    vowels=len(re.findall(r'[AEIOUY]',letters))
+    if digits and letters and len(w)>=7: return True
+    if not digits and len(letters)>=7 and vowels<=1: return True
+    if digits and not letters and len(w)>=8: return True
+    return False
+def strip_codes(n):
+    n=re.sub(r'(\d+W)(?=[A-Za-zА-Яа-я])',r'\1 ',n)
+    s=' '.join(t for t in n.split(' ') if not is_code(t))
+    s=re.sub(r'(?<!\d)\s+бр\.?(?=\s|$)','',s)
+    s=re.sub(r'\(\s*\)','',s)
+    return re.sub(r'\s{2,}',' ',s).strip(' ,-–/')
+
+
 def tidy_name(name):
     for rx, rep in PL_WORDS:
         name = re.sub(rx, rep, name)
     name = re.sub(r"^Кейс за телефон\s+", "Кейс ", name)
+    name = strip_codes(name)
     name = re.sub(r"\s{2,}", " ", name).strip(" ,-–/")
     return name
 

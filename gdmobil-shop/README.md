@@ -44,6 +44,7 @@
 ## Публикуване
     npm install                       # веднъж – зависимости на функциите
     python3 tools/fetch_offices.py    # обновява офисите на Еконт (assets/offices-econt.json)
+    python3 tools/normalize_images.py # изравнява снимките на аксесоарите (бял квадрат, еднакво поле)
     python3 tools/build_dist.py       # сглобява dist/
     netlify deploy --prod --no-build --dir dist --functions netlify/functions
 

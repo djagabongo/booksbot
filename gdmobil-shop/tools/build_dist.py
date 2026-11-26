@@ -180,7 +180,7 @@ def main():
         lo_of = lambda p: min([v["price"] for v in p["variants"] if v["price"] is not None], default=None)
         top = sorted([p for p in items if lo_of(p) is not None], key=lambda p: -(lo_of(p) or 0))[:8]
         cards = '<div class="grid grid--4">' + "".join(
-            f'<article class="card"><a class="card__media" href="/p/{p["slug"]}/"><img src="{E(img(p["img"], False))}" alt="{E(p["name"])}" width="300" height="300"></a>'
+            f'<article class="card"><a class="card__media" href="/p/{p["slug"]}/"><img class="ld" src="{E(img(p["img"], False))}" alt="{E(p["name"])}" width="300" height="300"></a>'
             f'<div class="card__body"><span class="card__brand">{E(p["brand"] or p.get("sub", ""))}</span><a class="card__title" href="/p/{p["slug"]}/">{E(p["name"])}</a>'
             f'<div class="card__foot"><div class="card__price"><span class="price">{"от " if len(p["variants"]) > 1 else ""}{E(eur(lo_of(p)))}</span></div></div></div></article>' for p in top) + "</div>"
         body = f'''<section class="container page seo-pre">{crumbs([(c["name"], None)])}<div class="cat-head"><h1>{E(c["name"])}</h1><p class="muted">{len(items)} продукта · {E(c["sub"])}</p></div>

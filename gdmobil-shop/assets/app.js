@@ -178,7 +178,7 @@
 
   /* ---------- общи UI елементи ---------- */
   const imgTag = (h, alt, cls = "", big) =>
-    `<img class="${cls}" src="${esc(big ? full(h) : thumb(h))}" data-full="${esc(full(h))}" alt="${esc(alt)}" loading="lazy" decoding="async" onerror="if(this.src.indexOf(this.dataset.full)<0)this.src=this.dataset.full">`;
+    `<img class="${cls}" src="${esc(big ? full(h) : thumb(h))}" data-full="${esc(full(h))}" alt="${esc(alt)}" loading="lazy" decoding="async" onload="this.classList.add('ld')" onerror="if(this.src.indexOf(this.dataset.full)<0)this.src=this.dataset.full;else this.classList.add('ld')">`;
   const isFav = (slug) => state.favs.includes(slug);
   const inCmp = (slug) => state.compare.includes(slug);
   const canCompare = (p) => p.cat === "phones" || p.cat === "tablets";
@@ -358,7 +358,7 @@
         </div>
         <form class="finder__form" id="finderForm">
           <label class="lbl" for="finderModel">Твоят модел</label>
-          ${modelSelect("finderModel", "")}
+          ${modelSelect("finderModel", store.get("mymodel", ""))}
           <button class="btn btn--primary btn--block" type="submit">Покажи аксесоарите ${icon("arrow")}</button>
           <small class="muted">Провери точния модел и съвместимостта преди покупка.</small>
         </form>
@@ -488,6 +488,7 @@
     view.innerHTML = `<section class="container page">
       ${crumbs(catKey === "all" ? [["Каталог"]] : [["Каталог", "#/c/all"], [CAT_NAMES[catKey]]])}
       <div class="cat-head"><h1>${esc(title)}</h1><p class="muted" id="resCount"></p></div>
+      <div id="myModel"></div>
       <div class="tabs">
         ${[["all", "Всички"], ...window.CATEGORIES.map((c) => [c.key, c.name])].map(([k, n]) => `<a class="chip ${k === catKey ? "active" : ""}" ${k === catKey ? 'aria-current="page"' : ""} href="#/c/${k}${cat.q ? "?q=" + encodeURIComponent(cat.q) : ""}">${esc(n)}</a>`).join("")}
       </div>
@@ -629,6 +630,10 @@
     $("#filtersAside").innerHTML = fh;
     $("#filterBody").innerHTML = fh.replaceAll('name="fsub"', 'name="fsub2"');
     $("#resCount").textContent = plural(list.length, "продукт", "продукта");
+    if (cat.model) store.set("mymodel", cat.model);
+    const my = store.get("mymodel", "");
+    $("#myModel").innerHTML = cat.key === "accessories" && !cat.model && my && MODEL_NAMES[my]
+      ? `<a class="my-model" href="#/c/accessories?model=${encodeURIComponent(my)}">${icon("phone")}<span>Покажи само аксесоарите за <b>моя ${esc(MODEL_NAMES[my])}</b></span>${icon("arrow")}</a>` : "";
     cardModel = cat.model || "";
     $("#grid").innerHTML = list.slice(0, cat.shown).map((x) => card(x)).join("") ||
       `<div class="empty"><p>😕 Няма продукти по тези критерии.</p><button class="btn btn--ghost" data-reset>Изчисти филтрите</button>
@@ -695,7 +700,110 @@
     }));
   }
 
+  // Избор на модел с търсене и групи по марка (за продукти с много модели, напр. OG протекторите)
+  let MK_BRAND = null;
+  function brandOfModel(v) {
+    if (!MK_BRAND) {
+      MK_BRAND = new Map(C.models.map((m) => [m.key, m.brand]));
+      PRODUCTS.forEach((x) => x.mk && x.cat !== "accessories" && MK_BRAND.set(x.mk, x.brand));
+    }
+    return MK_BRAND.get(v.vmk) || (v.model.match(/^(iPhone|iPad|AirPods|Apple)/) ? "Apple" : v.model.match(/^Galaxy/) ? "Samsung" : v.model.split(" ")[0]);
+  }
+  function modelPicker(p, cur) {
+    const groups = new Map();
+    p.variants.forEach((v) => { if (!v.model) return; const b = brandOfModel(v); if (!groups.has(b)) groups.set(b, new Set()); groups.get(b).add(v.model); });
+    const order = [...groups.keys()].sort((a, b) => (a === "Apple" ? -2 : a === "Samsung" ? -1 : 0) - (b === "Apple" ? -2 : b === "Samsung" ? -1 : 0) || a.localeCompare(b));
+    const short = (b, m) => (m.toLowerCase().startsWith(b.toLowerCase() + " ") ? m.slice(b.length + 1) : m);
+    return `<div class="msel">
+      <button type="button" class="select msel__btn" aria-haspopup="listbox" aria-expanded="false">${esc(cur.model || "Избери модел")}</button>
+      <div class="msel__pop" hidden>
+        <input class="input msel__q" type="search" placeholder="Напиши модела си, напр. S26 или iPhone 17" aria-label="Търси модел" autocomplete="off">
+        <div class="msel__list" role="listbox">${order.map((b) => `<div class="msel__g" data-b="${esc(b)}"><b>${esc(b)}</b>
+          ${[...groups.get(b)].map((m) => `<button type="button" role="option" class="msel__opt ${m === cur.model ? "on" : ""}" aria-selected="${m === cur.model}" data-opt="model" data-val="${esc(m)}" data-s="${esc(norm(b + " " + m))}">${esc(short(b, m))}</button>`).join("")}</div>`).join("")}
+          <p class="muted small msel__none" hidden>Няма такъв модел. Провери името или ни пиши.</p></div>
+      </div></div>`;
+  }
+  function closeMsel(except) { $$(".msel__pop").forEach((p) => { if (p !== except) { p.hidden = true; p.previousElementSibling?.setAttribute("aria-expanded", "false"); } }); }
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest(".msel__btn");
+    if (btn) {
+      const pop = btn.nextElementSibling; closeMsel(pop);
+      pop.hidden = !pop.hidden; btn.setAttribute("aria-expanded", !pop.hidden);
+      if (!pop.hidden) { const q = pop.querySelector(".msel__q"); q.value = ""; q.dispatchEvent(new Event("input")); q.focus(); pop.querySelector(".msel__opt.on")?.scrollIntoView({ block: "center" }); }
+      return;
+    }
+    if (!e.target.closest(".msel__pop")) closeMsel();
+  });
+  document.addEventListener("input", (e) => {
+    if (!e.target.classList.contains("msel__q")) return;
+    const pop = e.target.closest(".msel__pop"), toks = tokens(e.target.value);
+    let any = false;
+    pop.querySelectorAll(".msel__g").forEach((g) => {
+      let vis = 0;
+      g.querySelectorAll(".msel__opt").forEach((o) => { const hit = !toks.length || toks.every((t) => o.dataset.s.includes(t)); o.hidden = !hit; if (hit) vis++; });
+      g.hidden = !vis; if (vis) any = true;
+    });
+    pop.querySelector(".msel__none").hidden = any;
+  });
+  document.addEventListener("keydown", (e) => {
+    if (!e.target.classList?.contains("msel__q")) return;
+    if (e.key === "Enter") { e.preventDefault(); e.target.closest(".msel__pop").querySelector(".msel__opt:not([hidden])")?.click(); }
+    if (e.key === "Escape") { e.stopPropagation(); closeMsel(); }
+  });
+
+  // Кратко описание на аксесоар – само от данните на продукта (вид, марка, модели, ключови думи в името)
+  function accDesc(p) {
+    const n = p.name, has = (rx) => rx.test(n), out = [];
+    const models = [...new Set(p.variants.map((v) => v.model).filter(Boolean))];
+    const compat = models.length ? models : (p.compat || []).map((k) => (MODEL_NAMES[k] || "").replace(/^\S+\s/, "")).filter(Boolean);
+    const forTxt = compat.length > 3 ? `${compat.length} модела телефони – избери своя по-горе` : compat.length ? compat.join(", ") : "";
+    const maker = p.brand && p.brand !== "OG Premium" ? ` ${p.brand}` : "";
+    const watt = (n.match(/(\d{1,3})\s?W\b/i) || [])[1], mah = (n.match(/(\d{3,5})\s?mAh/i) || [])[1], len = (n.match(/(\d(?:[.,]\d)?)\s?m\b/) || [])[1];
+    const sub = p.sub || "";
+    if (sub === "Калъфи") {
+      out.push(`${has(/book|книга/i) ? "Калъф тип книга" : "Калъф"}${maker}${forTxt ? ` за ${forTxt}` : ""}.`);
+      if (has(/magsafe|\bmag\b/i)) out.push("Съвместим с MagSafe – работи с магнитни зарядни, поставки и портфейли.");
+      if (has(/book|книга/i)) out.push("Пази и екрана, когато е затворен.");
+      if (has(/clear|прозрач|transparent/i)) out.push("Прозрачен – показва цвета на телефона.");
+      if (has(/armor|tough|rugged|shock|defender|удар|airbag/i)) out.push("С усилена защита при изпускане.");
+      if (has(/silicone|силикон|jelly|tpu/i)) out.push("Мек и приятен за хващане.");
+      if (has(/leather|кож/i)) out.push("С кожена повърхност.");
+      if (has(/camera protection|камера/i)) out.push("Повдигнат ръб пази и камерите.");
+    } else if (sub === "Протектори") {
+      const cam = has(/camera|камер|lens|обектив/i);
+      out.push(`${cam ? "Протектор за камерата" : "Протектор за екрана"}${maker}${forTxt ? ` за ${forTxt}` : ""}.`);
+      if (has(/privacy|затъмн|anti-peep/i)) out.push("Затъмняващ (privacy) – екранът се вижда само отпред, полезно на обществени места.");
+      if (has(/glass|стъкл|закален|tempered/i)) out.push("Закалено стъкло – пази от драскотини и удари.");
+      if (has(/matt|матов|anti-glare|anti-reflection/i)) out.push("Матово покритие срещу отблясъци и отпечатъци.");
+      if (has(/full|edge|3d|full glass/i) && !cam) out.push("Покрива целия екран.");
+    } else if (sub === "Зарядни") {
+      out.push(`${has(/безжич|wireless|induction|magsafe/i) ? "Безжично зарядно" : has(/кола|car/i) ? "Зарядно за кола" : "Зарядно"}${maker}.`);
+      if (watt) out.push(`Мощност до ${watt} W${has(/pd|power delivery/i) ? " с Power Delivery" : ""}.`);
+      if (has(/usb-?c|type[ -]?c/i)) out.push("С изход USB-C.");
+      if (has(/magsafe/i)) out.push("Съвместимо с MagSafe.");
+      if (has(/gan/i)) out.push("GaN технология – по-малко и по-хладно.");
+    } else if (sub === "Кабели") {
+      out.push(`Кабел${maker}${has(/lightning/i) ? " с Lightning" : ""}${has(/usb-?c|type[ -]?c/i) ? " с USB-C" : ""}${len ? `, ${len.replace(".", ",")} м` : ""}.`);
+      if (watt) out.push(`Поддържа зареждане до ${watt} W.`);
+    } else if (sub === "Power Bank") {
+      out.push(`Външна батерия${maker}${mah ? ` ${mah} mAh` : ""}.`);
+      if (has(/magsafe|induction|wireless|безжич/i)) out.push("Зарежда безжично/магнитно – без кабел.");
+      if (watt) out.push(`Мощност до ${watt} W.`);
+    } else if (sub === "Слушалки") {
+      out.push(`${has(/bluetooth|безжич|tws|wireless|airpods/i) ? "Безжични слушалки" : "Слушалки"}${maker}.`);
+      if (has(/anc|шумопотис/i)) out.push("С активно шумопотискане.");
+      if (has(/type[ -]?c/i)) out.push("С USB-C конектор.");
+    } else {
+      out.push(`${sub || "Аксесоар"}${maker}${forTxt ? ` за ${forTxt}` : ""}.`);
+    }
+    const colors = p.opts.color || [];
+    if (colors.length > 1) out.push(`Наличен в ${colors.length} цвята.`);
+    out.push("Вземи го от магазина в Гоце Делчев без такса или поръчай с доставка.");
+    return out.join(" ");
+  }
+
   function pickVariant(p, cur, k, val) {
+    if (k === "model") { const v = p.variants.find((x) => x.model === val); if (v?.vmk) store.set("mymodel", v.vmk); }
     const prio = OPT_KEYS.filter((o) => o !== k);
     const score = (v) => prio.reduce((s, o, i) => s + (v[o] === cur[o] ? 8 >> i : 0), 0);
     return p.variants.filter((v) => v[k] === val).sort((a, b) => score(b) - score(a) || (a.price ?? 1e9) - (b.price ?? 1e9))[0] || cur;
@@ -707,7 +815,7 @@
     return `${compact ? "" : `<div class="config__head"><b>Конфигурация</b><small class="muted">${plural(p.variants.length, "вариант", "варианта")}</small></div>`}
       ${keys.map((k) => k === "model" && p.opts.model.length > 6 ? `<div class="config__row">
         <div class="config__label"><span>${OPT_LABEL[k]} <small class="muted">(${p.opts.model.length})</small></span><b>${esc(cur.model || "—")}</b></div>
-        <select class="select" data-optsel="model" aria-label="Избери модел">${p.opts.model.map((val) => `<option ${cur.model === val ? "selected" : ""}>${esc(val)}</option>`).join("")}</select></div>` : `<div class="config__row">
+        ${modelPicker(p, cur)}</div>` : `<div class="config__row">
         <div class="config__label"><span>${OPT_LABEL[k]}</span><b>${esc(cur[k] || "—")}</b></div>
         <div class="opts ${k === "color" ? "opts--color" : ""}">${p.opts[k].map((val) => {
           const target = pickVariant(p, cur, k, val);
@@ -769,7 +877,7 @@
           ${badgesHtml(p, "pd__badges")}
           <h1>${esc(p.name)}</h1>
           <p class="muted pd__codes" id="pdCodes"></p>
-          ${p.desc ? `<p class="muted">${esc(p.desc)}</p>` : ""}
+          ${p.desc ? `<p class="muted">${esc(p.desc)}</p>` : p.cat === "accessories" ? `<p class="pd__desc">${esc(accDesc(p))}</p>` : ""}
           <div class="config" id="config"></div>
           <div class="pd__buy" id="pdBuy"></div>
           ${keySpecs.length ? `<div class="keyspecs">${keySpecs.map((k) => `<div><small>${esc(k)}</small><b>${esc(p.specs[k])}</b></div>`).join("")}</div>` : ""}
@@ -2388,6 +2496,7 @@
   const routeKey = () => { const r = parseRoute(); return r.parts.join("/") + "?" + r.q; };
   function go(h) { if (location.hash === h) router(); else location.hash = h; }
   let lastPath = null;
+  let navCount = 0;
   function router() {
     const raw = location.hash.slice(1);
     if (raw === "cart") { history.replaceState(null, "", "#" + (lastPath ? "/" + lastPath.replace(/\?$/, "") : "/")); return openDrawer("cartDrawer"); }
@@ -2418,6 +2527,8 @@
     if (!anchor && parts[0] !== "contact") window.scrollTo(0, 0);
     lastPath = routeKey();
     reveal();
+    if (navCount++) { view.classList.remove("view-in"); void view.offsetWidth; view.classList.add("view-in"); }
+    document.body.classList.toggle("has-contact", !parts[0] || ["contact", "about"].includes(parts[0]));
     setCanonical(parts);
     track("pageview", "/" + parts.join("/"));
     const active = parts[0] === "p" ? BY_SLUG.get(parts[1])?.cat : parts[0] === "c" ? parts[1] : parts[0] || "";
