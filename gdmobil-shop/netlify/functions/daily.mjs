@@ -1,17 +1,21 @@
 // GDMobil – ежедневна задача (Netlify Scheduled Function, всеки ден в 17:05 българско време).
+// 0) Записва цените за деня (история за правилото „най-ниска цена през последните 30 дни“).
 // 1) Напомня по имейл за утрешните часове в сервиза.
 // 2) Пише на абонатите от „Кажи ми при намаление“, ако цената е паднала, и ги изтрива от списъка.
 // Работи само ако са зададени BREVO_API_KEY и MAIL_FROM (виж netlify/lib/mail.mjs).
 import { getStore } from "@netlify/blobs";
 import { sendMail, mailEnabled, layout, rows, storeInfo, siteUrl, eur, when } from "../lib/mail.mjs";
+import { snapshotPrices } from "../lib/prices.mjs";
 
 const sofiaDay = (d) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Sofia" }).format(d); // YYYY-MM-DD
 
 export async function runDaily() {
-  const report = { reminders: 0, priceAlerts: 0, skipped: !mailEnabled() };
+  const report = { reminders: 0, priceAlerts: 0, skipped: !mailEnabled(), low30: 0 };
+  const S = await storeInfo(), site = siteUrl(S);
+  // ---------- 0) история на цените (за „най-ниска цена за 30 дни“) – винаги ----------
+  try { report.low30 = await snapshotPrices(site); } catch (e) { report.priceError = String(e).slice(0, 120); }
   if (!mailEnabled()) return report;
   const store = getStore({ name: "gdmobil-orders", consistency: "strong" });
-  const S = await storeInfo(), site = siteUrl(S);
 
   // ---------- 1) напомняния за утре ----------
   const tomorrow = sofiaDay(new Date(Date.now() + 24 * 3600 * 1000));
@@ -58,7 +62,7 @@ export async function runDaily() {
           title: "Цената падна!", intro: `Продуктът, който следиш, вече е по-евтин.`,
           body: rows([["Продукт", w.name], w.variant && ["Вариант", w.variant], ["Беше", eur(w.price)], ["Сега", eur(price)]]),
           button: { text: "Виж продукта", url: `${site}/p/${w.slug}/${w.id ? "?v=" + w.id : ""}` },
-          footer: "Получаваш това писмо, защото поиска известие при намаление. Имейлът ти вече е изтрит от списъка.",
+          footer: `Получаваш това писмо, защото поиска известие при намаление. Имейлът ти вече е изтрит от списъка. <a href="${site}/unsubscribe/?email=${encodeURIComponent(w.email)}" style="color:#777">Отписване от всички известия</a>`,
         }),
       });
       if (ok) { await store.delete(b.key); report.priceAlerts++; }

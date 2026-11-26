@@ -15,10 +15,22 @@
   const tel = S.phoneIntl || S.phone.replace(/\s/g, "");
 
   /* ---------- безопасно localStorage ---------- */
+  const PREF_KEYS = new Set(["recent", "searches", "mymodel"]); // „Предпочитания“ – само със съгласие
   const store = {
     get(k, d) { try { const v = localStorage.getItem("gdm2_" + k); return v ? JSON.parse(v) : d; } catch { return d; } },
-    set(k, v) { try { localStorage.setItem("gdm2_" + k, JSON.stringify(v)); } catch {} },
+    set(k, v) {
+      try {
+        if (PREF_KEYS.has(k) && !consent().prefs) { localStorage.removeItem("gdm2_" + k); return; }
+        localStorage.setItem("gdm2_" + k, JSON.stringify(v));
+      } catch {}
+    },
   };
+  // Съгласие за незадължителни бисквитки/локално хранилище; пита се отново след 12 месеца или при нова версия.
+  const CONSENT_V = 1;
+  function consent() {
+    try { const c = JSON.parse(localStorage.getItem("gdm2_consent") || "null"); if (c && c.v === CONSENT_V && Date.now() - c.at < 365 * 864e5) return c; } catch {}
+    return { v: 0, prefs: false, stats: false, ext: false };
+  }
 
   /* ---------- каталог ---------- */
   const noThumb = new Set(C.noThumb || []);
@@ -182,11 +194,15 @@
   const isFav = (slug) => state.favs.includes(slug);
   const inCmp = (slug) => state.compare.includes(slug);
   const canCompare = (p) => p.cat === "phones" || p.cat === "tablets";
+  // Двойно обозначаване: евро и лева по фиксирания курс до S.dualUntil
+  const DUAL = !!S.dualUntil && new Date().toISOString().slice(0, 10) <= S.dualUntil;
+  const bgn = (n) => (n == null || !DUAL ? "" : new Intl.NumberFormat("bg-BG", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.round(n * (S.bgnRate || 1.95583) * 100) / 100) + " лв.");
+  const bgnHtml = (n) => (DUAL && n != null ? `<small class="bgn">${bgn(n)}</small>` : "");
   const priceHtml = (p) =>
     p.min == null
       ? `<span class="price price--ask">Цена при запитване</span>`
       : `<span class="price">${p.kind === "g" && p.variants.length > 1 ? "<small>от</small> " : ""}${eur(p.min)}</span>${
-          p.disc ? `<span class="old">${eur(oldOf(p))}</span>` : ""}`;
+          p.disc ? `<span class="old" title="Предишна цена">${eur(oldOf(p))}</span>` : ""}${bgnHtml(p.min)}`;
   function oldOf(p) {
     const v = p.variants.find((x) => x.price === p.min) || p.def;
     return v.disc ? v.base : Math.round((p.min / (1 - p.disc / 100)) * 100) / 100;
@@ -802,6 +818,18 @@
     return out.join(" ");
   }
 
+  // „Най-ниска цена през последните 30 дни преди намалението“ (Omnibus) – от историята на цените
+  const low30Cache = new Map();
+  async function fillLow30() {
+    const el = $("[data-low30]"); if (!el) return;
+    const id = el.dataset.low30;
+    if (!low30Cache.has(id)) {
+      try { const r = await fetch(`/api/orders?low30=${id}`); low30Cache.set(id, r.ok ? (await r.json())[id] || null : null); } catch { low30Cache.set(id, null); }
+    }
+    const v = low30Cache.get(id), cur = $("[data-low30]");
+    if (cur && cur.dataset.low30 === id && v) cur.textContent = `Най-ниска цена през последните 30 дни преди намалението: ${eur(v.low, true)}${DUAL ? ` (${bgn(v.low)})` : ""}`;
+  }
+
   function pickVariant(p, cur, k, val) {
     if (k === "model") { const v = p.variants.find((x) => x.model === val); if (v?.vmk) store.set("mymodel", v.vmk); }
     const prio = OPT_KEYS.filter((o) => o !== k);
@@ -832,7 +860,8 @@
       ? `<div class="pd__price"><span class="price price--ask">Цена при запитване</span></div>
          <a class="btn btn--primary btn--lg btn--block" href="#/inquiries?topic=${encodeURIComponent(p.name)}">Изпрати запитване</a>`
       : `<div class="pd__price"><span class="price">${eur(cur.price, true)}</span><small class="muted">с ДДС</small>
-          ${cur.disc ? `<span class="old">${eur(cur.base, true)}</span>` : ""}</div>
+          ${cur.disc ? `<span class="old" title="Предишна цена">${eur(cur.base, true)}</span>` : ""}${bgnHtml(cur.price)}</div>
+         ${cur.disc ? `<p class="low30" data-low30="${cur.id}"></p>` : ""}
          <p class="stock ${cur.stock ? "" : "stock--no"}"><i></i>${cur.stock ? "В наличност" : "По заявка"}</p>
          <button class="btn btn--primary btn--lg btn--block" data-add="${cur.id}">${icon("bag")} Добави в количката</button>`;
   }
@@ -938,6 +967,7 @@
       $("#pdCodes").textContent = `Артикул № ${cur.id}`;
       $("#config").innerHTML = configHtml(p, cur);
       $("#pdBuy").innerHTML = buyHtml(p, cur);
+      fillLow30();
       $("#stickyBuy").innerHTML = cur.price == null ? "" : `<div><b>${eur(cur.price, true)}</b><small>${esc([cur.storage, cur.color].filter(Boolean).join(" · ") || p.name)}</small></div><button class="btn btn--primary" data-add="${cur.id}">${icon("bag")} В количката</button>`;
       drawSpecs();
       syncProductTools(p);
@@ -1828,6 +1858,130 @@
     }));
   }
 
+  /* ================= ОТКАЗ ОТ ДОГОВОРА (функция за отказ, Директива (ЕС) 2023/2673) ================= */
+  function pageWithdraw(q) {
+    setTitle("Отказ от договора");
+    const mine = store.get("orders", []).filter((o) => /^GD-/.test(o.num)).slice(-5).reverse();
+    view.innerHTML = `<section class="container page">
+      ${crumbs([["Отказ от договора"]])}
+      <div class="svc-grid">
+        <div>
+          <h1>Отказ от договора</h1>
+          <p class="muted">Като потребител можеш да се откажеш от покупка от разстояние без да посочваш причина в срок от 14 дни от получаването на стоката. Попълни формата и натисни „Потвърждавам отказа от договора“ – веднага ще получиш потвърждение с дата и час${"" }.</p>
+          ${mine.length ? `<div class="track-mine"><b class="small">Твоите последни поръчки</b>${mine.map((o) => `<a class="chip" href="#/withdraw?ref=${encodeURIComponent(o.num)}">${esc(o.num)}</a>`).join("")}</div>` : ""}
+          <div class="info-cards">
+            <div class="info-card">${icon("truck")}<div><b>Връщане на стоката</b><p class="muted">Изпрати или донеси стоката до 14 дни след отказа на адрес: ${esc(S.company)}, ${esc(S.address)}. Преките разходи по връщането са за купувача, освен ако е уговорено друго.</p></div></div>
+            <div class="info-card">${icon("shield")}<div><b>Възстановяване на сумата</b><p class="muted">До 14 дни от получаването на отказа, по същия начин на плащане, освен ако не се договорим друго. Можем да изчакаме, докато получим стоката или доказателство, че е изпратена.</p></div></div>
+          </div>
+          <p class="small muted">Можеш да се откажеш и с друго недвусмислено изявление – по имейл на <a class="link" href="mailto:${esc(S.email)}">${esc(S.email)}</a> или писмено. Подробности в <a class="link" href="#/legal/returns">Гаранция и връщане</a>.</p>
+        </div>
+        <form class="form-card" id="wdForm">
+          <h2>Заявление за отказ</h2>
+          <label class="field"><span>Номер на поръчката *</span><input class="input" name="ref" required value="${esc(q.get("ref") || "")}" placeholder="GD-261124-1234" autocapitalize="characters"></label>
+          <div class="two">
+            <label class="field"><span>Име и фамилия *</span><input class="input" name="name" required autocomplete="name"></label>
+            <label class="field"><span>Телефон *</span><input class="input" name="phone" type="tel" required pattern="\\+?[0-9 ]{6,}" autocomplete="tel"></label>
+          </div>
+          <label class="field"><span>Имейл <small class="muted">(за потвърждение на траен носител)</small></span><input class="input" name="email" type="email" autocomplete="email"></label>
+          <label class="field"><span>Стоки, от които се отказваш *</span><textarea class="input" name="items" rows="3" required placeholder="напр. Apple iPhone 17 Pro 256 GB, Cosmic Orange – 1 бр."></textarea></label>
+          <div class="two">
+            <label class="field"><span>Дата на получаване</span><input class="input" name="received" type="date"></label>
+            <label class="field"><span>Банкова сметка (IBAN) за връщане <small class="muted">(при наложен платеж)</small></span><input class="input" name="iban" autocomplete="off" placeholder="BG.."></label>
+          </div>
+          <label class="field"><span>Бележка <small class="muted">(по избор, не е нужно да посочваш причина)</small></span><input class="input" name="note"></label>
+          <label class="check check--consent"><input type="checkbox" name="ok" required><span>Прочетох <a href="#/legal/privacy" target="_blank">информацията за личните данни</a>. *</span></label>
+          <button class="btn btn--primary btn--block btn--lg" type="submit">Потвърждавам отказа от договора</button>
+          <p class="small book__msg" aria-live="polite"></p>
+        </form>
+      </div>
+    </section>`;
+    const f = $("#wdForm");
+    f.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!f.reportValidity()) return;
+      const fd = Object.fromEntries(new FormData(f));
+      const at = new Date();
+      const atTxt = at.toLocaleString("bg-BG", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+      const text = [`ЗАЯВЛЕНИЕ ЗА ОТКАЗ ОТ ДОГОВОР`, `До ${S.company}, ${S.address}, ${S.email}`, "",
+        `С настоящото уведомявам, че се отказвам от договора за покупка на следните стоки: ${fd.items}`,
+        `Номер на поръчката: ${fd.ref}`, fd.received ? `Получено на: ${fd.received}` : false,
+        `Име на потребителя: ${fd.name}`, `Телефон: ${fd.phone}`, fd.email ? `Имейл: ${fd.email}` : false, fd.iban ? `IBAN за възстановяване: ${fd.iban}` : false,
+        fd.note ? `Бележка: ${fd.note}` : false, `Дата и час на отказа: ${atTxt}`].filter((x) => x !== false).join("\n");
+      const btn = f.querySelector("[type=submit]"); btn.disabled = true; btn.textContent = "Изпращане…";
+      const sent = await sendToStore(`Отказ от договора – ${fd.ref}`, text, { type: "withdrawal", title: `Отказ от поръчка ${fd.ref.toUpperCase()}`, customer: { name: fd.name, phone: fd.phone, email: fd.email || "" } });
+      track("Отказ от договора");
+      const ref = typeof sent === "string" ? sent : "";
+      f.outerHTML = `<div class="form-card success">
+        <div class="success__check">${icon("check")}</div>
+        <h2>${sent ? "Отказът е получен" : "Остава една стъпка"}</h2>
+        ${sent ? `<p>Потвърждаваме, че на <b>${esc(atTxt)}</b> получихме отказа ти от договора по поръчка <b>${esc(fd.ref.toUpperCase())}</b>.</p>
+          ${ref ? `<p class="muted">Номер на заявлението: <b>${esc(ref)}</b>. ${fd.email ? "Изпратихме потвърждение и на имейла ти." : "Запази този номер или направи снимка на екрана."}</p>` : ""}
+          <p class="muted">Ще се свържем с теб за връщането на стоката.</p>
+          ${ref ? `<a class="btn btn--ghost" href="${trackLink(ref, fd.phone)}">${icon("search")} Проследи заявлението</a>` : ""}`
+        : `<p class="muted">Неуспешно автоматично изпращане. Изпрати заявлението по имейл – текстът е попълнен:</p>
+          <a class="btn btn--primary" href="${mailto("Отказ от договора " + fd.ref, text)}">${icon("mail")} Изпрати по имейл</a>`}
+      </div>`;
+    });
+  }
+
+  function pageUnsubscribe(q) {
+    setTitle("Отписване");
+    view.innerHTML = `<section class="container page"><div class="svc-grid"><div>
+      <h1>Отписване от бюлетина</h1><p class="muted">Въведи имейла си, за да спрем бюлетина и известията за намаление. Ще изтрием имейла от списъците.</p></div>
+      <form class="form-card" id="unsForm"><label class="field"><span>Имейл *</span><input class="input" type="email" name="email" required value="${esc(q.get("email") || "")}"></label>
+      <button class="btn btn--primary btn--block" type="submit">Отпиши ме</button><p class="small book__msg" aria-live="polite"></p></form></div></section>`;
+    $("#unsForm").addEventListener("submit", async (e) => {
+      e.preventDefault(); const f = e.target;
+      let ok = false;
+      try { ok = (await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "unsubscribe", email: f.email.value.trim() }) })).ok; } catch {}
+      store.set("newsletter", false);
+      f.outerHTML = ok ? `<div class="form-card success"><div class="success__check">${icon("check")}</div><h2>Отписан си</h2><p class="muted">Няма да получаваш повече бюлетина и известия за намаление.</p></div>`
+        : `<div class="form-card"><p>Не успяхме да те отпишем автоматично. Пиши ни на <a class="link" href="mailto:${esc(S.email)}?subject=Отписване">${esc(S.email)}</a>.</p></div>`;
+    });
+  }
+
+  /* ---------- съгласие за бисквитки ---------- */
+  function saveConsent(c) {
+    const v = { v: CONSENT_V, at: Date.now(), prefs: !!c.prefs, stats: !!c.stats, ext: !!c.ext };
+    try { localStorage.setItem("gdm2_consent", JSON.stringify(v)); } catch {}
+    if (!v.prefs) PREF_KEYS.forEach((k) => { try { localStorage.removeItem("gdm2_" + k); } catch {} });
+    if (v.stats) initAnalytics();
+    $("#consentBar")?.remove(); closeModal();
+    if (v.ext && $("[data-loadmap]")) $("[data-loadmap]").click();
+  }
+  function consentBar() {
+    if (consent().v === CONSENT_V || $("#consentBar")) return;
+    document.body.insertAdjacentHTML("beforeend", `<div class="consent" id="consentBar" role="dialog" aria-live="polite" aria-label="Бисквитки и локално хранилище">
+      <p><b>Бисквитки и данни в браузъра.</b> Ползваме само необходимото за количката, любимите и поръчката. С твое съгласие запомняме и последно разгледаните продукти и модела ти${AN.provider ? ", броим анонимно посещенията" : ""} и зареждаме картата на Google. <a href="#/legal/cookies">Научи повече</a></p>
+      <div class="consent__btns"><button class="btn btn--ghost btn--sm" data-cset>Настройки</button><button class="btn btn--ghost btn--sm" data-cnone>Само необходимите</button><button class="btn btn--primary btn--sm" data-call>Приемам всички</button></div></div>`);
+    const bar = $("#consentBar");
+    bar.addEventListener("click", (e) => {
+      if (e.target.closest("[data-call]")) saveConsent({ prefs: true, stats: true, ext: true });
+      if (e.target.closest("[data-cnone]")) saveConsent({});
+      if (e.target.closest("[data-cset]")) openConsent();
+    });
+  }
+  function openConsent() {
+    const c = consent();
+    const row = (k, t, d, on, fixed) => `<label class="consent__row"><span><b>${t}</b><small class="muted">${d}</small></span>
+      <span class="switch"><input type="checkbox" ${fixed ? "checked disabled" : on ? "checked" : ""} data-ck="${k}" aria-label="${t}"><span></span></span></label>`;
+    openModal(`<button class="icon-btn modal__close" data-close aria-label="Затвори">${icon("close")}</button>
+      <div class="consent__modal"><h2>Настройки за бисквитки</h2>
+        <p class="muted small">Сайтът не използва рекламни бисквитки. Тук избираш кои незадължителни данни да пазим в браузъра ти и коя външна услуга да зареждаме. Можеш да промениш избора по всяко време от „Настройки за бисквитки“ в долната част на сайта.</p>
+        ${row("need", "Необходими", "Количка, любими, сравнение, избрана тема, номера на последните ти заявки, този избор и кешът на сайта. Без тях магазинът не работи.", true, true)}
+        ${row("prefs", "Предпочитания", "Последно разгледани продукти, последни търсения и запомнен модел телефон.", c.prefs)}
+        ${AN.provider ? row("stats", "Статистика", "Анонимен брой посещения без бисквитки и без профил на посетителя.", c.stats) : ""}
+        ${row("ext", "Външно съдържание", "Картата на Google Maps в „Контакти“ – Google получава техническа заявка от браузъра ти.", c.ext)}
+        <div class="consent__btns"><button class="btn btn--ghost" data-cnone2>Само необходимите</button><button class="btn btn--ghost" data-csave>Запази избора</button><button class="btn btn--primary" data-call2>Приемам всички</button></div>
+        <p class="small"><a class="link" href="#/legal/cookies">Подробно за бисквитките</a> · <a class="link" href="#/legal/privacy">Поверителност</a></p></div>`);
+    $("#modalBox").onclick = (e) => {
+      const v = (k) => $(`#modalBox [data-ck="${k}"]`)?.checked;
+      if (e.target.closest("[data-call2]")) saveConsent({ prefs: true, stats: true, ext: true });
+      if (e.target.closest("[data-cnone2]")) saveConsent({});
+      if (e.target.closest("[data-csave]")) saveConsent({ prefs: v("prefs"), stats: v("stats"), ext: v("ext") });
+    };
+  }
+
   /* ================= ЗАПИСВАНЕ НА ЧАС ================= */
   // Официални празници (магазинът е затворен); Великден по православния календар.
   const HOLIDAYS = new Set(["01-01", "03-03", "05-01", "05-06", "05-24", "09-06", "09-22", "12-24", "12-25", "12-26",
@@ -1949,7 +2103,7 @@
   }
 
   /* ================= ПРАВНИ СТРАНИЦИ ================= */
-  const LEGAL_ORDER = [["terms", "Общи условия"], ["delivery", "Доставка и плащане"], ["returns", "Гаранция и връщане"], ["privacy", "Поверителност"], ["cookies", "Бисквитки и локални настройки"]];
+  const LEGAL_ORDER = [["terms", "Общи условия"], ["delivery", "Доставка и плащане"], ["returns", "Гаранция и връщане"], ["privacy", "Поверителност"], ["cookies", "Бисквитки и локални настройки"], ["accessibility", "Достъпност"]];
   function pageLegal(key, anchor) {
     const base = LEGAL[key];
     if (!base) return pageNotFound();
@@ -2052,7 +2206,7 @@
           <button class="icon-btn icon-btn--sm" data-add="${x.def.id}" aria-label="Добави ${esc(x.name)}">${icon("plus")}</button></div>`).join("")}</div></div>`);
     }
     $("#cartFoot").innerHTML = `
-      <div class="row"><span class="muted">Стоки (${n})</span><b>${eur(subtotal(), true)}</b></div>
+      <div class="row"><span class="muted">Стоки (${n})</span><b>${eur(subtotal(), true)} ${bgnHtml(subtotal())}</b></div>
       <p class="muted small">Вземане от магазина е без такса. За куриер таксата се уточнява преди потвърждение.</p>
       <button class="btn btn--primary btn--block btn--lg" id="checkoutBtn">Към поръчката ${icon("arrow")}</button>`;
   }
@@ -2096,7 +2250,7 @@
         <div class="summary" id="sum"></div>
         <label class="check check--consent"><input type="checkbox" required><span>Съгласен/на съм с <a href="#/legal/terms" target="_blank">общите условия</a> и <a href="#/legal/privacy" target="_blank">политиката за поверителност</a>. *</span></label>
         <button class="btn btn--primary btn--block btn--lg" type="submit">Изпрати заявка за поръчка</button>
-        <p class="muted small center">Магазинът потвърждава наличността, сумата и срока преди изпълнение.</p>
+        <p class="muted small center">Заявката не те задължава да платиш. Договорът се сключва, когато магазинът потвърди наличността, крайната сума и срока и ти ги приемеш. Цените са с ДДС${DUAL ? `; в лева по курс ${String(S.bgnRate).replace(".", ",")} лв. за 1 €` : ""}. Имаш право на отказ в 14 дни от получаването – <a href="#/legal/returns" target="_blank">условия</a> и <a href="#/withdraw" target="_blank">функция за отказ</a>.</p>
       </form>`);
     const f = $("#checkoutForm");
     let lastCourier = null, promo = null, office = null;
@@ -2133,7 +2287,7 @@
         <hr><div class="row"><span class="muted">Стоки</span><span>${eur(sub, true)}</span></div>
         ${disc ? `<div class="row promo-line"><span>Отстъпка (${esc(promo.code)})</span><span>−${eur(disc, true)}</span></div>` : ""}
         <div class="row"><span class="muted">Доставка</span><span>${fee === 0 ? "Без такса" : fee == null ? "Предстои уточняване" : eur(fee, true)}</span></div>
-        <div class="row row--total"><span>Общо${fee == null ? " <small class=\"muted\">(без доставка)</small>" : ""}</span><span>${eur(sub - disc + (fee || 0), true)}</span></div>`;
+        <div class="row row--total"><span>Общо${fee == null ? " <small class=\"muted\">(без доставка)</small>" : ""}</span><span>${eur(sub - disc + (fee || 0), true)} ${bgnHtml(sub - disc + (fee || 0))}</span></div>`;
       return { courier, fee, sub, disc, econtOffice };
     };
     f.addEventListener("change", (e) => { if (e.target.id !== "officeQ" && e.target.id !== "promoIn") upd(); });
@@ -2198,7 +2352,7 @@
         : courier ? `${fd.recv}, ${fd.dest === "office" ? "до офис" : "до адрес"}: ${fd.city}, ${fd.addr}` : `Вземане от магазина (${S.address})`;
       const total = Math.round((sub - disc + (fee || 0)) * 100) / 100;
       const text = [`Заявка за поръчка № ${num}`, "", ...items, "", `Стоки: ${eur(sub, true)}`, disc ? `Отстъпка (код ${promo.code}): −${eur(disc, true)}` : false,
-        `Доставка: ${fee === 0 ? "без такса" : fee == null ? "предстои уточняване" : eur(fee, true)}`, `Общо: ${eur(total, true)}`, "",
+        `Доставка: ${fee === 0 ? "без такса" : fee == null ? "предстои уточняване" : eur(fee, true)}`, `Общо: ${eur(total, true)}${DUAL ? ` (${bgn(total)})` : ""}`, "",
         `Клиент: ${fd.name}`, `Телефон: ${fd.phone}`, fd.email ? `Имейл: ${fd.email}` : false, `Получаване: ${recvTxt}`, `Плащане: ${fd.pay}`,
         fd.note ? `Бележка: ${fd.note}` : false].filter((x) => x !== false).join("\n");
       const btn = f.querySelector("[type=submit]");
@@ -2486,7 +2640,7 @@
   function parseRoute() {
     let h = location.hash.slice(1);
     if (!h || !h.startsWith("/")) {
-      const m = location.pathname.match(/^\/(p|c|legal|guides)\/([\w-]+)\/?$/) || location.pathname.match(/^\/(service|inquiries|compare|contact|track|about|faq|guides)\/?$/);
+      const m = location.pathname.match(/^\/(p|c|legal|guides)\/([\w-]+)\/?$/) || location.pathname.match(/^\/(service|inquiries|compare|contact|track|about|faq|guides|withdraw|unsubscribe)\/?$/);
       if (m) h = "/" + m[1] + (m[2] ? "/" + m[2] : "") + location.search; // /p/slug/?v=123 от фийда
     }
     const [pathA, qs] = (h.startsWith("/") ? h : "/").split("?");
@@ -2520,6 +2674,8 @@
       case "compare": pageCompare(); break;
       case "track": pageTrack(q); break;
       case "about": pageAbout(); break;
+      case "withdraw": pageWithdraw(q); break;
+      case "unsubscribe": pageUnsubscribe(q); break;
       case "faq": pageFaq(); break;
       case "guides": parts[1] ? pageGuide(parts[1]) : pageGuides(); break;
       default: pageNotFound();
@@ -2527,6 +2683,7 @@
     if (!anchor && parts[0] !== "contact") window.scrollTo(0, 0);
     lastPath = routeKey();
     reveal();
+    if (consent().ext && $("[data-loadmap]") && !$("#map iframe")) $("[data-loadmap]").click(); // картата – само със съгласие
     if (navCount++) { view.classList.remove("view-in"); void view.offsetWidth; view.classList.add("view-in"); }
     document.body.classList.toggle("has-contact", !parts[0] || ["contact", "about"].includes(parts[0]));
     setCanonical(parts);
@@ -2554,8 +2711,10 @@
 
   /* ---------- анонимна статистика (без бисквитки) ---------- */
   const AN = window.ANALYTICS || {};
+  let analyticsOn = false;
   function initAnalytics() {
-    if (!AN.provider || !/^https?:$/.test(location.protocol)) return;
+    if (analyticsOn || !AN.provider || !/^https?:$/.test(location.protocol) || !consent().stats) return;
+    analyticsOn = true;
     const s = document.createElement("script");
     s.defer = true;
     if (AN.provider === "plausible" && AN.domain) {
@@ -2627,7 +2786,7 @@
     const tick = () => tds.forEach((e) => (e.innerHTML = todayText()));
     if (tds.length) { tick(); setInterval(tick, 60000); }
     $("[data-tagline]").textContent = S.tagline;
-    $("[data-copy]").textContent = `© ${new Date().getFullYear()} GDMobil · ${S.company} · ЕИК ${S.eik}`;
+    $("[data-copy]").textContent = `© ${new Date().getFullYear()} GDMobil · ${S.company} · ЕИК ${S.eik}${S.vat ? ` · ДДС № ${S.vat}` : ""} · ${S.seat || S.address}`;
     $("#socials").innerHTML = SOCIAL().map(([k, n, u]) => `<a href="${esc(u)}" target="_blank" rel="noopener" aria-label="${n}" title="${n}">${socIcon(k)}</a>`).join("");
     $("#footNews").innerHTML = store.get("newsletter", false) ? `<p class="footer__news-ok">${icon("check")} Абониран си за бюлетина.</p>` : newsForm("news-form--foot");
     $("#fab").innerHTML = S.viber ? `<a href="viber://chat?number=%2B${esc(S.viber)}" class="fab__btn fab__viber" aria-label="Пиши ни във Viber">V</a>` : "";
@@ -2670,6 +2829,7 @@
         return;
       }
       if (e.target.closest("[data-review]")) return openReview();
+      if (e.target.closest("[data-consent]")) return openConsent(true);
       const t = e.target.closest("[data-add],[data-qv],[data-fav],[data-cmp],[data-inc],[data-dec],[data-rm],[data-close],[data-reset],[data-unf],[data-expand],#checkoutBtn");
       if (!t) {
         if (e.target.closest(".drawer a[href^='#/']")) closeDrawers();
@@ -2742,6 +2902,7 @@
   bind();
   initChat();
   initAnalytics();
+  consentBar();
   router();
   if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
     addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));

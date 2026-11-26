@@ -270,6 +270,12 @@ def main():
               "image": f"{site}/assets/img/og.jpg", "mainEntityOfPage": f"{site}/guides/{g['slug']}/"}
         urls.append(page(f'/guides/{g["slug"]}/', f'{g["title"]} | GDMobil', g["desc"], body, ld))
 
+    # ---------- отказ от договора и отписване (формите се показват от сайта) ----------
+    urls.append(page("/withdraw/", "Отказ от договора | GDMobil", "Функция за отказ от договор за покупка от разстояние в 14-дневния срок – с потвърждение за дата и час.",
+        f'''<section class="container page seo-pre">{crumbs([("Отказ от договора", None)])}<h1>Отказ от договора</h1><p>Като потребител можеш да се откажеш от покупка от разстояние в срок от 14 дни от получаването на стоката, без да посочваш причина. Попълни формата и потвърди с бутона „Потвърждавам отказа от договора“.</p><p><a class="btn btn--primary" href="#/withdraw">Към формата за отказ</a></p></section>'''))
+    page("/unsubscribe/", "Отписване | GDMobil", "Отписване от бюлетина и известията за намаление на GDMobil.",
+        f'''<section class="container page seo-pre"><h1>Отписване от бюлетина</h1><p><a class="btn btn--primary" href="#/unsubscribe">Към формата за отписване</a></p></section>''')
+
     # ---------- правни страници ----------
     for key, d in legal.items():
         secs = "".join(f'<section><h2>{E(s["h"])}</h2>' + "".join(f"<p>{E(x)}</p>" for x in s["p"]) + "</section>" for s in d["sections"])

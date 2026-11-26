@@ -6,14 +6,16 @@
 import { getStore } from "@netlify/blobs";
 import { createHash, randomInt, timingSafeEqual } from "node:crypto";
 import { runDaily } from "./daily.mjs";
+import { low30For } from "../lib/prices.mjs";
 import { sendMail, mailEnabled, layout, rows, itemsTable, storeInfo, siteUrl, eur, when } from "../lib/mail.mjs";
 
 export const STATUSES = {
   order: { new: "Приета", confirmed: "Потвърдена", shipped: "Изпратена", ready: "Готова за вземане", done: "Завършена", cancelled: "Отказана" },
   repair: { new: "Приета", diagnostics: "Диагностика", quote: "Изпратена оферта", repairing: "В ремонт", ready: "Готов за вземане", done: "Завършен", cancelled: "Отказан" },
   inquiry: { new: "Получено", answered: "Отговорено", closed: "Затворено" },
+  withdrawal: { new: "Получен", accepted: "Приет", returned: "Стоката е върната", refunded: "Сумата е възстановена", closed: "Затворен" },
 };
-const TYPE_LABEL = { order: "🛒 Нова поръчка", repair: "🔧 Запитване за ремонт", inquiry: "✉️ Ново запитване", newsletter: "📰 Нов абонат", review: "⭐ Нов отзив (чака одобрение)" };
+const TYPE_LABEL = { order: "🛒 Нова поръчка", repair: "🔧 Запитване за ремонт", inquiry: "✉️ Ново запитване", newsletter: "📰 Нов абонат", withdrawal: "↩️ ОТКАЗ ОТ ДОГОВОР", review: "⭐ Нов отзив (чака одобрение)" };
 
 const json = (data, status = 200, headers = {}) =>
   new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...headers } });
@@ -38,7 +40,7 @@ function limited(key, max) {
 }
 function newRef(type) {
   const d = new Date();
-  const p = type === "order" ? "GD" : type === "repair" ? "R" : "Z";
+  const p = type === "order" ? "GD" : type === "repair" ? "R" : type === "withdrawal" ? "W" : "Z";
   return `${p}-${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}-${randomInt(1000, 10000)}`;
 }
 
@@ -64,7 +66,7 @@ const publicView = (o) => ({
 const SLOT_RX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 const summary = (o) => ({ ref: o.ref, type: o.type, status: o.status, createdAt: o.createdAt, name: o.customer?.name || "", phone: o.customer?.phone || "", total: o.total ?? null, title: o.title || "",
   items: (o.items || []).map((i) => ({ id: i.id, name: i.name, qty: i.qty, price: i.price })), promo: o.promo?.code || "", discount: o.promo?.discount || 0, appointment: o.appointment || "" });
-const KIND = { order: "поръчка", repair: "заявка за ремонт", inquiry: "запитване" };
+const KIND = { order: "поръчка", repair: "заявка за ремонт", inquiry: "запитване", withdrawal: "заявление за отказ от договора" };
 
 // ---------- промо кодове (дефинирани в админ панела → Промо кодове) ----------
 async function findPromo(store, code) {
@@ -95,10 +97,10 @@ async function mailNew(o) {
   if (o.customer.email) {
     jobs.push(sendMail({
       to: { email: o.customer.email, name: o.customer.name }, replyTo: S.email,
-      subject: o.appointment ? `Час за сервиз ${o.ref} – ${when(o.appointment)}` : `Получихме твоята ${KIND[o.type]} ${o.ref}`,
+      subject: o.type === "withdrawal" ? `Потвърждение за отказ от договора ${o.ref}` : o.appointment ? `Час за сервиз ${o.ref} – ${when(o.appointment)}` : `Получихме твоята ${KIND[o.type]} ${o.ref}`,
       html: layout(S, {
-        title: o.appointment ? "Часът ти е запазен" : `Благодарим, ${o.customer.name.split(" ")[0]}!`,
-        intro: o.type === "order" ? "Получихме заявката ти. Ще ти се обадим, за да потвърдим наличността, сумата и срока." :
+        title: o.type === "withdrawal" ? "Получихме отказа ти от договора" : o.appointment ? "Часът ти е запазен" : `Благодарим, ${o.customer.name.split(" ")[0]}!`,
+        intro: o.type === "withdrawal" ? `Отказът е получен на ${when(o.createdAt)}. Това писмо е потвърждението на траен носител. Ще се свържем с теб за връщането на стоката; възстановяваме дължимите суми до 14 дни от получаването на отказа, като можем да изчакаме да получим стоката обратно или доказателство, че е изпратена.` : o.type === "order" ? "Получихме заявката ти. Ще ти се обадим, за да потвърдим наличността, сумата и срока." :
           o.appointment ? "Очакваме те в сервиза. Ако не можеш да дойдеш, обади ни се, за да преместим часа." : "Получихме съобщението ти и ще отговорим възможно най-скоро.",
         body: details + itemsTable(o.items, o.total), button: { text: "Проследи статуса", url: track },
         footer: "Отговори на това писмо, ако имаш въпрос.",
@@ -107,7 +109,7 @@ async function mailNew(o) {
   }
   jobs.push(sendMail({
     to: process.env.MAIL_OWNER || process.env.MAIL_FROM, replyTo: o.customer.email || undefined,
-    subject: `${o.appointment ? "📅 Час за сервиз" : o.type === "order" ? "🛒 Нова поръчка" : o.type === "repair" ? "🔧 Ремонт" : "✉️ Запитване"} ${o.ref} – ${o.customer.name}${o.total != null ? " – " + eur(o.total) : ""}`,
+    subject: `${o.type === "withdrawal" ? "↩️ ОТКАЗ ОТ ДОГОВОР" : o.appointment ? "📅 Час за сервиз" : o.type === "order" ? "🛒 Нова поръчка" : o.type === "repair" ? "🔧 Ремонт" : "✉️ Запитване"} ${o.ref} – ${o.customer.name}${o.total != null ? " – " + eur(o.total) : ""}`,
     html: layout(S, { title: `${o.title || o.ref}`, body: `<pre style="white-space:pre-wrap;font:14px/1.5 Arial,sans-serif;margin:0">${String(o.text).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]))}</pre>`,
       button: { text: "Отвори в админ панела", url: `${site}/admin.html` } }),
   }));
@@ -202,6 +204,12 @@ export default async (req, context) => {
     return json({ error: "bad_request" }, 400);
   }
 
+  // ---------- най-ниска цена през 30-те дни преди сегашната (публично) ----------
+  if (req.method === "GET" && url.searchParams.get("low30")) {
+    const ids = url.searchParams.get("low30").split(",").map((x) => x.replace(/\D/g, "")).filter(Boolean).slice(0, 200);
+    try { return json(await low30For(ids), 200, { "cache-control": "public, max-age=3600" }); } catch { return json({}); }
+  }
+
   // ---------- проверка на промо код (публично) ----------
   if (req.method === "GET" && url.searchParams.has("promo")) {
     if (limited("promo:" + ip, 20)) return json({ error: "rate_limited" }, 429);
@@ -232,7 +240,16 @@ export default async (req, context) => {
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
   if (limited("new:" + ip, 12)) return json({ error: "rate_limited" }, 429);
   const b = await req.json().catch(() => null);
-  if (!b || !["order", "repair", "inquiry", "newsletter", "review", "watch"].includes(b.type)) return json({ error: "bad_request" }, 400);
+  if (!b || !["order", "repair", "inquiry", "newsletter", "review", "watch", "withdrawal", "unsubscribe"].includes(b.type)) return json({ error: "bad_request" }, 400);
+
+  if (b.type === "unsubscribe") { // отписване от бюлетина и от известията за намаление
+    const email = clean(b.email, 200).toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: "bad_request" }, 400);
+    await store.delete("newsletter/" + email);
+    const { blobs } = await store.list({ prefix: "watch/" });
+    for (const x of blobs) { const w = await store.get(x.key, { type: "json" }); if (w?.email === email) await store.delete(x.key); }
+    return json({ ok: true });
+  }
 
   if (b.type === "watch") {
     const email = clean(b.email, 200).toLowerCase();
@@ -272,7 +289,7 @@ export default async (req, context) => {
     if (!p) return json({ error: "promo_invalid" }, 400);
     promo = { code: p.code, discount: Math.max(0, Math.round((Number(b.discount) || 0) * 100) / 100) };
   }
-  let ref = /^(GD|R|Z)-\d{6}-\d{4}$/.test(b.ref || "") ? b.ref : newRef(b.type);
+  let ref = /^(GD|R|Z|W)-\d{6}-\d{4}$/.test(b.ref || "") ? b.ref : newRef(b.type);
   if (await store.get("o/" + ref)) ref = newRef(b.type);
   const now = new Date().toISOString();
   const o = {
