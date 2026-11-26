@@ -882,6 +882,9 @@
       const og = l.filter((x) => x.brand === "OG Premium");
       return [...og, ...diversify(l.filter((x) => !og.includes(x)).sort((a, b) => accRank(a) - accRank(b)).slice(0, 60))];
     })() : [];
+    // съвместими модели с четими имена (без сурови ключове), по реда на каталога
+    const MK_NAME = pageProduct.mkName || (pageProduct.mkName = new Map(PRODUCTS.filter((x) => x.mk && x.cat !== "accessories").map((x) => [x.mk, x.name])));
+    const compatNames = [...new Set(p.compat || [])].map((k) => [k, MODEL_NAMES[k] || MK_NAME.get(k)]).filter(([, n]) => n);
     const similar = PRODUCTS.filter((x) => x !== p && x.cat === p.cat && (p.cat === "accessories" ? x.sub === p.sub && (x.compat || []).some((k) => (p.compat || []).includes(k)) : x.brand === p.brand))
       .sort((a, b) => Math.abs((a.min ?? 0) - (p.min ?? 0)) - Math.abs((b.min ?? 0) - (p.min ?? 0))).slice(0, 8);
     const recent = state.recent.slice(1).map((s) => BY_SLUG.get(s)).filter(Boolean).slice(0, 8);
@@ -926,7 +929,8 @@
 
       <div class="pd-section" id="specsSec"></div>
 
-      ${p.compat && p.compat.length ? `<div class="pd-section"><h2>Съвместими модели</h2><div class="tags">${p.compat.map((k) => `<a class="chip" href="#/c/accessories?model=${k}">${esc(MODEL_NAMES[k] || k)}</a>`).join("")}</div>
+      ${compatNames.length ? `<div class="pd-section"><h2>Съвместими модели${compatNames.length > 12 ? ` <span class="muted small">(${compatNames.length})</span>` : ""}</h2><div class="tags compat-tags">${compatNames.slice(0, 12).map(([k, n]) => `<a class="chip" href="#/c/accessories?model=${k}">${esc(n)}</a>`).join("")}</div>
+        ${compatNames.length > 12 ? `<details class="compat-more"><summary>Покажи всички ${compatNames.length} модела</summary><div class="tags compat-tags">${compatNames.slice(12).map(([k, n]) => `<a class="chip" href="#/c/accessories?model=${k}">${esc(n)}</a>`).join("")}</div></details>` : ""}
         <p class="muted small">Провери точния модел и съвместимостта преди покупка.</p></div>` : ""}
 
       ${compatAcc.length ? `<div class="pd-section"><div class="section__head"><div><span class="eyebrow">Допълни</span><h2>Аксесоари за ${esc(p.name.replace(p.brand + " ", ""))}</h2></div>
@@ -1952,7 +1956,7 @@
   function consentBar() {
     if (consent().v === CONSENT_V || $("#consentBar")) return;
     document.body.insertAdjacentHTML("beforeend", `<div class="consent" id="consentBar" role="dialog" aria-live="polite" aria-label="Бисквитки и локално хранилище">
-      <p><b>Бисквитки и данни в браузъра.</b> Ползваме само необходимото за количката, любимите и поръчката. С твое съгласие запомняме и последно разгледаните продукти и модела ти${AN.provider ? ", броим анонимно посещенията" : ""} и зареждаме картата на Google. <a href="#/legal/cookies">Научи повече</a></p>
+      <p><b>Бисквитки и данни в браузъра.</b> Ползваме само необходимото за количката, любимите и поръчката.<span class="consent__long"> С твое съгласие запомняме и последно разгледаните продукти и модела ти${AN.provider ? ", броим анонимно посещенията" : ""} и зареждаме картата на Google.</span><span class="consent__short"> Останалото – само с твое съгласие.</span> <a href="#/legal/cookies">Научи повече</a></p>
       <div class="consent__btns"><button class="btn btn--ghost btn--sm" data-cset>Настройки</button><button class="btn btn--ghost btn--sm" data-cnone>Само необходимите</button><button class="btn btn--primary btn--sm" data-call>Приемам всички</button></div></div>`);
     const bar = $("#consentBar");
     bar.addEventListener("click", (e) => {

@@ -1448,3 +1448,33 @@ html { font-feature-settings: "locl" 0; }
 .consent__row { cursor: pointer; }
 @media (max-width: 1100px) and (min-width: 861px) { .footer__inner { grid-template-columns: 1fr 1fr 1fr; } .footer__inner > :first-child { grid-row: span 2; } }
 .footer__legal { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+
+/* ---------- мобилна версия: поправки ---------- */
+.compat-tags .chip { max-width: 100%; overflow-wrap: anywhere; white-space: normal; }
+.compat-more summary { cursor: pointer; color: var(--ember-ink); font-weight: 600; margin: 4px 0 10px; }
+.svc-grid > *, .pd__info, .pd > * { min-width: 0; }
+.sticky-buy .btn { flex: none; white-space: nowrap; }
+@media (max-width: 560px) {
+  .keyspecs { grid-template-columns: 1fr 1fr; }
+  .pd__tools { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .pd__tools .btn { justify-content: center; padding-inline: 10px; font-size: .86rem; min-width: 0; }
+  .pd__tools .btn span, .pd__tools .btn { overflow: hidden; text-overflow: ellipsis; }
+  .consent { padding: 12px 14px; gap: 10px; border-radius: 18px; }
+  .consent p { font-size: .8rem; line-height: 1.4; }
+  .consent__btns { flex-wrap: nowrap; gap: 6px; }
+  .consent__btns .btn { padding: 9px 8px; font-size: .8rem; min-width: 0; }
+  .sticky-buy { padding-left: 14px; }
+  .sticky-buy b { font-size: 1rem; }
+  .sticky-buy .btn { padding: 11px 14px; font-size: .9rem; }
+  .two > *, form > * { min-width: 0; }
+  input, select, textarea { max-width: 100%; min-width: 0; }
+}
+body.lock .toast { top: calc(14px + env(safe-area-inset-top)); bottom: auto; transform: translate(-50%, -30px); } body.lock .toast.show { transform: translate(-50%, 0); }
+@media (max-width: 560px) { .consent__btns .btn { white-space: normal; line-height: 1.2; } }
+.consent__short { display: none; }
+@media (max-width: 560px) {
+  .consent__long { display: none; } .consent__short { display: inline; }
+  .consent .consent__btns .btn { font-size: .8rem; padding: 9px 8px; }
+  .pd__tools .btn { white-space: normal; line-height: 1.2; justify-content: flex-start; text-align: left; overflow: visible; }
+  .pd__tools .btn svg { flex: none; }
+}
