@@ -1311,7 +1311,7 @@
       const r = window.REPAIRS[+calc.rep.value];
       const dev = calc.dev.value, brand = calc.brand.value, model = calc.model.value.trim();
       const exact = plFind(`${brand === "Друга" ? "" : brand} ${model}`, r.title) || (model && plFind(model, r.title));
-      $("#calcRes").innerHTML = `<div><small class="muted">${esc(dev)} · ${esc(exact ? exact.name : model || brand)} · ${esc(r.title)}</small>
+      $("#calcRes").innerHTML = `<div><small class="muted">${exact ? "" : esc(dev) + " · "}${esc(exact ? exact.name : model || brand)} · ${esc(r.title)}</small>
         <b class="calc__price">${esc(exact ? exact.price : r.price)}</b><small class="muted">${exact ? "Ориентировъчно за този модел." : "Ориентировъчно."} Точната цена – след преглед.</small></div>
         <div class="row-btns"><button type="button" class="btn btn--primary" id="calcGo">Поискай точна оферта ${icon("arrow")}</button>
         <button type="button" class="btn btn--ghost" id="calcBook">${icon("clock")} Запази час</button></div>`;
