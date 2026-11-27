@@ -62,6 +62,28 @@ def prepare_dist():
     shutil.copytree(os.path.join(ROOT, "assets"), os.path.join(DIST, "assets"), copy_function=link_or_copy)
 
 
+def asset_versions():
+    """Кратък отпечатък на всеки JS/CSS файл – добавя се като ?v=… към адреса, за да не ползва браузърът стар кеш след публикуване."""
+    import hashlib
+    out = {}
+    d = os.path.join(ROOT, "assets")
+    for f in os.listdir(d):
+        if f.endswith((".js", ".css")):
+            out[f] = hashlib.md5(open(os.path.join(d, f), "rb").read()).hexdigest()[:10]
+    return out
+
+
+def stamp(text, ver):
+    return re.sub(r'(assets/)([\w.-]+\.(?:js|css))(?=["\'])', lambda m: f"{m.group(1)}{m.group(2)}?v={ver[m.group(2)]}" if m.group(2) in ver else m.group(0), text)
+
+
+def rewrite(path, text):
+    # файловете в dist може да са твърди връзки към изходните – пишем нов файл, а не върху връзката
+    if os.path.exists(path):
+        os.unlink(path)
+    open(path, "w", encoding="utf-8").write(text)
+
+
 def live_overrides(site):
     """Взема настройките от админ панела на живия сайт (скрити продукти и редакции на име/описание/снимки),
     за да ги отрази и в статичните страници за Google. Без връзка – празни настройки."""
@@ -133,7 +155,12 @@ def main():
         return f"assets/img/products/{h}.webp" if big or h in no_thumb or re.match(r"^cs\d+$", h) else f"assets/img/products/{h}-sm.webp"
 
     prepare_dist()
-    template = open(os.path.join(ROOT, "index.html"), encoding="utf-8").read()
+    ver = asset_versions()
+    template = stamp(open(os.path.join(ROOT, "index.html"), encoding="utf-8").read(), ver)
+    for f in ["index.html", "admin.html"]:
+        rewrite(os.path.join(DIST, f), stamp(open(os.path.join(ROOT, f), encoding="utf-8").read(), ver))
+    boot = open(os.path.join(ROOT, "assets", "boot.js"), encoding="utf-8").read()
+    rewrite(os.path.join(DIST, "assets", "boot.js"), boot.replace('"assets/app.js"', f'"assets/app.js?v={ver["app.js"]}"'))
 
     def page(path, title, desc, body, ld=None, image=None):
         url = f"{site}{path}"

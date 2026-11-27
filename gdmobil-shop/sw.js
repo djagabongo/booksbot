@@ -1,5 +1,5 @@
 /* GDMobil service worker – бързо зареждане и работа при слаба връзка */
-const VERSION = "gdm-v36";
+const VERSION = "gdm-v37";
 const SHELL = ["./", "index.html", "assets/styles.css", "assets/app.js", "assets/data.js", "assets/catalog.js", "assets/legal.js", "assets/boot.js", "assets/img/logo-h.webp"];
 
 self.addEventListener("install", (e) => {
@@ -19,5 +19,5 @@ self.addEventListener("fetch", (e) => {
   }
   // всичко друго: първо от мрежата, при липса на връзка – от кеша
   e.respondWith(fetch(req).then((res) => { if (res.ok) caches.open(VERSION).then((c) => c.put(req, res.clone())); return res; })
-    .catch(() => caches.match(req).then((hit) => hit || caches.match("index.html"))));
+    .catch(() => caches.match(req, { ignoreSearch: true }).then((hit) => hit || caches.match("index.html"))));
 });
