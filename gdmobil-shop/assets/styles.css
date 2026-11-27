@@ -1478,3 +1478,7 @@ body.lock .toast { top: calc(14px + env(safe-area-inset-top)); bottom: auto; tra
   .pd__tools .btn { white-space: normal; line-height: 1.2; justify-content: flex-start; text-align: left; overflow: visible; }
   .pd__tools .btn svg { flex: none; }
 }
+/* снимка, която не е заредена, не разлива алтернативния текст */
+.xsell__img, .card__media, .line__img, .pd__main { overflow: hidden; }
+.xsell__img img, .line__img img { font-size: 0; color: transparent; }
+.xsell__item { min-width: 0; }

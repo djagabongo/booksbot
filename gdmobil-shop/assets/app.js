@@ -190,7 +190,7 @@
 
   /* ---------- общи UI елементи ---------- */
   const imgTag = (h, alt, cls = "", big) =>
-    `<img class="${cls}" src="${esc(big ? full(h) : thumb(h))}" data-full="${esc(full(h))}" alt="${esc(alt)}" loading="lazy" decoding="async" onload="this.classList.add('ld')" onerror="if(this.src.indexOf(this.dataset.full)<0)this.src=this.dataset.full;else this.classList.add('ld')">`;
+    `<img class="${cls}" src="${esc(big ? full(h) : thumb(h))}" data-full="${esc(full(h))}" alt="${esc(alt)}" loading="lazy" decoding="async" onload="this.classList.add('ld')" onerror="if(this.src.indexOf(this.dataset.full)<0)this.src=this.dataset.full;else{this.onerror=null;this.alt='';this.style.visibility='hidden'}">`;
   const isFav = (slug) => state.favs.includes(slug);
   const inCmp = (slug) => state.compare.includes(slug);
   const canCompare = (p) => p.cat === "phones" || p.cat === "tablets";
@@ -2205,7 +2205,7 @@
       pool.sort((a, b) => a.min - b.min).forEach((x) => { if (!bySub.has(x.sub)) bySub.set(x.sub, x); });
       const picks = [...bySub.values()].slice(0, 6);
       if (picks.length) $("#cartItems").insertAdjacentHTML("beforeend", `<div class="xsell"><h4>Добави към поръчката</h4>
-        <div class="xsell__list">${picks.map((x) => `<div class="xsell__item"><a href="#/p/${x.slug}" class="xsell__img">${imgTag(x.img, x.name)}</a>
+        <div class="xsell__list">${picks.map((x) => `<div class="xsell__item"><a href="#/p/${x.slug}" class="xsell__img" tabindex="-1" aria-hidden="true">${imgTag(x.img, "").replace(' loading="lazy"', "")}</a>
           <a href="#/p/${x.slug}" class="xsell__name">${esc(x.sub)}<small>${esc(x.name)}</small></a><b>${eur(x.min)}</b>
           <button class="icon-btn icon-btn--sm" data-add="${x.def.id}" aria-label="Добави ${esc(x.name)}">${icon("plus")}</button></div>`).join("")}</div></div>`);
     }
