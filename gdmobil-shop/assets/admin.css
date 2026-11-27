@@ -329,3 +329,28 @@
 @media (hover: none) { .adm-rowact { opacity: .8; } }
 .adm-none { display: grid; justify-items: center; gap: 10px; padding: 24px 10px; text-align: center; }
 .toast__undo { margin-left: 10px; padding: 4px 12px; border-radius: 999px; background: #fff; color: #111; font-weight: 600; font-size: .85rem; }
+
+/* по-голям и по-четим списък с продукти */
+.adm .adm-main { max-width: 1900px; }
+.adm .adm-split { grid-template-columns: minmax(440px, 42%) minmax(0, 1fr); gap: 20px; }
+@media (min-width: 1700px) { .adm .adm-split { grid-template-columns: minmax(560px, 44%) minmax(0, 1fr); } }
+.adm .adm-list { max-height: calc(100dvh - 104px); }
+.adm .adm-results { padding: 6px 8px 10px; }
+.adm .adm-results .adm-item { grid-template-columns: 68px minmax(0, 1fr); gap: 14px; padding: 12px 30px 12px 10px; }
+.adm .adm-item__img { width: 68px; height: 68px; border-radius: 14px; }
+.adm .adm-item__txt b { font-size: 1rem; line-height: 1.35; -webkit-line-clamp: 3; }
+.adm .adm-item__txt small { font-size: .86rem; }
+.adm .adm-item__brand { font-size: .72rem !important; }
+.adm .adm-item__txt .adm-chip { font-size: .74rem; padding: 3px 9px; }
+.adm .adm-pickrow { grid-template-columns: 34px minmax(0, 1fr) 40px; border-bottom: 1px solid var(--line); border-radius: 0; }
+.adm .adm-pickrow:last-of-type { border-bottom: 0; }
+.adm .adm-pick input { width: 20px; height: 20px; }
+.adm .adm-rowact { width: 36px; height: 36px; }
+.adm .adm-rowact svg { width: 19px; height: 19px; }
+.adm .adm-list__tools { padding: 16px; gap: 12px; }
+.adm .adm-list__tools .input { font-size: .98rem; }
+.adm .adm-filters .select { font-size: .92rem; padding-block: 10px; }
+.adm .adm-group { font-size: .78rem; padding: 8px 12px; }
+#pcount { font-size: .9rem !important; }
+@media (max-width: 1000px) { .adm .adm-split { grid-template-columns: minmax(0, 1fr); } .adm .adm-list { max-height: 75dvh; } }
+@media (min-width: 1700px) { .adm .adm-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); } .adm .adm-filters #fSort { grid-column: auto; } }
