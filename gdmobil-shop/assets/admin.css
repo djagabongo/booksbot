@@ -374,3 +374,22 @@
 .adm-span2 { grid-column: span 2; }
 @media (max-width: 700px) { .adm-span2 { grid-column: auto; } }
 .adm .adm-multi { height: auto !important; min-height: 200px; padding: 6px !important; background-image: none; } .adm .adm-multi option { padding: 5px 8px; border-radius: 6px; } #npCmQ { margin-bottom: 6px; }
+
+/* таблица с вариантите – търсене, маркиране, по-широки полета */
+.adm-vbar { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg); }
+.adm-vbar #vQ { flex: 1; min-width: 220px; }
+.adm-vbar__act { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; width: 100%; padding-top: 8px; border-top: 1px dashed var(--line); }
+.adm-vbar__act[hidden] { display: none; }
+.adm-vbar__act > span { font-weight: 600; font-size: .88rem; margin-right: 6px; }
+.adm .adm-vtable { min-width: 0; }
+.adm .adm-vtable td { padding: 10px 8px; }
+.adm-vtable .adm-vimg { width: 78px; white-space: nowrap; }
+.adm-vtable .adm-vimg label { display: inline-grid; vertical-align: middle; margin-left: 6px; }
+.adm-vpick { width: 18px; height: 18px; accent-color: var(--ember); vertical-align: middle; cursor: pointer; }
+.adm-vcell { min-width: 260px; }
+.adm-vcell__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.adm-vcell__head .adm-rowact { opacity: .7; flex: none; margin: -4px -4px 0 0; }
+.adm .adm-vfields { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+.adm .adm-vtable .input--sm[data-f] { width: 92px; }
+.adm .adm-vtable .select.input--sm { width: 132px; }
+tr[hidden] { display: none; }

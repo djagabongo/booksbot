@@ -519,7 +519,8 @@
     const box = old.cloneNode(false); old.replaceWith(box); // без натрупани обработчици от предишния продукт
     if (!sel) { box.innerHTML = `<div class="adm-empty"><b>Избери продукт отляво</b><p class="muted">Можеш да промениш цена, намаление, наличност и етикети, или да го скриеш от сайта.</p></div>`; return; }
     const p = sel;
-    const vFields = VF.filter(([k]) => k === "color" || p.variants.some((v) => v[k]) || (O.vadd[p.slug] || []).some((v) => v[k]));
+    const vFields = VF.filter(([k]) => (k === "color" && p.cat !== "accessories") || p.variants.some((v) => v[k]) || (O.vadd[p.slug] || []).some((v) => v[k]));
+    const manyV = variantsOf(p).length > 6;
     const autoNew = !!NEW_RE() && (p.cat === "phones" || p.cat === "tablets") && NEW_RE().test(p.name);
     const newMode = O.labels.newAdd.includes(p.slug) ? "on" : O.labels.newRemove.includes(p.slug) ? "off" : "auto";
     box.innerHTML = `
@@ -562,21 +563,31 @@
         <label class="adm-card adm-card--check"><input type="checkbox" id="mHot" ${O.labels.hot.includes(p.slug) ? "checked" : ""}><span><b>Етикет „Хит“</b><small>Показва се и в „Подбрани“ при раздел Хит</small></span></label>
         <label class="adm-card adm-card--check"><input type="checkbox" id="mHide" ${O.hidden.includes(p.slug) ? "checked" : ""}><span><b>Скрий от сайта</b><small>Няма да се показва никъде</small></span></label>
       </div>
-      <div class="adm-table-wrap"><table class="adm-table">
-        <thead><tr><th></th><th>Вариант</th><th>Цена в каталога</th><th>Нова цена</th><th>Намаление</th><th>Наличност</th><th>Крайна цена</th><th></th></tr></thead>
+      <div class="adm-vbar">
+        <b>Варианти (${variantsOf(p).filter((v) => !v.deleted).length}${variantsOf(p).some((v) => v.deleted) ? ` · изтрити ${variantsOf(p).filter((v) => v.deleted).length}` : ""})</b>
+        ${manyV ? `<input class="input input--sm" id="vQ" type="search" placeholder="Търси вариант – модел, цвят, памет…">` : ""}
+        <label class="check"><input type="checkbox" id="vPickAll"><span>Маркирай ${manyV ? "показаните" : "всички"}</span></label>
+        <span class="adm-vbar__act" id="vBulk" hidden><span id="vBulkN"></span>
+          <button class="btn btn--sm adm-btn--danger" data-vbulk="del">Изтрий маркираните</button>
+          <button class="btn btn--ghost btn--sm" data-vbulk="restore">Възстанови</button>
+          <button class="btn btn--ghost btn--sm" data-vbulk="order">По заявка</button>
+          <button class="btn btn--ghost btn--sm" data-vbulk="stock">В наличност</button>
+          <button class="btn btn--ghost btn--sm" data-vbulk="price">Цена…</button></span>
+      </div>
+      <div class="adm-table-wrap"><table class="adm-table adm-vtable">
+        <thead><tr><th></th><th>Вариант</th><th>Цена в каталога</th><th>Нова цена</th><th>Намаление</th><th>Наличност</th><th>Крайна цена</th></tr></thead>
         <tbody>${variantsOf(p).map((v) => `<tr data-id="${v.id}" class="${v.deleted ? "adm-vdel" : ""}${v.isNew ? " adm-vnew" : ""}">
-          <td class="adm-vimg"><label title="Смени снимката на този вариант">${imgOf(p, v) ? `<img src="${esc(thumb(imgOf(p, v)))}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : "<span>+</span>"}<input type="file" accept="image/*" data-up="v" data-vid="${v.id}" hidden></label>
+          <td class="adm-vimg"><input type="checkbox" class="adm-vpick" data-vpick="${v.id}" aria-label="Маркирай варианта"><label title="Смени снимката на този вариант">${imgOf(p, v) ? `<img src="${esc(thumb(imgOf(p, v)))}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : "<span>+</span>"}<input type="file" accept="image/*" data-up="v" data-vid="${v.id}" hidden></label>
             ${edOf(p).vimg?.[v.id] ? `<button class="link-btn" data-vreset="${v.id}">оригинал</button>` : ""}</td>
-          <td class="adm-vcell"><b>${esc(v.label)}</b>${v.isNew ? ` <i class="adm-chip adm-chip--blue">нов</i>` : ""}${v.deleted ? ` <i class="adm-chip adm-chip--red">изтрит</i>` : ""}
+          <td class="adm-vcell"><div class="adm-vcell__head"><b>${esc(v.label)}</b>${v.deleted ? `<button class="adm-rowact" data-vrestore="${v.id}" title="Възстанови варианта">↺</button>`
+            : `<button class="adm-rowact adm-rowact--del" data-vdelete="${v.id}" title="Изтрий варианта" aria-label="Изтрий варианта"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>`}</div>${v.isNew ? ` <i class="adm-chip adm-chip--blue">нов</i>` : ""}${v.deleted ? ` <i class="adm-chip adm-chip--red">изтрит</i>` : ""}
             <small class="muted">Арт. ${v.id}${v.code ? " · код " + esc(v.code) : ""}${v.stock === 0 ? " · в каталога: по заявка" : ""}</small>
             ${v.deleted ? "" : `<div class="adm-vfields">${vFields.map(([k, n]) => `<label><span>${n}</span><input class="input input--sm" data-ve="${k}" value="${esc(v[k] || "")}" placeholder="${esc(v.isNew ? "" : v.orig[k] || "—")}"></label>`).join("")}</div>`}</td>
           <td>${v.isNew ? `<small class="muted">нов</small>` : eur(v.price)}${v.old > v.price ? `<small class="muted"><s>${eur(v.old)}</s></small>` : ""}</td>
           <td><input class="input input--sm" type="number" min="0" step="0.01" data-f="price" value="${esc(O.prices[v.id] ?? "")}" placeholder="${v.price ?? ""}" /></td>
           <td><div class="adm-pct"><input class="input input--sm" type="number" min="0" max="90" step="1" data-f="sale" value="${esc(O.labels.sale[v.id] ?? "")}" placeholder="${O.labels.sale[p.slug] ?? 0}" /><b>%</b></div></td>
           <td><select class="select input--sm" data-f="stock"><option value="1">В наличност</option><option value="0" ${O.stock[v.id] === 0 ? "selected" : ""}>По заявка</option></select></td>
-          <td class="adm-final" data-final>${v.isNew && O.prices[v.id] == null ? `<small class="adm-warn-inline">задай цена</small>` : eur(finalOf(p, v))}</td>
-          <td>${v.deleted ? `<button class="adm-rowact" data-vrestore="${v.id}" title="Възстанови варианта">↺</button>`
-            : `<button class="adm-rowact adm-rowact--del" data-vdelete="${v.id}" title="Изтрий варианта" aria-label="Изтрий варианта"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>`}</td></tr>`).join("")}</tbody></table></div>
+          <td class="adm-final" data-final>${v.isNew && O.prices[v.id] == null ? `<small class="adm-warn-inline">задай цена</small>` : eur(finalOf(p, v))}</td></tr>`).join("")}</tbody></table></div>
       <div class="adm-row"><button class="btn btn--ghost btn--sm" id="vAdd">+ Добави вариант</button><span class="muted small">Нов цвят, памет или модел – копира първия вариант, после сменяш текстовете, цената и снимката.</span></div>
       ${p.variants.length > 1 ? `<div class="adm-row"><button class="btn btn--ghost btn--sm" id="allStockOn">Всички в наличност</button><button class="btn btn--ghost btn--sm" id="allStockOff">Всички по заявка</button><button class="btn btn--ghost btn--sm" id="resetModel">Изчисти промените по модела</button></div>`
         : `<div class="adm-row"><button class="btn btn--ghost btn--sm" id="resetModel">Изчисти промените</button></div>`}
@@ -679,6 +690,37 @@
         toggleIn(O.vdel, id, true);
       } else toggleIn(O.vdel, id, false);
       change(); editProduct();
+    });
+    const vRows = () => $$("tr[data-id]", box);
+    const vPicked = () => $$(".adm-vpick:checked", box).map((x) => x.dataset.vpick);
+    const vBar = () => { const n = vPicked().length; $("#vBulk").hidden = !n; $("#vBulkN").textContent = `Маркирани: ${n}`; };
+    $("#vQ")?.addEventListener("input", (e) => {
+      const q = norm(e.target.value).trim();
+      vRows().forEach((tr) => { const v = variantsOf(p).find((x) => String(x.id) === tr.dataset.id); tr.hidden = !!q && !norm(`${v.label} ${v.id}`).includes(q); });
+    });
+    $("#vPickAll").addEventListener("change", (e) => { vRows().forEach((tr) => { if (!tr.hidden) $(".adm-vpick", tr).checked = e.target.checked; }); vBar(); });
+    box.addEventListener("change", (e) => { if (e.target.classList.contains("adm-vpick")) vBar(); });
+    $("#vBulk").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-vbulk]"); if (!b) return;
+      const ids = vPicked(), act = b.dataset.vbulk; if (!ids.length) return;
+      const added = O.vadd[p.slug] || [], isAdded = (id) => added.some((x) => String(x.id) === id);
+      if (act === "del") {
+        const alive = variantsOf(p).filter((v) => !v.deleted && !ids.includes(String(v.id)));
+        if (!alive.length) { toast("Продуктът трябва да има поне един вариант – изтрий целия продукт отгоре"); return; }
+        if (!confirm(`Да изтрия ли ${ids.length} варианта?`)) return;
+        ids.forEach((id) => { if (isAdded(id)) { O.vadd[p.slug] = (O.vadd[p.slug] || []).filter((x) => String(x.id) !== id); delete O.prices[id]; } else toggleIn(O.vdel, id, true); });
+        if (O.vadd[p.slug] && !O.vadd[p.slug].length) delete O.vadd[p.slug];
+      }
+      if (act === "restore") ids.forEach((id) => toggleIn(O.vdel, id, false));
+      if (act === "order" || act === "stock") ids.forEach((id) => (act === "order" ? (O.stock[id] = 0) : delete O.stock[id]));
+      if (act === "price") {
+        const v = prompt(`Нова цена (€) за ${ids.length} варианта (празно = цената от каталога):`, "");
+        if (v == null) return;
+        const n = v.trim() === "" ? null : Math.max(0, Number(v.replace(",", ".")));
+        ids.forEach((id) => (n == null || isNaN(n) ? delete O.prices[id] : (O.prices[id] = n)));
+      }
+      change(); editProduct();
+      toast(`✓ ${{ del: "Изтрити", restore: "Възстановени", order: "По заявка", stock: "В наличност", price: "Нова цена за" }[act]} ${ids.length} варианта – натисни „Запази“`);
     });
     $("#vAdd").addEventListener("click", () => {
       const base = variantsOf(p).find((v) => !v.deleted) || p.variants[0];
