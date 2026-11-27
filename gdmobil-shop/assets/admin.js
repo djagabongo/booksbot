@@ -131,6 +131,8 @@
     b.textContent = "Запази";
     if (r.ok) {
       dirty = false; O._savedAt = r.data.savedAt;
+      // магазинът в този браузър веднага ползва новите настройки (без промо кодовете и указанията за чата)
+      try { const pub = JSON.parse(JSON.stringify(O)); delete pub.promos; delete pub.chat; localStorage.setItem("gdm2_overrides", JSON.stringify({ t: Date.now(), admin: true, o: pub })); } catch {}
       $("#status").textContent = "Запазено " + new Date(r.data.savedAt).toLocaleTimeString("bg-BG") + " · видимо в сайта до минута";
       $("#status").className = "adm-status adm-status--ok";
       toast("✓ Промените са запазени");

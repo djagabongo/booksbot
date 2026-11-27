@@ -87,14 +87,14 @@
   }
 
   if (!/^https?:$/.test(location.protocol)) return start(null);
-  // Запазените настройки (до 30 мин.) се ползват веднага – страницата не чака сървъра.
-  // Иначе се чака най-много 0,8 с. Новите настройки винаги се записват за следващото отваряне.
-  const box = read(), fresh = box && box.t && Date.now() - box.t < 30 * 60 * 1000;
-  const cached = box && box.t ? box.o : box;
+  // Винаги се взимат актуалните настройки от сървъра (изтрити/скрити продукти, цени).
+  // Запомнените се ползват само ако сървърът не отговори до 1,2 с или няма връзка.
+  // Ако админ панелът в този браузър току-що е записал промени (до 2 мин.), те се ползват веднага.
+  const box = read(), cached = box && box.t ? box.o : box;
   let done = false;
   const go = (o) => { if (!done) { done = true; start(o); } };
-  if (fresh) go(cached);
-  const timer = setTimeout(() => go(cached), 800);
+  if (box && box.admin && Date.now() - box.t < 120000) go(cached);
+  const timer = setTimeout(() => go(cached), 1200);
   fetch("/api/settings", { cache: "no-cache" })
     .then((r) => (r.ok ? r.json() : null))
     .then((o) => { if (o) write({ t: Date.now(), o }); clearTimeout(timer); go(o || cached); })

@@ -35,8 +35,8 @@ export default async (req) => {
     }
     delete data.promos; // промо кодовете не се показват публично – проверяват се в /api/orders?promo=
     delete data.chat; // указанията за чат асистента се ползват само от сървъра
-    // кратък кеш, за да се виждат промените бързо
-    return json(data, 200, { "cache-control": "public, max-age=10, stale-while-revalidate=60" });
+    // без кеш – изтриване, скриване и нови цени се виждат веднага след „Запази“
+    return json(data, 200, { "cache-control": "no-store" });
   }
 
   if (req.method === "POST") {
