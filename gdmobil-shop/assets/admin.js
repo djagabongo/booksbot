@@ -24,7 +24,7 @@
     ...C.items.map((i) => ({ slug: i.s, name: i.n, brand: i.b, cat: i.c, kind: "i", mk: "", sub: i.sc || "", compat: i.cm || [], specs: {},
       variants: [{ id: i.i, label: i.sc || "Артикул", price: i.p, img: i.im, old: i.op, stock: i.st }] })),
   ];
-  PRODUCTS.forEach((p) => { p.brandLabel = p.brand || NO_BRAND; p.img = p.variants[0].img; });
+  PRODUCTS.forEach((p) => { p.brandLabel = p.brand || NO_BRAND; p.img = p.variants[0] ? p.variants[0].img : ""; });
   // модели: телефони/таблети от каталога + моделите, за които има аксесоари
   const MODELS = new Map();
   for (const m of C.models) MODELS.set(m.key, { key: m.key, brand: m.brand, name: m.name.toLowerCase().startsWith(m.brand.toLowerCase()) ? m.name : `${m.brand} ${m.name}` });
@@ -61,7 +61,7 @@
   let sel = null; // избран продукт
   const blank = () => ({
     store: {}, labels: { new: [...(L0.new || [])], hot: [...(L0.hot || [])], sale: { ...(L0.sale || {}) }, newAdd: [], newRemove: [] },
-    prices: {}, stock: {}, hidden: [], deleted: [], reviews: { items: [] }, analytics: { provider: "" }, edits: {}, vedits: {}, vadd: {}, vdel: [],
+    prices: {}, stock: {}, hidden: [], deleted: [], reviews: { items: [] }, analytics: { provider: "" }, edits: {}, vedits: {}, vadd: {}, vdel: [], padd: {},
   });
   function normalize(o) {
     const b = blank();
@@ -72,7 +72,7 @@
       labels: { ...b.labels, ...(o.labels || {}), sale: { ...((o.labels && o.labels.sale) || b.labels.sale) } },
       prices: { ...(o.prices || {}) }, stock: { ...(o.stock || {}) }, hidden: [...(o.hidden || [])], deleted: [...(o.deleted || [])],
       reviews: { items: [], ...(o.reviews || {}) }, analytics: { provider: "", ...(o.analytics || {}) },
-      edits: { ...(o.edits || {}) }, vedits: { ...(o.vedits || {}) }, vadd: { ...(o.vadd || {}) }, vdel: [...(o.vdel || [])],
+      edits: { ...(o.edits || {}) }, vedits: { ...(o.vedits || {}) }, vadd: { ...(o.vadd || {}) }, vdel: [...(o.vdel || [])], padd: { ...(o.padd || {}) },
     };
   }
   const st = (k) => (O.store[k] !== undefined ? O.store[k] : S0[k]);
@@ -115,9 +115,18 @@
       : "Няма връзка със сървъра.";
     return false;
   }
+  function registerNew(slug) {
+    const d = O.padd[slug]; if (!d || BY_SLUG.has(slug)) return BY_SLUG.get(slug);
+    const p = { slug, name: d.n, brand: d.b || "", cat: d.c, kind: "g", mk: "", sub: d.sc || "", compat: d.cm || [], specs: {}, variants: [], isNewProduct: true };
+    p.brandLabel = p.brand || NO_BRAND; p.img = "";
+    p.models = p.compat.filter((k) => MODELS.has(k));
+    PRODUCTS.unshift(p); BY_SLUG.set(slug, p);
+    return p;
+  }
   async function enter() {
     const r = await api("GET", null, "?t=" + Date.now());
     O = normalize(r.ok ? r.data : {});
+    Object.keys(O.padd).forEach(registerNew);
     $("#login").hidden = true; $("#app").hidden = false;
     if (O._savedAt) { $("#status").textContent = "Запазено " + new Date(O._savedAt).toLocaleString("bg-BG", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }); }
     render(); badges(); setInterval(badges, 120000);
@@ -232,6 +241,15 @@
   const resetFilters = () => { Object.assign(F, { q: "", cat: "", brand: "", model: "", sub: "", status: "", limit: 100 }); const q = $("#pq"); if (q) q.value = ""; };
   // изтриване/възстановяване на продукти без презареждане; при празен резултат – показва всички продукти
   function deleteProducts(slugs, on = true) {
+    if (on) slugs.filter((x) => O.padd[x]).forEach((x) => {
+      if (!confirm(`„${O.padd[x].n}“ е добавен ръчно – да го изтрия ли напълно?`)) return;
+      (O.vadd[x] || []).forEach((v) => { delete O.prices[v.id]; delete O.stock[v.id]; delete O.labels.sale[v.id]; });
+      delete O.padd[x]; delete O.vadd[x]; delete O.edits[x];
+      const i = PRODUCTS.findIndex((p) => p.slug === x); if (i > -1) PRODUCTS.splice(i, 1); BY_SLUG.delete(x);
+      if (sel && sel.slug === x) sel = null;
+    });
+    slugs = slugs.filter((x) => BY_SLUG.has(x));
+    if (!slugs.length) { change(); syncSets(); if (refreshList) refreshList(); editProduct(); toast("✓ Изтрит – натисни „Запази“"); return; }
     slugs.forEach((x) => toggleIn(O.deleted, x, on));
     slugs.forEach((x) => picked.delete(x));
     if (sel && on && slugs.includes(sel.slug)) sel = null;
@@ -245,11 +263,13 @@
       on ? () => deleteProducts(slugs, false) : null);
   }
 
-  const prMin = (p) => { const l = p.variants.map((v) => finalOf(p, v)).filter((x) => x != null); return l.length ? Math.min(...l) : null; };
-  const prMax = (p) => { const l = p.variants.map((v) => finalOf(p, v)).filter((x) => x != null); return l.length ? Math.max(...l) : null; };
+  const liveVariants = (p) => [...p.variants, ...(O.vadd[p.slug] || []).map((x) => ({ ...x, price: null }))].filter((v) => !O.vdel.includes(String(v.id)));
+  const prMin = (p) => { const l = liveVariants(p).map((v) => finalOf(p, v)).filter((x) => x != null); return l.length ? Math.min(...l) : null; };
+  const prMax = (p) => { const l = liveVariants(p).map((v) => finalOf(p, v)).filter((x) => x != null); return l.length ? Math.max(...l) : null; };
   const STATUS = {
     changed: ["Променени", isChanged],
     edited: ["С редактирано име/описание/снимки", isEdited],
+    added: ["Добавени ръчно", (p) => !!p.isNewProduct],
     hidden: ["Скрити", (p) => HID.has(p.slug)],
     deleted: ["Изтрити", isDeleted],
     sale: ["С намаление", (p) => O.labels.sale[p.slug] > 0 || p.variants.some((v) => O.labels.sale[v.id] > 0 || v.disc > 0 || v.old > v.price)],
@@ -285,14 +305,14 @@
     const stat = (k) => PRODUCTS.filter((p) => (k === "deleted" || !isDeleted(p)) && STATUS[k][1](p)).length;
     const drawStats = () => {
       $("#pstats").innerHTML = `<button data-qs="" class="${F.status ? "" : "on"}">Всички<b>${PRODUCTS.length - DEL.size}</b></button>` +
-        ["changed", "edited", "hidden", "deleted", "sale", "price", "order", "noprice"].map((k) => `<button data-qs="${k}" class="${F.status === k ? "on" : ""}">${STATUS[k][0]}<b>${stat(k)}</b></button>`).join("");
+        ["changed", "edited", "added", "hidden", "deleted", "sale", "price", "order", "noprice"].map((k) => `<button data-qs="${k}" class="${F.status === k ? "on" : ""}">${STATUS[k][0]}<b>${stat(k)}</b></button>`).join("");
     };
     $("#main").innerHTML = `
       <div class="adm-stats" id="pstats"></div>
       <div class="adm-split">
       <aside class="adm-list">
         <div class="adm-list__tools">
-          <input class="input" id="pq" type="search" placeholder="Търси по име, модел, арт. номер…" value="${esc(F.q)}" />
+          <div class="adm-row adm-newrow"><input class="input" id="pq" type="search" placeholder="Търси по име, модел, арт. номер…" value="${esc(F.q)}" /><button class="btn btn--primary btn--sm" id="pNew">+ Нов продукт</button></div>
           <div class="adm-filters">
             <select class="select" id="fCat" aria-label="Категория"></select>
             <select class="select" id="fBrand" aria-label="Марка"></select>
@@ -369,6 +389,7 @@
           STATUS.order[1](p) && `<i class="adm-chip adm-chip--amber">по заявка</i>`,
           O.labels.hot.includes(p.slug) && `<i class="adm-chip adm-chip--ember">хит</i>`,
           isEdited(p) && `<i class="adm-chip adm-chip--blue">редактиран</i>`,
+          p.isNewProduct && `<i class="adm-chip adm-chip--blue">нов продукт</i>`,
         ].filter(Boolean).join("");
         const models = p.cat === "accessories" && p.models.length ? ` · ${esc(modelName(p.models[0]))}${p.models.length > 1 ? ` +${p.models.length - 1}` : ""}` : "";
         return head + `<div class="adm-pickrow ${picked.has(p.slug) ? "is-picked" : ""}"><label class="adm-pick" title="Маркирай"><input type="checkbox" data-pick="${p.slug}" ${picked.has(p.slug) ? "checked" : ""}></label><button class="adm-item ${sel === p ? "on" : ""}" data-slug="${p.slug}">
@@ -391,6 +412,7 @@
     [["fCat", "cat"], ["fBrand", "brand"], ["fModel", "model"], ["fSub", "sub"], ["fStatus", "status"], ["fSort", "sort"]].forEach(([id, k]) => $("#" + id).addEventListener("change", (e) => set(k, e.target.value)));
     $("#fReset").addEventListener("click", () => { Object.assign(F, { q: "", cat: "", brand: "", model: "", sub: "", status: "", sort: "name", limit: 100 }); $("#pq").value = ""; list(); });
     $(".adm-stats").addEventListener("click", (e) => { const b = e.target.closest("[data-qs]"); if (b) set("status", b.dataset.qs); });
+    $("#pNew").addEventListener("click", () => { sel = null; newProductForm(); if (innerWidth < 900) $("#pedit").scrollIntoView({ behavior: "smooth" }); });
     $("#pickAll").addEventListener("change", (e) => { res.forEach((p) => (e.target.checked ? picked.add(p.slug) : picked.delete(p.slug))); list(); });
     $("#bulk").addEventListener("click", (e) => {
       const b = e.target.closest("[data-bulk]"); if (!b) return;
@@ -436,6 +458,56 @@
     });
     editProduct();
   }
+  function newProductForm() {
+    const old = $("#pedit"); if (!old) return;
+    const box = old.cloneNode(false); old.replaceWith(box);
+    const subs = [...new Set(PRODUCTS.filter((x) => x.cat === "accessories" && x.sub).map((x) => x.sub))].sort((a, b) => a.localeCompare(b, "bg"));
+    const brands = [...new Set(PRODUCTS.map((x) => x.brand).filter(Boolean))].sort((a, b) => a.localeCompare(b, "en"));
+    const models = [...MODELS.values()].sort((a, b) => a.brand.localeCompare(b.brand) || a.name.localeCompare(b.name, "bg", { numeric: true }));
+    box.innerHTML = `<form class="adm-newp" id="npForm">
+      <div class="adm-edit__head"><div><small class="muted">Каталог</small><h2>Нов продукт</h2></div><button type="button" class="btn btn--ghost btn--sm" id="npCancel">Откажи</button></div>
+      <p class="muted small">Попълни основното – след „Създай“ продуктът се отваря и можеш да качиш снимки, описание и още варианти (цветове, памет). Видим е в магазина след „Запази“.</p>
+      <div class="adm-grid">
+        <label class="field adm-span2"><span>Име на продукта *</span><input class="input" name="n" required maxlength="160" placeholder="напр. Кейс Spigen Ultra Hybrid за iPhone 17 Pro"></label>
+        <label class="field"><span>Категория *</span><select class="select" name="c"><option value="accessories">Аксесоари</option><option value="phones">Телефони</option><option value="tablets">Таблети</option></select></label>
+        <label class="field" id="npSubF"><span>Подкатегория</span><select class="select" name="sc">${subs.map((x) => `<option ${x === "Калъфи" ? "selected" : ""}>${esc(x)}</option>`).join("")}</select></label>
+        <label class="field"><span>Марка</span><input class="input" name="b" list="npBrands" placeholder="напр. Spigen"><datalist id="npBrands">${brands.map((b) => `<option value="${esc(b)}">`).join("")}</datalist></label>
+        <label class="field"><span>Цена (€) *</span><input class="input" name="price" type="number" min="0.01" step="0.01" required></label>
+        <label class="field"><span>Цвят</span><input class="input" name="color" placeholder="напр. Черен"></label>
+        <label class="field"><span>Памет</span><input class="input" name="storage" placeholder="напр. 256 GB (за телефон/таблет)"></label>
+        <label class="field adm-span2" id="npCmF"><span>Съвместим с модели <small class="muted">(за аксесоари – Ctrl/⌘ + клик за няколко)</small></span>
+          <input class="input input--sm" id="npCmQ" type="search" placeholder="Търси модел, напр. iPhone 17">
+          <select class="select adm-multi" name="cm" multiple size="8">${models.map((m) => `<option value="${esc(m.key)}">${esc(m.name)}</option>`).join("")}</select></label>
+      </div>
+      <div class="adm-row"><button class="btn btn--primary" type="submit">Създай продукта</button></div>
+    </form>`;
+    const f = $("#npForm", box);
+    const sync = () => { const acc = f.c.value === "accessories"; $("#npSubF", box).hidden = !acc; $("#npCmF", box).hidden = !acc; };
+    f.c.addEventListener("change", sync); sync();
+    $("#npCmQ", box).addEventListener("input", (e) => { const q = norm(e.target.value); [...f.cm.options].forEach((o) => (o.hidden = !!q && !norm(o.textContent).includes(q) && !o.selected)); });
+    $("#npCancel", box).addEventListener("click", () => editProduct());
+    f.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const n = f.n.value.trim(); if (!n) return;
+      const tr = { а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ж: "zh", з: "z", и: "i", й: "y", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f", х: "h", ц: "ts", ч: "ch", ш: "sh", щ: "sht", ъ: "a", ь: "y", ю: "yu", я: "ya" };
+      const base = n.toLowerCase().split("").map((ch) => tr[ch] ?? ch).join("").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 70) || "produkt";
+      let slug = base + "-n" + Math.floor(1000 + Math.random() * 9000);
+      while (BY_SLUG.has(slug)) slug = base + "-n" + Math.floor(1000 + Math.random() * 9000);
+      const cat = f.c.value;
+      O.padd[slug] = { n, b: f.b.value.trim(), c: cat, sc: cat === "accessories" ? f.sc.value : "", cm: cat === "accessories" ? [...f.cm.selectedOptions].map((o) => o.value) : [] };
+      const used = new Set([...PRODUCTS.flatMap((x) => x.variants.map((v) => v.id)), ...Object.values(O.vadd).flat().map((x) => x.id)]);
+      let id; do { id = 990000000 + Math.floor(Math.random() * 9000000); } while (used.has(id));
+      O.vadd[slug] = [{ id, storage: f.storage.value.trim(), ram: "", color: f.color.value.trim(), conn: "", model: "", vmk: "", img: "" }];
+      O.prices[id] = Math.round(Number(f.price.value) * 100) / 100;
+      change();
+      sel = registerNew(slug);
+      Object.assign(F, { q: "", cat: "", brand: "", model: "", sub: "", status: "added", limit: 100 });
+      renderProducts();
+      toast("✓ Продуктът е създаден – качи снимка и натисни „Запази“");
+    });
+    f.n.focus();
+  }
+
   const toggleIn = (arr, v, on) => { const i = arr.indexOf(v); if (on && i < 0) arr.push(v); if (!on && i > -1) arr.splice(i, 1); };
   function finalOf(p, v) {
     const base = O.prices[v.id] != null ? Number(O.prices[v.id]) : v.price;
@@ -625,7 +697,7 @@
     $("#allStockOff")?.addEventListener("click", () => allStock(false));
     $("#resetModel").addEventListener("click", () => {
       variantsOf(p).forEach((v) => { delete O.prices[v.id]; delete O.stock[v.id]; delete O.labels.sale[v.id]; delete O.vedits[v.id]; toggleIn(O.vdel, String(v.id), false); });
-      delete O.vadd[p.slug];
+      if (!p.isNewProduct) delete O.vadd[p.slug];
       delete O.labels.sale[p.slug];
       [O.hidden, O.labels.hot, O.labels.newAdd, O.labels.newRemove].forEach((a) => toggleIn(a, p.slug, false));
       change(); editProduct();

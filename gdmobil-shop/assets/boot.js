@@ -42,6 +42,14 @@
       // варианти от админ панела: нови (vadd), променени текстове (vedits), изтрити (vdel)
       const vadd = o.vadd || {}, vedits = o.vedits || {}, vdel = new Set((o.vdel || []).map(String));
       const VI = { storage: 1, ram: 2, color: 3, conn: 4, model: 12 };
+      // продукти, добавени ръчно от админ панела
+      const padd = o.padd && typeof o.padd === "object" ? o.padd : {};
+      for (const s in padd) {
+        const d = padd[s];
+        if (!d || !d.n || C.groups.some((g) => g.s === s) || !/^[a-z0-9-]{3,90}$/.test(s)) continue;
+        C.groups.push({ s, n: String(d.n).slice(0, 160), b: String(d.b || "").slice(0, 40), c: ["phones", "tablets", "accessories"].includes(d.c) ? d.c : "accessories",
+          mk: "", sc: String(d.sc || "").slice(0, 40), cm: Array.isArray(d.cm) ? d.cm.map(String) : [], v: [] });
+      }
       const str = (x) => String(x ?? "").slice(0, 80);
       C.groups.forEach((g) => {
         (Array.isArray(vadd[g.s]) ? vadd[g.s] : []).forEach((x) => {

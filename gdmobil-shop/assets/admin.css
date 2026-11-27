@@ -367,3 +367,10 @@
 .adm .adm-table td .adm-chip { font-style: normal; font-size: .68rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 0; }
 .adm .adm-table .adm-chip--blue { background: #e0ecff; color: #1d4ed8; }
 .adm .adm-table .adm-chip--red { background: #fde4e4; color: #b42318; }
+.adm-newrow { flex-wrap: nowrap; }
+.adm-newrow .input { flex: 1; min-width: 0; }
+.adm-newrow .btn { flex: none; white-space: nowrap; }
+.adm-newp { display: grid; gap: 14px; }
+.adm-span2 { grid-column: span 2; }
+@media (max-width: 700px) { .adm-span2 { grid-column: auto; } }
+.adm .adm-multi { height: auto !important; min-height: 200px; padding: 6px !important; background-image: none; } .adm .adm-multi option { padding: 5px 8px; border-radius: 6px; } #npCmQ { margin-bottom: 6px; }

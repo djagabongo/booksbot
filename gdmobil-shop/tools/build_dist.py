@@ -105,6 +105,11 @@ def apply_overrides(catalog, o):
     ok = lambda u: isinstance(u, str) and re.match(r"^(media/[a-z0-9]+\.(webp|jpg|png)|https://\S+)$", u)
     vadd, vedits, vdel = o.get("vadd") or {}, o.get("vedits") or {}, {str(x) for x in (o.get("vdel") or [])}
     VI = {"storage": 1, "ram": 2, "color": 3, "conn": 4, "model": 12}
+    have = {g["s"] for g in catalog["groups"]}
+    for s_, d in (o.get("padd") or {}).items():
+        if isinstance(d, dict) and d.get("n") and s_ not in have and re.match(r"^[a-z0-9-]{3,90}$", s_):
+            catalog["groups"].append({"s": s_, "n": str(d["n"])[:160], "b": str(d.get("b") or "")[:40], "c": d.get("c") if d.get("c") in ("phones", "tablets", "accessories") else "accessories",
+                                      "mk": "", "sc": str(d.get("sc") or "")[:40], "cm": [str(x) for x in d.get("cm") or []], "v": []})
     prices = o.get("prices") or {}
     for g in catalog["groups"]:
         for x in vadd.get(g["s"]) or []:
