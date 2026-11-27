@@ -354,3 +354,16 @@
 #pcount { font-size: .9rem !important; }
 @media (max-width: 1000px) { .adm .adm-split { grid-template-columns: minmax(0, 1fr); } .adm .adm-list { max-height: 75dvh; } }
 @media (min-width: 1700px) { .adm .adm-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); } .adm .adm-filters #fSort { grid-column: auto; } }
+
+/* редактиране на вариантите */
+.adm-vfields { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px; margin-top: 8px; min-width: 260px; }
+.adm-vfields label { display: grid; gap: 2px; }
+.adm-vfields span { font-size: .68rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.adm .adm-vfields .input--sm { width: 100%; height: 34px !important; font-size: .85rem; }
+.adm-vdel td { opacity: .5; }
+.adm-vdel td:last-child { opacity: 1; }
+.adm-vnew { background: color-mix(in srgb, #e0ecff 45%, transparent); }
+.adm-warn-inline { color: #b42318; font-weight: 600; }
+.adm .adm-table td .adm-chip { font-style: normal; font-size: .68rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 0; }
+.adm .adm-table .adm-chip--blue { background: #e0ecff; color: #1d4ed8; }
+.adm .adm-table .adm-chip--red { background: #fde4e4; color: #b42318; }

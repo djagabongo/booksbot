@@ -39,6 +39,19 @@
     // 3) цени, наличност и скрити продукти в каталога
     const prices = o.prices || {}, stock = o.stock || {}, hidden = new Set([...(o.hidden || []), ...(o.deleted || [])]);
     if (C) {
+      // варианти от админ панела: нови (vadd), променени текстове (vedits), изтрити (vdel)
+      const vadd = o.vadd || {}, vedits = o.vedits || {}, vdel = new Set((o.vdel || []).map(String));
+      const VI = { storage: 1, ram: 2, color: 3, conn: 4, model: 12 };
+      const str = (x) => String(x ?? "").slice(0, 80);
+      C.groups.forEach((g) => {
+        (Array.isArray(vadd[g.s]) ? vadd[g.s] : []).forEach((x) => {
+          if (!x || !x.id) return;
+          g.v.push([Number(x.id), str(x.storage), str(x.ram), str(x.color), str(x.conn), null, x.img || (g.v[0] && g.v[0][6]) || "", "", 0, 1, [], null, str(x.model), str(x.vmk)]);
+        });
+        g.v.forEach((v) => { const e = vedits[v[0]]; if (e && typeof e === "object") for (const k in VI) if (k in e) v[VI[k]] = str(e[k]); });
+        if (vdel.size) g.v = g.v.filter((v) => !vdel.has(String(v[0])));
+      });
+      C.groups = C.groups.filter((g) => g.v.length);
       C.groups = C.groups.filter((g) => !hidden.has(g.s));
       C.items = C.items.filter((i) => !hidden.has(i.s));
       C.groups.forEach((g) => g.v.forEach((v) => {

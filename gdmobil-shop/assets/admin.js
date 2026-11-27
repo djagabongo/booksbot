@@ -61,7 +61,7 @@
   let sel = null; // избран продукт
   const blank = () => ({
     store: {}, labels: { new: [...(L0.new || [])], hot: [...(L0.hot || [])], sale: { ...(L0.sale || {}) }, newAdd: [], newRemove: [] },
-    prices: {}, stock: {}, hidden: [], deleted: [], reviews: { items: [] }, analytics: { provider: "" }, edits: {},
+    prices: {}, stock: {}, hidden: [], deleted: [], reviews: { items: [] }, analytics: { provider: "" }, edits: {}, vedits: {}, vadd: {}, vdel: [],
   });
   function normalize(o) {
     const b = blank();
@@ -72,7 +72,7 @@
       labels: { ...b.labels, ...(o.labels || {}), sale: { ...((o.labels && o.labels.sale) || b.labels.sale) } },
       prices: { ...(o.prices || {}) }, stock: { ...(o.stock || {}) }, hidden: [...(o.hidden || [])], deleted: [...(o.deleted || [])],
       reviews: { items: [], ...(o.reviews || {}) }, analytics: { provider: "", ...(o.analytics || {}) },
-      edits: { ...(o.edits || {}) },
+      edits: { ...(o.edits || {}) }, vedits: { ...(o.vedits || {}) }, vadd: { ...(o.vadd || {}) }, vdel: [...(o.vdel || [])],
     };
   }
   const st = (k) => (O.store[k] !== undefined ? O.store[k] : S0[k]);
@@ -210,10 +210,20 @@
   const imgOf = (p, v) => (v && edOf(p).vimg?.[v.id]) || edOf(p).img || (v ? v.img : p.img);
   const nameOf = (p) => edOf(p).n || p.name;
   const isEdited = (p) => !!O.edits[p.slug];
+  // варианти: редакции на текстовете (O.vedits[id]), нови (O.vadd[slug]) и изтрити (O.vdel)
+  const VF = [["storage", "Памет"], ["ram", "RAM"], ["color", "Цвят"], ["conn", "Връзка"], ["model", "За модел"]];
+  const vLabel = (v) => [v.model && "за " + v.model, v.storage, v.ram && v.ram + " RAM", v.color, v.conn].filter(Boolean).join(" · ") || "Стандартен";
+  const variantsOf = (p) => [...p.variants, ...(O.vadd[p.slug] || []).map((x) => ({ ...x, price: null, isNew: true }))].map((v) => {
+    const e = O.vedits[v.id] || {}, m = { ...v };
+    VF.forEach(([k]) => { if (k in e) m[k] = e[k]; });
+    m.label = vLabel(m); m.orig = v; m.deleted = O.vdel.includes(String(v.id));
+    return m;
+  });
+  const variantsChanged = (p) => !!(O.vadd[p.slug] || []).length || p.variants.some((v) => O.vedits[v.id] || O.vdel.includes(String(v.id)));
   let DEL = new Set(), HID = new Set(); // бързи проверки; обновяват се при всяко изрисуване на списъка
   const syncSets = () => { DEL = new Set(O.deleted); HID = new Set(O.hidden); };
   const isDeleted = (p) => DEL.has(p.slug);
-  const isChanged = (p) => isEdited(p) || DEL.has(p.slug) || HID.has(p.slug) || O.labels.hot.includes(p.slug) || O.labels.newAdd.includes(p.slug) || O.labels.newRemove.includes(p.slug) ||
+  const isChanged = (p) => isEdited(p) || variantsChanged(p) || DEL.has(p.slug) || HID.has(p.slug) || O.labels.hot.includes(p.slug) || O.labels.newAdd.includes(p.slug) || O.labels.newRemove.includes(p.slug) ||
     O.labels.sale[p.slug] != null || p.variants.some((v) => O.prices[v.id] != null || O.stock[v.id] === 0 || O.labels.sale[v.id] != null);
   // филтри (пазят се, докато е отворен разделът)
   const F = { q: "", cat: "", brand: "", model: "", sub: "", status: "", sort: "name", limit: 100 };
@@ -436,7 +446,9 @@
     const old = $("#pedit"); if (!old) return;
     const box = old.cloneNode(false); old.replaceWith(box); // без натрупани обработчици от предишния продукт
     if (!sel) { box.innerHTML = `<div class="adm-empty"><b>Избери продукт отляво</b><p class="muted">Можеш да промениш цена, намаление, наличност и етикети, или да го скриеш от сайта.</p></div>`; return; }
-    const p = sel, autoNew = !!NEW_RE() && (p.cat === "phones" || p.cat === "tablets") && NEW_RE().test(p.name);
+    const p = sel;
+    const vFields = VF.filter(([k]) => k === "color" || p.variants.some((v) => v[k]) || (O.vadd[p.slug] || []).some((v) => v[k]));
+    const autoNew = !!NEW_RE() && (p.cat === "phones" || p.cat === "tablets") && NEW_RE().test(p.name);
     const newMode = O.labels.newAdd.includes(p.slug) ? "on" : O.labels.newRemove.includes(p.slug) ? "off" : "auto";
     box.innerHTML = `
       <div class="adm-edit__head">
@@ -479,31 +491,62 @@
         <label class="adm-card adm-card--check"><input type="checkbox" id="mHide" ${O.hidden.includes(p.slug) ? "checked" : ""}><span><b>Скрий от сайта</b><small>Няма да се показва никъде</small></span></label>
       </div>
       <div class="adm-table-wrap"><table class="adm-table">
-        <thead><tr><th></th><th>Вариант</th><th>Цена в каталога</th><th>Нова цена</th><th>Намаление</th><th>Наличност</th><th>Крайна цена</th></tr></thead>
-        <tbody>${p.variants.map((v) => `<tr data-id="${v.id}">
+        <thead><tr><th></th><th>Вариант</th><th>Цена в каталога</th><th>Нова цена</th><th>Намаление</th><th>Наличност</th><th>Крайна цена</th><th></th></tr></thead>
+        <tbody>${variantsOf(p).map((v) => `<tr data-id="${v.id}" class="${v.deleted ? "adm-vdel" : ""}${v.isNew ? " adm-vnew" : ""}">
           <td class="adm-vimg"><label title="Смени снимката на този вариант">${imgOf(p, v) ? `<img src="${esc(thumb(imgOf(p, v)))}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : "<span>+</span>"}<input type="file" accept="image/*" data-up="v" data-vid="${v.id}" hidden></label>
             ${edOf(p).vimg?.[v.id] ? `<button class="link-btn" data-vreset="${v.id}">оригинал</button>` : ""}</td>
-          <td><b>${esc(v.label)}</b><small class="muted">Арт. ${v.id}${v.code ? " · код " + esc(v.code) : ""}${v.stock === 0 ? " · в каталога: по заявка" : ""}</small></td>
-          <td>${eur(v.price)}${v.old > v.price ? `<small class="muted"><s>${eur(v.old)}</s></small>` : ""}</td>
+          <td class="adm-vcell"><b>${esc(v.label)}</b>${v.isNew ? ` <i class="adm-chip adm-chip--blue">нов</i>` : ""}${v.deleted ? ` <i class="adm-chip adm-chip--red">изтрит</i>` : ""}
+            <small class="muted">Арт. ${v.id}${v.code ? " · код " + esc(v.code) : ""}${v.stock === 0 ? " · в каталога: по заявка" : ""}</small>
+            ${v.deleted ? "" : `<div class="adm-vfields">${vFields.map(([k, n]) => `<label><span>${n}</span><input class="input input--sm" data-ve="${k}" value="${esc(v[k] || "")}" placeholder="${esc(v.isNew ? "" : v.orig[k] || "—")}"></label>`).join("")}</div>`}</td>
+          <td>${v.isNew ? `<small class="muted">нов</small>` : eur(v.price)}${v.old > v.price ? `<small class="muted"><s>${eur(v.old)}</s></small>` : ""}</td>
           <td><input class="input input--sm" type="number" min="0" step="0.01" data-f="price" value="${esc(O.prices[v.id] ?? "")}" placeholder="${v.price ?? ""}" /></td>
           <td><div class="adm-pct"><input class="input input--sm" type="number" min="0" max="90" step="1" data-f="sale" value="${esc(O.labels.sale[v.id] ?? "")}" placeholder="${O.labels.sale[p.slug] ?? 0}" /><b>%</b></div></td>
           <td><select class="select input--sm" data-f="stock"><option value="1">В наличност</option><option value="0" ${O.stock[v.id] === 0 ? "selected" : ""}>По заявка</option></select></td>
-          <td class="adm-final" data-final>${eur(finalOf(p, v))}</td></tr>`).join("")}</tbody></table></div>
+          <td class="adm-final" data-final>${v.isNew && O.prices[v.id] == null ? `<small class="adm-warn-inline">задай цена</small>` : eur(finalOf(p, v))}</td>
+          <td>${v.deleted ? `<button class="adm-rowact" data-vrestore="${v.id}" title="Възстанови варианта">↺</button>`
+            : `<button class="adm-rowact adm-rowact--del" data-vdelete="${v.id}" title="Изтрий варианта" aria-label="Изтрий варианта"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>`}</td></tr>`).join("")}</tbody></table></div>
+      <div class="adm-row"><button class="btn btn--ghost btn--sm" id="vAdd">+ Добави вариант</button><span class="muted small">Нов цвят, памет или модел – копира първия вариант, после сменяш текстовете, цената и снимката.</span></div>
       ${p.variants.length > 1 ? `<div class="adm-row"><button class="btn btn--ghost btn--sm" id="allStockOn">Всички в наличност</button><button class="btn btn--ghost btn--sm" id="allStockOff">Всички по заявка</button><button class="btn btn--ghost btn--sm" id="resetModel">Изчисти промените по модела</button></div>`
         : `<div class="adm-row"><button class="btn btn--ghost btn--sm" id="resetModel">Изчисти промените</button></div>`}
       <p class="muted small">Празно поле = стойността от каталога. Намалението по вариант има предимство пред това за целия модел.</p>`;
-    const refreshFinal = () => $$("tr[data-id]", box).forEach((tr) => { const v = p.variants.find((x) => x.id === +tr.dataset.id); $("[data-final]", tr).textContent = eur(finalOf(p, v)); });
+    const refreshFinal = () => $$("tr[data-id]", box).forEach((tr) => { const v = variantsOf(p).find((x) => String(x.id) === tr.dataset.id); if (v) $("[data-final]", tr).textContent = v.isNew && O.prices[v.id] == null ? "задай цена" : eur(finalOf(p, v)); });
     const num = (s) => (s === "" ? null : Math.max(0, Number(s)));
     $("#mSale").addEventListener("input", (e) => { const n = num(e.target.value); n ? (O.labels.sale[p.slug] = Math.min(90, n)) : delete O.labels.sale[p.slug]; change(); refreshFinal(); $$('[data-f="sale"]', box).forEach((i) => (i.placeholder = O.labels.sale[p.slug] ?? 0)); });
     $("#mNew").addEventListener("change", (e) => { toggleIn(O.labels.newAdd, p.slug, e.target.value === "on"); toggleIn(O.labels.newRemove, p.slug, e.target.value === "off"); change(); });
     $("#mHot").addEventListener("change", (e) => { toggleIn(O.labels.hot, p.slug, e.target.checked); change(); });
     $("#mHide").addEventListener("change", (e) => { toggleIn(O.hidden, p.slug, e.target.checked); change(); });
     box.addEventListener("input", (e) => {
+      const ve = e.target.dataset.ve, vtr = e.target.closest("tr[data-id]");
+      if (ve && vtr) {
+        const id = vtr.dataset.id, val = e.target.value.trim();
+        const added = (O.vadd[p.slug] || []).find((x) => String(x.id) === id);
+        if (added) added[ve] = val;
+        else {
+          const orig = p.variants.find((x) => String(x.id) === id) || {};
+          const ed = { ...(O.vedits[id] || {}) };
+          if (val === (orig[ve] || "")) delete ed[ve]; else ed[ve] = val;
+          if (Object.keys(ed).length) O.vedits[id] = ed; else delete O.vedits[id];
+        }
+        $("b", vtr.querySelector(".adm-vcell")).textContent = (variantsOf(p).find((x) => String(x.id) === id) || {}).label || "";
+        change(); return;
+      }
       const f = e.target.dataset.f, tr = e.target.closest("tr[data-id]"); if (!f || !tr) return;
       const id = tr.dataset.id, n = num(e.target.value);
       if (f === "price") n != null ? (O.prices[id] = n) : delete O.prices[id];
       if (f === "sale") n ? (O.labels.sale[id] = Math.min(90, n)) : delete O.labels.sale[id];
       change(); refreshFinal();
+    });
+    // смяна на цвят/памет/модел – предлага същото за всички варианти със същата стойност
+    box.addEventListener("change", (e) => {
+      const ve = e.target.dataset.ve, tr = e.target.closest("tr[data-id]"); if (!ve || !tr) return;
+      const all = variantsOf(p), me = all.find((x) => String(x.id) === tr.dataset.id); if (!me || me.isNew) return;
+      const from = me.orig[ve] || "", to = e.target.value.trim();
+      if (!from || from === to) return;
+      const others = all.filter((x) => !x.isNew && x.id !== me.id && (x.orig[ve] || "") === from && (x[ve] || "") !== to);
+      if (!others.length || !confirm(`Да сменя ли „${from}“ на „${to || "(празно)"}“ и при останалите ${others.length} варианта?`)) return;
+      others.forEach((x) => { const ed = { ...(O.vedits[x.id] || {}) }; if (to === from) delete ed[ve]; else ed[ve] = to; if (Object.keys(ed).length) O.vedits[x.id] = ed; else delete O.vedits[x.id]; });
+      change(); editProduct();
+      toast(`✓ „${from}“ → „${to}“ за ${others.length + 1} варианта – натисни „Запази“`);
     });
     box.addEventListener("change", (e) => {
       if (e.target.dataset.f !== "stock") return;
@@ -552,11 +595,37 @@
       const t = e.target.closest("[data-model]"); if (!t) return;
       Object.assign(F, { model: t.dataset.model, brand: "", cat: "", sub: "", q: "", status: "", sort: "brand", limit: 100 }); renderProducts();
     });
+    box.addEventListener("click", (e) => {
+      const d = e.target.closest("[data-vdelete],[data-vrestore]"); if (!d) return;
+      const id = d.dataset.vdelete || d.dataset.vrestore;
+      const added = O.vadd[p.slug] || [];
+      if (d.dataset.vdelete && added.some((x) => String(x.id) === id)) {
+        O.vadd[p.slug] = added.filter((x) => String(x.id) !== id); if (!O.vadd[p.slug].length) delete O.vadd[p.slug];
+        delete O.prices[id]; delete O.stock[id]; delete O.labels.sale[id];
+      } else if (d.dataset.vdelete) {
+        if (variantsOf(p).filter((v) => !v.deleted).length <= 1) { toast("Продуктът трябва да има поне един вариант – изтрий целия продукт отгоре"); return; }
+        toggleIn(O.vdel, id, true);
+      } else toggleIn(O.vdel, id, false);
+      change(); editProduct();
+    });
+    $("#vAdd").addEventListener("click", () => {
+      const base = variantsOf(p).find((v) => !v.deleted) || p.variants[0];
+      const used = new Set([...PRODUCTS.flatMap((x) => x.variants.map((v) => v.id)), ...Object.values(O.vadd).flat().map((x) => x.id)]);
+      let id; do { id = 990000000 + Math.floor(Math.random() * 9000000); } while (used.has(id));
+      const nv = { id };
+      VF.forEach(([k]) => { nv[k] = base[k] || ""; });
+      nv.vmk = base.vmk || ""; nv.img = (O.edits[p.slug]?.vimg || {})[base.id] || base.img || p.img;
+      (O.vadd[p.slug] = O.vadd[p.slug] || []).push(nv);
+      change(); editProduct();
+      const row = $(`tr[data-id="${id}"]`); row?.scrollIntoView({ block: "center" }); row?.querySelector('[data-ve="color"]')?.focus();
+      toast("✓ Добавен нов вариант – смени текстовете и задай цена");
+    });
     const allStock = (on) => { p.variants.forEach((v) => (on ? delete O.stock[v.id] : (O.stock[v.id] = 0))); change(); editProduct(); };
     $("#allStockOn")?.addEventListener("click", () => allStock(true));
     $("#allStockOff")?.addEventListener("click", () => allStock(false));
     $("#resetModel").addEventListener("click", () => {
-      p.variants.forEach((v) => { delete O.prices[v.id]; delete O.stock[v.id]; delete O.labels.sale[v.id]; });
+      variantsOf(p).forEach((v) => { delete O.prices[v.id]; delete O.stock[v.id]; delete O.labels.sale[v.id]; delete O.vedits[v.id]; toggleIn(O.vdel, String(v.id), false); });
+      delete O.vadd[p.slug];
       delete O.labels.sale[p.slug];
       [O.hidden, O.labels.hot, O.labels.newAdd, O.labels.newRemove].forEach((a) => toggleIn(a, p.slug, false));
       change(); editProduct();

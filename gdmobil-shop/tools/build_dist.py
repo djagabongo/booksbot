@@ -103,7 +103,24 @@ def apply_overrides(catalog, o):
     hidden = set(o.get("hidden") or []) | set(o.get("deleted") or [])
     ed = o.get("edits") or {}
     ok = lambda u: isinstance(u, str) and re.match(r"^(media/[a-z0-9]+\.(webp|jpg|png)|https://\S+)$", u)
-    catalog["groups"] = [g for g in catalog["groups"] if g["s"] not in hidden]
+    vadd, vedits, vdel = o.get("vadd") or {}, o.get("vedits") or {}, {str(x) for x in (o.get("vdel") or [])}
+    VI = {"storage": 1, "ram": 2, "color": 3, "conn": 4, "model": 12}
+    prices = o.get("prices") or {}
+    for g in catalog["groups"]:
+        for x in vadd.get(g["s"]) or []:
+            if isinstance(x, dict) and x.get("id"):
+                pr = prices.get(str(x["id"]))
+                g["v"].append([int(x["id"]), x.get("storage", ""), x.get("ram", ""), x.get("color", ""), x.get("conn", ""),
+                               float(pr) if pr not in (None, "") else None, x.get("img") or g["v"][0][6], "", 0, 1, [], None, x.get("model", ""), x.get("vmk", "")])
+        for v in g["v"]:
+            e = vedits.get(str(v[0]))
+            if isinstance(e, dict):
+                for k, i in VI.items():
+                    if k in e:
+                        v[i] = str(e[k])[:80]
+        if vdel:
+            g["v"] = [v for v in g["v"] if str(v[0]) not in vdel]
+    catalog["groups"] = [g for g in catalog["groups"] if g["v"] and g["s"] not in hidden]
     catalog["items"] = [i for i in catalog["items"] if i["s"] not in hidden]
     n = 0
     for g in catalog["groups"]:
