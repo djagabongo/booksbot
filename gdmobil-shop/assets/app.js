@@ -1141,11 +1141,29 @@
         ${logoMarquee(repBrands.map((b) => ({ name: b, logo: C.logos[b], href: PRODUCTS.some((p) => p.brand === b && p.cat !== "accessories") ? `#/c/phones?brand=${encodeURIComponent(b)}` : "#/service#book" })), "mq--sm")}
       </div>
 
+      <div class="section" id="steps">
+        <div class="section__head"><div><span class="eyebrow">Как работим</span><h2>Как протича ремонтът</h2><p class="muted">Четири ясни стъпки – знаеш цената, преди да започнем.</p></div></div>
+        <ol class="svc-steps">${window.REPAIR_STEPS.map((s, i) => `<li><span class="svc-steps__n">${i + 1}</span><b>${esc(s.title)}</b>${s.time ? `<small class="svc-steps__t">${icon("clock")}${esc(s.time)}</small>` : ""}<p class="muted">${esc(s.text)}</p></li>`).join("")}</ol>
+      </div>
+
       <div class="section" id="prices">
         <div class="section__head"><div><span class="eyebrow">Цени</span><h2>Какъв е проблемът?</h2><p class="muted">Цените са ориентировъчни. Уточняваме крайната сума, частите и срока след преглед.</p></div></div>
         <div class="repairs">${window.REPAIRS.map((r) => `<button class="repair" data-repair="${esc(r.title)}">
           <span class="repair__art">${repairArt(r.icon)}</span><b>${esc(r.title)}</b><span class="muted">${esc(r.text)}</span>
           <span class="repair__foot"><span class="repair__price">${esc(r.price)}</span><span class="repair__pick">Избери ${icon("arrow")}</span></span></button>`).join("")}</div>
+      </div>
+
+      <div class="section" id="pricelist">
+        <div class="section__head"><div><span class="eyebrow">Ценоразпис</span><h2>Цени по модел</h2><p class="muted">Ориентировъчни цени с част и труд. Натисни цена, за да поискаш точна оферта. Няма го твоят модел? Пиши ни – ремонтираме и много други.</p></div></div>
+        <div class="plist">
+          <div class="plist__tools">
+            <label class="plist__search"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input class="input" id="plQ" type="search" placeholder="Търси модел, напр. iPhone 13 или A55" aria-label="Търси модел"></label>
+            <div class="plist__brands" id="plB" role="group" aria-label="Марка"></div>
+          </div>
+          <div class="plist__wrap"><table class="plist__table"><thead><tr><th>Модел</th>${window.REPAIR_COLS.map((c) => `<th>${esc(c.name)}</th>`).join("")}</tr></thead><tbody id="plBody"></tbody></table></div>
+          <button type="button" class="btn btn--ghost btn--block" id="plMore" hidden></button>
+          <p class="muted small" id="plNote"></p>
+        </div>
       </div>
 
       <div class="section" id="calc">
@@ -1174,12 +1192,27 @@
 
       <div class="section" id="book">${bookingHtml()}</div>
 
+      <div class="section" id="courier">
+        <div class="courier">
+          <div class="courier__copy">
+            <span class="eyebrow eyebrow--dark">Ремонт от цяла България</span>
+            <h2>Не си в Гоце Делчев? Изпрати телефона по куриер.</h2>
+            <p>Изпращаш устройството с Еконт или Спиди, ние го ремонтираме и го връщаме с наложен платеж. Цената потвърждаваш, преди да започнем.</p>
+            <button class="btn btn--primary" id="courierGo">${icon("truck")} Заяви ремонт по куриер</button>
+            <small>Адрес за изпращане: ${esc(S.company ? S.company + ", " : "")}${esc(S.address)} · тел. ${esc(S.phone)}</small>
+          </div>
+          <ol class="courier__steps">${window.COURIER_STEPS.map((s, i) => `<li><span>${i + 1}</span><div><b>${esc(s.title)}</b><p>${esc(s.text)}</p></div></li>`).join("")}</ol>
+        </div>
+      </div>
+
       <div class="section svc-grid">
         <div id="form">${inquiryForm("service", q.get("model") || "", q.get("msg") || "")}</div>
         <div>
-          <span class="eyebrow">Как работим</span>
-          <h2>Как протича ремонтът</h2>
-          <ol class="steps">${window.REPAIR_STEPS.map((s, i) => `<li><span>${i + 1}</span><div><b>${esc(s.title)}</b><p class="muted">${esc(s.text)}</p></div></li>`).join("")}</ol>
+          <div id="tips">
+            <span class="eyebrow">Подготовка</span>
+            <h2>Съвети преди ремонт</h2>
+            <ul class="tips">${window.REPAIR_TIPS.map((t) => `<li>${icon("check")}<span><b>${esc(t.t)}</b><small class="muted">${esc(t.d)}</small></span></li>`).join("")}</ul>
+          </div>
           <div class="svc-gets">
             <h3>Какво получаваш</h3>
             <ul>
@@ -1189,9 +1222,12 @@
               <li>${icon("check")}<span><b>Законова гаранция</b> – правата ти при несъответствие не се ограничават.</span></li>
             </ul>
           </div>
-          <h3>Преди да донесеш устройството</h3>
-          <div class="acc">${window.SERVICE_FAQ.map((x) => `<details><summary>${esc(x.q)}</summary><p>${esc(x.a)}</p></details>`).join("")}</div>
         </div>
+      </div>
+
+      <div class="section" id="faq">
+        <div class="section__head"><div><span class="eyebrow">Въпроси</span><h2>Често задавани въпроси за ремонта</h2></div></div>
+        <div class="acc svc-faq">${window.SERVICE_FAQ.map((x) => `<details><summary>${esc(x.q)}</summary><p>${esc(x.a)}</p></details>`).join("")}</div>
       </div>
 
       <div class="section">
@@ -1231,12 +1267,50 @@
       const b = e.target.closest("[data-repair]");
       if (b) fillForm(b.dataset.repair);
     });
+
+    // ценоразпис по модел
+    const PL = window.REPAIR_PRICES || [], COLS = window.REPAIR_COLS || [];
+    const plBrands = [...new Set(PL.map((r) => r.b))];
+    let plBrand = "", plAll = false;
+    const money = (v) => (v === "" || v == null || isNaN(v) ? "" : eur(Number(v)));
+    $("#plB").innerHTML = ["", ...plBrands].map((b) => `<button type="button" class="chip ${b === plBrand ? "active" : ""}" data-plb="${esc(b)}">${esc(b || "Всички")}</button>`).join("");
+    const drawPL = () => {
+      const toks = norm($("#plQ").value).split(/\s+/).filter(Boolean);
+      const rows = PL.filter((r) => (!plBrand || r.b === plBrand) && toks.every((t) => norm(r.b + " " + r.m).includes(t)));
+      const cut = !plAll && !toks.length && matchMedia("(max-width: 700px)").matches && rows.length > 8;
+      $("#plMore").hidden = !cut; $("#plMore").textContent = `Покажи всички ${rows.length} модела`;
+      $("#plBody").innerHTML = (cut ? rows.slice(0, 8) : rows).map((r) => `<tr><th scope="row"><small>${esc(r.b)}</small>${esc(r.m)}</th>${COLS.map((c, i) => `<td data-label="${esc(c.name)}">${money(r.p[i]) ? `<button type="button" data-plm="${esc(r.b + " " + r.m)}" data-plr="${esc(c.repair)}">${money(r.p[i])}</button>` : `<button type="button" class="plist__ask" data-plm="${esc(r.b + " " + r.m)}" data-plr="${esc(c.repair)}">запитване</button>`}</td>`).join("")}</tr>`).join("")
+        || `<tr><td colspan="${COLS.length + 1}" class="plist__none">Няма го в списъка? <button type="button" class="link-btn" data-plm="${esc($("#plQ").value)}" data-plr="">Поискай оферта за „${esc($("#plQ").value)}“</button></td></tr>`;
+      $("#plNote").textContent = `${rows.length} модела · цените са ориентировъчни, в евро с ДДС, с включена част и труд. Точната цена и срокът се потвърждават след преглед.`;
+      $$("#plB [data-plb]").forEach((b) => b.classList.toggle("active", b.dataset.plb === plBrand));
+    };
+    drawPL();
+    $("#plQ").addEventListener("input", drawPL);
+    $("#plMore").addEventListener("click", () => { plAll = true; drawPL(); });
+    $("#plB").addEventListener("click", (e) => { const b = e.target.closest("[data-plb]"); if (b) { plBrand = b.dataset.plb; drawPL(); } });
+    $("#plBody").addEventListener("click", (e) => { const b = e.target.closest("[data-plm]"); if (b) fillForm(b.dataset.plr, b.dataset.plm.trim()); });
+    // точна цена по модел за калкулатора
+    const plFind = (txt, repairTitle) => {
+      const t = norm(txt).replace(/\s+/g, " ").trim(); if (t.length < 3) return null;
+      const ci = COLS.findIndex((c) => c.repair === repairTitle); if (ci < 0) return null;
+      const byLen = (a, b) => b.m.length - a.m.length;
+      const r = PL.filter((r) => t.includes(norm(r.m))).sort(byLen)[0] || PL.filter((r) => norm(r.b + " " + r.m).includes(t)).sort((a, b) => a.m.length - b.m.length)[0];
+      return r && money(r.p[ci]) ? { name: r.b + " " + r.m, price: money(r.p[ci]) } : null;
+    };
+
+    $("#courierGo").addEventListener("click", () => {
+      fillForm("Ремонт по куриер");
+      const f = $("#inqForm"), ta = f && f.querySelector("[name=msg]");
+      if (ta && !/куриер/i.test(ta.value)) ta.value = "Ремонт по куриер – град: \n" + ta.value;
+    });
+    setLd("ld-svcfaq", { "@context": "https://schema.org", "@type": "FAQPage", mainEntity: window.SERVICE_FAQ.map((x) => ({ "@type": "Question", name: x.q, acceptedAnswer: { "@type": "Answer", text: x.a } })) });
     const calc = $("#calcForm");
     const drawCalc = () => {
       const r = window.REPAIRS[+calc.rep.value];
       const dev = calc.dev.value, brand = calc.brand.value, model = calc.model.value.trim();
-      $("#calcRes").innerHTML = `<div><small class="muted">${esc(dev)} · ${esc(model || brand)} · ${esc(r.title)}</small>
-        <b class="calc__price">${esc(r.price)}</b><small class="muted">Ориентировъчно. Точната цена – след преглед.</small></div>
+      const exact = plFind(`${brand === "Друга" ? "" : brand} ${model}`, r.title) || (model && plFind(model, r.title));
+      $("#calcRes").innerHTML = `<div><small class="muted">${esc(dev)} · ${esc(exact ? exact.name : model || brand)} · ${esc(r.title)}</small>
+        <b class="calc__price">${esc(exact ? exact.price : r.price)}</b><small class="muted">${exact ? "Ориентировъчно за този модел." : "Ориентировъчно."} Точната цена – след преглед.</small></div>
         <div class="row-btns"><button type="button" class="btn btn--primary" id="calcGo">Поискай точна оферта ${icon("arrow")}</button>
         <button type="button" class="btn btn--ghost" id="calcBook">${icon("clock")} Запази час</button></div>`;
       $("#calcBook").onclick = () => {
@@ -2666,6 +2740,7 @@
     closeModal(); closeDrawers(); closeSearch();
     $("#suggest").hidden = true;
     if (parts[0] !== "p") setLd("ld-product", null);
+    if (parts[0] !== "service") setLd("ld-svcfaq", null);
     if (parts[0] !== "c") { cat = null; $("#searchInput").value = ""; }
     switch (parts[0]) {
       case undefined: pageHome(); break;

@@ -21,6 +21,7 @@
       if (Array.isArray(st.featured) && st.featured.length) S.featured = st.featured.map(String);
       if (Array.isArray(st.heroSlides) && st.heroSlides.length) S.heroSlides = st.heroSlides.filter((x) => x && typeof x === "object");
       if (st.social && typeof st.social === "object") S.social = { ...S.social, ...st.social };
+      if (Array.isArray(st.repairPrices) && st.repairPrices.length) window.REPAIR_PRICES = st.repairPrices.filter((r) => r && r.m && Array.isArray(r.p));
       if (typeof st.aiChat === "boolean") S.aiChat = st.aiChat;
       if (st.heroImage === "auto" || (st.heroSlug && st.heroSlug !== "samsung-galaxy-s26-ultra-model-119473")) S.heroImage = "";
       if (st.phone) S.phoneIntl = "+359" + st.phone.replace(/\D/g, "").replace(/^0/, "");

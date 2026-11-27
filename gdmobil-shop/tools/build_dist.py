@@ -190,6 +190,14 @@ def main():
 
     # ---------- сервиз ----------
     rep = "".join(f'<li><b>{E(r["title"])}</b> – {E(r["price"])}. {E(r["text"])}</li>' for r in repairs)
+    D = os.path.join(ROOT, "assets", "data.js")
+    rcols, rprices, rsteps = load_js(D, "REPAIR_COLS"), load_js(D, "REPAIR_PRICES"), load_js(D, "REPAIR_STEPS")
+    sfaq, csteps, rtips = load_js(D, "SERVICE_FAQ"), load_js(D, "COURIER_STEPS"), load_js(D, "REPAIR_TIPS")
+    steps = "".join(f'<li><b>{E(x["title"])}</b> ({E(x.get("time", ""))}) – {E(x["text"])}</li>' for x in rsteps)
+    plist = "".join(f'<tr><th>{E(r["b"])} {E(r["m"])}</th>' + "".join(f'<td>{E(str(v) + " €") if v not in ("", None) else "запитване"}</td>' for v in r["p"]) + "</tr>" for r in rprices)
+    courier = "".join(f'<li><b>{E(x["title"])}</b> – {E(x["text"])}</li>' for x in csteps)
+    tips = "".join(f'<li><b>{E(x["t"])}</b> – {E(x["d"])}</li>' for x in rtips)
+    faqh = "".join(f'<h3>{E(x["q"])}</h3><p>{E(x["a"])}</p>' for x in sfaq)
     body = f'''<section class="container page seo-pre">{crumbs([("Сервиз", None)])}
 <div class="svc-hero"><div><span class="eyebrow eyebrow--dark">Сервиз GDMobil · Гоце Делчев</span><h1>Ремонт на телефони и таблети – с ясна цена преди започване.</h1>
 <p class="muted">Смяна на дисплеи и батерии, ремонт на букси за зареждане, камери и бутони, софтуер и диагностика на платки. Избери проблема за ориентировъчна цена или ни пиши.</p>
@@ -198,9 +206,18 @@ def main():
 <figure class="svc-art"><img src="assets/img/service-hero.svg" alt="Отворен смартфон в сервиза с батерия, платка и инструменти"></figure></div>
 <h2>Сервиз за телефони и таблети в Гоце Делчев</h2>
 <p>Цените са ориентировъчни – точната сума се уточнява след преглед.</p>
-<ul class="seo-list">{rep}</ul><p><a class="btn btn--primary" href="#/service">Запитване за ремонт</a></p></section>'''
-    ld = {"@context": "https://schema.org", "@type": "Service", "serviceType": "Ремонт на телефони и таблети", "areaServed": "Гоце Делчев",
-          "provider": {"@type": "MobilePhoneStore", "name": "GDMobil", "telephone": store.get("phoneIntl"), "address": store.get("address")}}
+<ul class="seo-list">{rep}</ul>
+<h2>Как протича ремонтът</h2><ol class="seo-list">{steps}</ol>
+<h2>Цени по модел</h2><p>Ориентировъчни цени в евро с ДДС, с включена част и труд.</p>
+<table class="seo-table"><thead><tr><th>Модел</th>{"".join(f"<th>{E(c['name'])}</th>" for c in rcols)}</tr></thead><tbody>{plist}</tbody></table>
+<h2>Ремонт по куриер от цяла България</h2><ol class="seo-list">{courier}</ol>
+<h2>Съвети преди ремонт</h2><ul class="seo-list">{tips}</ul>
+<h2>Често задавани въпроси за ремонта</h2>{faqh}
+<p><a class="btn btn--primary" href="#/service">Запитване за ремонт</a></p></section>'''
+    ld = {"@context": "https://schema.org", "@graph": [
+          {"@type": "Service", "serviceType": "Ремонт на телефони и таблети", "areaServed": "България",
+           "provider": {"@type": "MobilePhoneStore", "name": "GDMobil", "telephone": store.get("phoneIntl"), "address": store.get("address")}},
+          {"@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": x["q"], "acceptedAnswer": {"@type": "Answer", "text": x["a"]}} for x in sfaq]}]}
     urls.append(page("/service/", "Сервиз за телефони и таблети – цени | GDMobil Гоце Делчев", "Ремонт на телефони и таблети в Гоце Делчев: дисплей от 30 €, батерия от 30 €, букса от 15 €. Оферта преди ремонта.", body, ld))
 
     # ---------- За нас, Въпроси и отговори, Ръководства ----------

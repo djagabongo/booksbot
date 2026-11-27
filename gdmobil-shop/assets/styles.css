@@ -1482,3 +1482,74 @@ body.lock .toast { display: none; }
 .xsell__img, .card__media, .line__img, .pd__main { overflow: hidden; }
 .xsell__img img, .line__img img { font-size: 0; color: transparent; }
 .xsell__item { min-width: 0; }
+
+/* ---------- Сервиз: стъпки, ценоразпис, куриер, съвети, въпроси ---------- */
+.svc-steps { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; counter-reset: st; }
+.svc-steps li { position: relative; display: grid; align-content: start; gap: 6px; padding: 22px; border-radius: 24px; background: var(--surface); border: 1px solid var(--line); }
+.svc-steps__n { width: 42px; height: 42px; border-radius: 14px; display: grid; place-items: center; background: var(--grad); color: #fff; font-family: var(--display); font-weight: 700; font-size: 1.1rem; margin-bottom: 6px; }
+.svc-steps b { font-size: 1.05rem; font-weight: 600; }
+.svc-steps__t { display: inline-flex; align-items: center; gap: 6px; justify-self: start; padding: 3px 10px; border-radius: 999px; background: var(--ember-soft); color: var(--ember-ink); font-weight: 600; font-size: .78rem; }
+.svc-steps__t .ic { width: 14px; height: 14px; }
+.svc-steps p { margin: 2px 0 0; font-size: .9rem; line-height: 1.5; }
+.svc-steps li:not(:last-child)::after { content: ""; position: absolute; top: 42px; right: -12px; width: 10px; height: 2px; background: var(--line); }
+@media (max-width: 960px) { .svc-steps { grid-template-columns: 1fr 1fr; } .svc-steps li::after { display: none; } }
+@media (max-width: 560px) { .svc-steps { grid-template-columns: 1fr; } .svc-steps li { grid-template-columns: auto 1fr; column-gap: 14px; padding: 16px; } .svc-steps__n { grid-row: span 3; margin: 0; } .svc-steps p { grid-column: 2; } }
+
+.plist { border-radius: 28px; background: var(--surface); border: 1px solid var(--line); padding: 18px; }
+.plist__tools { display: grid; gap: 12px; margin-bottom: 14px; }
+.plist__search { position: relative; display: block; max-width: 460px; }
+.plist__search .ic { position: absolute; left: 16px; top: 50%; translate: 0 -50%; width: 18px; height: 18px; color: var(--muted); pointer-events: none; }
+.plist__search .input { padding-left: 44px; }
+.plist__brands { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+.plist__brands .chip { height: 36px; font-size: .86rem; }
+.plist__wrap { max-height: 560px; overflow: auto; border-radius: 18px; border: 1px solid var(--line); }
+.plist__table { width: 100%; border-collapse: collapse; font-size: .93rem; }
+.plist__table thead th { position: sticky; top: 0; z-index: 1; background: var(--surface-2); text-align: center; font-size: .76rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 12px 8px; }
+.plist__table thead th:first-child { text-align: left; padding-left: 16px; }
+.plist__table tbody th { text-align: left; font-weight: 600; padding: 10px 16px; white-space: nowrap; }
+.plist__table tbody th small { display: block; font-weight: 500; font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.plist__table td { text-align: center; padding: 6px; }
+.plist__table tbody tr { border-top: 1px solid var(--line); }
+.plist__table tbody tr:hover { background: color-mix(in srgb, var(--ember-soft) 50%, transparent); }
+.plist__table td button { padding: 8px 12px; border-radius: 12px; font-weight: 600; white-space: nowrap; transition: .15s; }
+.plist__table td button:hover { background: var(--ink); color: #fff; }
+.plist__table td .plist__ask { font-weight: 500; font-size: .82rem; color: var(--muted); }
+.plist__none { padding: 24px !important; }
+#plNote { margin: 10px 4px 0; }
+@media (max-width: 700px) {
+  .plist { padding: 12px; border-radius: 22px; }
+  .plist__wrap { max-height: none; border: 0; overflow: visible; }
+  .plist__table thead { display: none; }
+  .plist__table, .plist__table tbody, .plist__table tr { display: block; }
+  .plist__table tbody tr { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; padding: 12px 4px; }
+  .plist__table tbody th { grid-column: 1 / -1; padding: 0 4px 6px; }
+  .plist__table td { display: grid; gap: 2px; padding: 0; }
+  .plist__table td::before { content: attr(data-label); font-size: .64rem; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+  .plist__table td button { padding: 6px 2px; font-size: .84rem; background: var(--surface-2); border-radius: 10px; }
+  .plist__table td .plist__ask { font-size: .7rem; }
+}
+
+.courier { display: grid; grid-template-columns: .9fr 1.1fr; gap: 32px; padding: 36px; border-radius: 32px; background: var(--ink); color: #fff; position: relative; overflow: hidden; }
+.courier::before { content: ""; position: absolute; inset: auto -10% -60% 30%; height: 120%; background: radial-gradient(closest-side, rgba(255,90,31,.35), transparent); pointer-events: none; }
+.courier__copy { position: relative; display: grid; align-content: start; gap: 14px; }
+.courier__copy h2 { color: #fff; margin: 0; }
+.courier__copy p { color: #c9c6c1; margin: 0; line-height: 1.6; }
+.courier__copy .btn { justify-self: start; }
+.courier__copy small { color: #a8a5a0; }
+.courier__steps { position: relative; list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.courier__steps li { display: flex; gap: 14px; padding: 16px; border-radius: 20px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); }
+.courier__steps li > span { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--grad); font-weight: 700; }
+.courier__steps b { font-weight: 600; }
+.courier__steps p { margin: 3px 0 0; color: #c9c6c1; font-size: .9rem; line-height: 1.5; }
+@media (max-width: 860px) { .courier { grid-template-columns: 1fr; padding: 24px; gap: 22px; border-radius: 26px; } }
+
+.tips { list-style: none; padding: 0; margin: 12px 0 24px; display: grid; gap: 10px; }
+.tips li { display: flex; gap: 12px; padding: 14px 16px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); }
+.tips li > .ic { flex: none; width: 22px; height: 22px; color: var(--ok); margin-top: 1px; }
+.tips span { display: grid; gap: 2px; }
+.tips small { font-size: .86rem; line-height: 1.5; }
+.svc-faq { max-width: 900px; }
+.courier .btn--primary { background: var(--grad); color: #fff; }
+#plMore { margin-top: 10px; }
+.seo-table { width: 100%; border-collapse: collapse; font-size: .9rem; } .seo-table th, .seo-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; }
+@media (max-width: 700px) { .plist__table td { align-content: end; } }

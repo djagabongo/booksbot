@@ -157,7 +157,7 @@
   function render() {
     const m = $("#main"), fresh = m.cloneNode(false);
     m.replaceWith(fresh); // нов елемент – без натрупани обработчици от предишния раздел
-    ({ chat: renderChat, dash: renderDash, promos: renderPromos, watches: renderWatches, orders: renderOrders, products: renderProducts, labels: renderLabels, home: renderHome, store: renderStore, reviews: renderReviews, analytics: renderAnalytics })[tab]();
+    ({ chat: renderChat, dash: renderDash, promos: renderPromos, watches: renderWatches, orders: renderOrders, products: renderProducts, service: renderService, labels: renderLabels, home: renderHome, store: renderStore, reviews: renderReviews, analytics: renderAnalytics })[tab]();
   }
 
   /* ===== ПРОДУКТИ ===== */
@@ -504,6 +504,50 @@
       if (t.dataset.soc) { O.store.social = { ...(O.store.social || {}), [t.dataset.soc]: t.value.trim() }; change(); }
     });
     $("#aiChat").addEventListener("change", (e) => { O.store.aiChat = e.target.checked; change(); });
+  }
+
+  /* ===== СЕРВИЗ: ЦЕНОРАЗПИС ПО МОДЕЛ ===== */
+  function renderService() {
+    freshMain();
+    const COLS = window.REPAIR_COLS || [];
+    const rows = () => O.store.repairPrices || (window.REPAIR_PRICES || []).map((r) => ({ b: r.b, m: r.m, p: [...r.p] }));
+    const setRows = (r) => { O.store.repairPrices = r; change(); };
+    let fq = "";
+    $("#main").innerHTML = `<div class="adm-page">
+      <section class="adm-box">
+        <div class="adm-row adm-row--between"><div><h2>Ценоразпис на ремонти по модел</h2>
+          <p class="muted small">Показва се в сайта на „Сервиз → Цени по модел“, в калкулатора и в AI чата. Цени в евро с ДДС, с част и труд. Празно поле = „запитване“.</p></div>
+          <div class="adm-row"><input class="input" id="svQ" type="search" placeholder="Търси модел…" style="width:200px"><button class="btn btn--primary btn--sm" id="svAdd">+ Нов модел</button></div></div>
+        <div class="adm-table-wrap"><table class="adm-table adm-svc"><thead><tr><th>Марка</th><th>Модел</th>${COLS.map((c) => `<th>${esc(c.name)} €</th>`).join("")}<th></th></tr></thead><tbody id="svBody"></tbody></table></div>
+        <div class="adm-row" style="margin-top:12px"><button class="btn btn--ghost btn--sm" id="svSort">Подреди по марка и модел</button><button class="btn btn--ghost btn--sm" id="svReset">Върни цените по подразбиране</button><span class="muted small" id="svCount"></span></div>
+      </section></div>`;
+    const draw = () => {
+      const all = rows(), t = norm(fq);
+      $("#svBody").innerHTML = all.map((r, i) => (!t || norm(r.b + " " + r.m).includes(t)) ? `<tr data-i="${i}">
+        <td><input class="input input--sm" data-sf="b" value="${esc(r.b)}" list="svBrands" style="width:110px"></td>
+        <td><input class="input input--sm" data-sf="m" value="${esc(r.m)}" style="min-width:170px"></td>
+        ${COLS.map((c, j) => `<td><input class="input input--sm" type="number" min="0" step="1" data-sp="${j}" value="${esc(r.p[j] ?? "")}" placeholder="—" style="width:84px"></td>`).join("")}
+        <td><button class="link-btn" data-del="${i}" title="Изтрий">Изтрий</button></td></tr>` : "").join("")
+        + `<datalist id="svBrands">${[...new Set(all.map((r) => r.b))].map((b) => `<option value="${esc(b)}">`).join("")}</datalist>`;
+      $("#svCount").textContent = `${all.length} модела`;
+    };
+    draw();
+    $("#svQ").addEventListener("input", (e) => { fq = e.target.value; draw(); });
+    $("#svBody").addEventListener("input", (e) => {
+      const tr = e.target.closest("tr[data-i]"); if (!tr) return;
+      const r = rows().map((x) => ({ ...x, p: [...x.p] })), it = r[+tr.dataset.i];
+      if (e.target.dataset.sf) it[e.target.dataset.sf] = e.target.value;
+      if (e.target.dataset.sp) it.p[+e.target.dataset.sp] = e.target.value === "" ? "" : Math.max(0, Number(e.target.value));
+      setRows(r);
+    });
+    $("#svBody").addEventListener("click", (e) => {
+      const d = e.target.closest("[data-del]"); if (!d) return;
+      const r = rows(); if (!confirm(`Да изтрия ли „${r[+d.dataset.del].b} ${r[+d.dataset.del].m}“?`)) return;
+      setRows(r.filter((_, i) => i !== +d.dataset.del)); draw();
+    });
+    $("#svAdd").addEventListener("click", () => { setRows([{ b: "", m: "", p: COLS.map(() => "") }, ...rows()]); fq = ""; $("#svQ").value = ""; draw(); $("#svBody input")?.focus(); });
+    $("#svSort").addEventListener("click", () => { setRows([...rows()].sort((a, b) => a.b.localeCompare(b.b) || a.m.localeCompare(b.m, "bg", { numeric: true }))); draw(); });
+    $("#svReset").addEventListener("click", () => { if (!confirm("Да върна ли ценоразписа по подразбиране? Твоите промени ще се изгубят след „Запази“.")) return; delete O.store.repairPrices; change(); draw(); });
   }
 
   /* ===== ОТЗИВИ ===== */

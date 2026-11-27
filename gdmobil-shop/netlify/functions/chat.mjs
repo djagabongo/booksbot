@@ -45,7 +45,17 @@ async function loadSiteKnowledge(origin) {
     const C = box.window.CONTENT || {};
     const faq = (C.faq || []).map((f) => `В: ${f.q}\nО: ${f.a}`).join("\n");
     const guides = (C.guides || []).map((g) => `- [${g.title}](#/guides/${g.slug}) – ${g.desc}`).join("\n");
-    siteKb = { at: Date.now(), text: `Въпроси и отговори от сайта:\n${faq}\n\nРъководства в сайта (препоръчвай ги, когато са полезни):\n${guides}` };
+    // сервиз: ценоразпис по модел, въпроси, ремонт по куриер – от assets/data.js
+    let svc = "", prices = [], cols = [];
+    try {
+      const d = { window: {} };
+      vm.runInNewContext(await (await fetch(origin + "/assets/data.js", { signal: AbortSignal.timeout(3000) })).text(), d, { timeout: 200 });
+      const W = d.window;
+      prices = W.REPAIR_PRICES || []; cols = (W.REPAIR_COLS || []).map((c) => c.name);
+      svc = `\n\nСервиз – въпроси и отговори:\n${(W.SERVICE_FAQ || []).map((f) => `В: ${f.q}\nО: ${f.a}`).join("\n")}` +
+        `\n\nРемонт по куриер от цяла България ([Ремонт по куриер](#/service#courier)): ${(W.COURIER_STEPS || []).map((x, i) => `${i + 1}) ${x.title} – ${x.text}`).join(" ")}`;
+    } catch {}
+    siteKb = { at: Date.now(), prices, cols, text: `Въпроси и отговори от сайта:\n${faq}\n\nРъководства в сайта (препоръчвай ги, когато са полезни):\n${guides}${svc}` };
   } catch {
     siteKb.at = Date.now() - 540_000; // нов опит след минута
   }
@@ -58,6 +68,14 @@ function ownerKnowledge(chat) {
     .map((x) => `В: ${clean(x.q, 300)}\nО: ${clean(x.a, 1200)}`).join("\n");
   if (!notes && !qa) return "";
   return `\n\nУказания и готови отговори от собственика на магазина (те са с предимство пред общите факти по-горе; следвай ги точно):\n${notes}${qa ? `\n${qa}` : ""}`;
+}
+
+function priceList(store) {
+  const rows = Array.isArray(store.repairPrices) && store.repairPrices.length ? store.repairPrices : siteKb.prices || [];
+  const cols = siteKb.cols?.length ? siteKb.cols : ["Дисплей", "Батерия", "Букса", "Заден капак", "Камера"];
+  if (!rows.length) return "";
+  return `\n\nЦеноразпис на ремонти по модел (ориентировъчно, € с ДДС, част и труд; празно = при запитване; виж [Цени по модел](#/service#pricelist)):\n` +
+    rows.slice(0, 120).map((r) => `${clean(r.b, 30)} ${clean(r.m, 60)}: ${cols.map((c, i) => `${c} ${r.p?.[i] === "" || r.p?.[i] == null ? "запитване" : Number(r.p[i]) + " €"}`).join(", ")}`).join("\n");
 }
 
 function systemPrompt(store, kb = "", owner = "") {
@@ -86,7 +104,7 @@ function systemPrompt(store, kb = "", owner = "") {
 Не знаеш статуса на конкретни поръчки (насочи клиента към [Проследяване](#/track)), нямаш достъп до складова информация извън сайта и не обещаваш отстъпки, срокове или неща, които не са в тези факти. При такива въпроси, при оплакване или ако клиентът иска човек – кажи накратко, че колега ще помогне, и завърши отговора с маркера [HUMAN] на отделен ред (сайтът го заменя с бутони за обаждане, Messenger и запитване).
 Ако въпросът няма връзка с магазина, телефоните, аксесоарите или сервиза, учтиво върни разговора към тях. Не искай и не приемай лични данни като ЕГН, пароли или данни от карти.
 
-${kb}${owner}`;
+${kb}${priceList(store)}${owner}`;
 }
 
 async function loadSettings() {
