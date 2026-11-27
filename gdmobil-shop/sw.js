@@ -1,5 +1,5 @@
 /* GDMobil service worker – бързо зареждане и работа при слаба връзка */
-const VERSION = "gdm-v43";
+const VERSION = "gdm-v44";
 const SHELL = ["./", "index.html", "assets/styles.css", "assets/app.js", "assets/data.js", "assets/catalog.js", "assets/legal.js", "assets/boot.js", "assets/img/logo-h.webp"];
 
 self.addEventListener("install", (e) => {

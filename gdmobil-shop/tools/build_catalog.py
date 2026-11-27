@@ -257,7 +257,7 @@ def group_accessories(items, model_names):
     return groups
 
 
-OG_PRICE = 10
+OG_PRICE = {"og-premium-strong-steklen-protektor": 12, "og-premium-privacy-steklen-protektor": 16}  # € за всеки модел
 # (slug, име, снимка, галерия, начало на артикулните номера)
 OG_PRODUCTS = [
     ("og-premium-strong-steklen-protektor", "Стъклен протектор OG Premium Strong – Full Glass", "cs98610", [], 950_000_000),
@@ -617,10 +617,10 @@ def build_catalog(src):
             for g in phones:
                 label = re.sub(r"^" + re.escape(g["b"]) + r"\s+", "", g["n"]) if g["b"] in ("Apple", "Samsung") else g["n"]
                 vid = base_id + zlib.crc32(g["n"].encode()) % 9_000_000
-                variants.append([vid, "", "", "", "", OG_PRICE, img, "", 0, 1, gal, None, label, g["mk"]])
+                variants.append([vid, "", "", "", "", OG_PRICE[slug], img, "", 0, 1, gal, None, label, g["mk"]])
             acc_groups.insert(0, {"s": slug, "n": name, "b": "OG Premium", "c": "accessories", "mk": "", "sc": "Протектори",
                                   "cm": [g["mk"] for g in phones], "v": variants})
-        print(f"OG Premium: {len(OG_PRODUCTS)} продукта × {len(phones)} модела телефони по {OG_PRICE} €")
+        print(f"OG Premium: {len(OG_PRODUCTS)} продукта × {len(phones)} модела телефони ({', '.join(f'{v} €' for v in OG_PRICE.values())})")
         renamed = 0
         for g in acc_groups:
             nn = type_first(g["n"], g.get("sc", ""))

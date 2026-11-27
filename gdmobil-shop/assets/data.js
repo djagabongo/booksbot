@@ -61,7 +61,7 @@ window.STORE = {
   // Вид "product": { slug } – име, цена и снимка от каталога. Вид "custom": свой текст, връзка и снимка.
   heroSlides: [
     { type: "product", slug: "" },
-    { type: "custom", eyebrow: "Протектори · OG Premium", title: "Стъклен протектор за всеки телефон", em: "само 10 €",
+    { type: "custom", eyebrow: "Протектори · OG Premium", title: "Стъклен протектор за всеки телефон", em: "от 12 €",
       text: "Full Glass или Privacy със затъмняване – за всички модели, които продаваме. Избери своя модел.",
       button: "Избери модела си", href: "#/p/og-premium-strong-steklen-protektor", image: "assets/img/products/cs98610.webp", plinth: true },
     { type: "custom", eyebrow: "Сервиз GDMobil", title: "Запази час за ремонт", em: "онлайн",
