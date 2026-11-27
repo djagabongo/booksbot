@@ -16,7 +16,9 @@
       ["phone", "email", "address", "viber", "orderEndpoint", "heroSlug", "tagline"].forEach((k) => { if (typeof st[k] === "string" && st[k].trim()) S[k] = st[k].trim(); });
       if (typeof st.viber === "string") S.viber = st.viber.trim();
       if (typeof st.orderEndpoint === "string") S.orderEndpoint = st.orderEndpoint.trim();
-      ["deliveryOffice", "deliveryAddress"].forEach((k) => { if (k in st) S[k] = st[k] === "" || st[k] == null ? null : Number(st[k]); });
+      ["deliveryOffice", "deliveryAddress", "freeShipOver"].forEach((k) => { if (k in st) S[k] = st[k] === "" || st[k] == null ? null : Number(st[k]); });
+      if (st.shipMode === "fixed" || st.shipMode === "tariff") S.shipMode = st.shipMode;
+      if (typeof st.codFeeShown === "boolean") S.codFeeShown = st.codFeeShown;
       if (Array.isArray(st.hours) && st.hours.length === 3) S.hours = st.hours.map((r) => [String(r[0]), String(r[1])]);
       if (Array.isArray(st.featured) && st.featured.length) S.featured = st.featured.map(String);
       if (Array.isArray(st.heroSlides) && st.heroSlides.length) S.heroSlides = st.heroSlides.filter((x) => x && typeof x === "object");

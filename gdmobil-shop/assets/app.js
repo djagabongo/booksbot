@@ -921,7 +921,7 @@
           </div>
           <div class="pd__perks">
             <div>${icon("store")}<span><b>Вземи от магазина</b><small>Без такса · ${esc(S.address)}</small></span></div>
-            <div>${icon("truck")}<span><b>Еконт или Спиди</b><small>До офис или адрес · наложен платеж</small></span></div>
+            <div>${icon("truck")}<span><b>Еконт или Спиди</b><small>До офис, автомат или адрес · наложен платеж · <button type="button" class="link-btn" id="pdShip">Изчисли доставката</button></small></span></div>
             <div>${icon("shield")}<span><b>Гаранция и 14 дни за отказ</b><small><a href="#/legal/returns">Условия</a></small></span></div>
           </div>
         </div>
@@ -1017,6 +1017,7 @@
       openZoom(galleryOf(p, cur), gi, p.name);
     });
     $("#pdShare").addEventListener("click", (e) => { e.stopPropagation(); shareMenu(p, e.currentTarget); });
+    $("#pdShip")?.addEventListener("click", () => openShipCalc({ w: Math.round(((SHIP_W[p.cat] || 0.3) + 0.2) * 10) / 10, cod: cur.price || 0, title: p.name }));
     $("#pdWatch")?.addEventListener("click", () => openWatch(p, cur));
     draw();
   }
@@ -1199,7 +1200,7 @@
             <h2>Не си в Гоце Делчев? Изпрати телефона по куриер.</h2>
             <p>Изпращаш устройството с Еконт или Спиди, ние го ремонтираме и го връщаме с наложен платеж. Цената потвърждаваш, преди да започнем.</p>
             <button class="btn btn--primary" id="courierGo">${icon("truck")} Заяви ремонт по куриер</button>
-            <small>Адрес за изпращане: ${esc(S.company ? S.company + ", " : "")}${esc(S.address)} · тел. ${esc(S.phone)}</small>
+            <small>Адрес за изпращане: ${esc(S.company ? S.company + ", " : "")}${esc(S.address)} · тел. ${esc(S.phone)} · <button type="button" class="link-btn" id="svcShip">Колко струва куриерът?</button></small>
           </div>
           <ol class="courier__steps">${window.COURIER_STEPS.map((s, i) => `<li><span>${i + 1}</span><div><b>${esc(s.title)}</b><p>${esc(s.text)}</p></div></li>`).join("")}</ol>
         </div>
@@ -1298,6 +1299,7 @@
       return r && money(r.p[ci]) ? { name: r.b + " " + r.m, price: money(r.p[ci]) } : null;
     };
 
+    $("#svcShip").addEventListener("click", () => openShipCalc({ w: 0.7, cod: 0, title: "Изпращане на телефон" }));
     $("#courierGo").addEventListener("click", () => {
       fillForm("Ремонт по куриер");
       const f = $("#inqForm"), ta = f && f.querySelector("[name=msg]");
@@ -2285,8 +2287,69 @@
     }
     $("#cartFoot").innerHTML = `
       <div class="row"><span class="muted">Стоки (${n})</span><b>${eur(subtotal(), true)} ${bgnHtml(subtotal())}</b></div>
-      <p class="muted small">Вземане от магазина е без такса. За куриер таксата се уточнява преди потвърждение.</p>
+      <p class="muted small">Вземане от магазина е без такса. Доставка с Еконт или Спиди – по тарифата на куриера. <button type="button" class="link-btn" id="cartShip">Изчисли доставката</button></p>
       <button class="btn btn--primary btn--block btn--lg" id="checkoutBtn">Към поръчката ${icon("arrow")}</button>`;
+  }
+
+  /* ---------- доставка: цени по тарифите на Еконт и Спиди ---------- */
+  const SHIP_W = { phones: 0.5, tablets: 1, accessories: 0.15 }; // кг на брой; +0.2 кг опаковка
+  const shipWeight = (lines) => Math.round((0.2 + lines.reduce((a, l) => { const { p } = lineInfo(l); return a + (SHIP_W[p.cat] || 0.3) * l.qty; }, 0)) * 10) / 10;
+  const shipMode = () => (S.shipMode === "fixed" ? "fixed" : "tariff");
+  const COURIER_NAME = { econt: "Еконт", speedy: "Спиди" };
+  const DEST_NAME = { office: "до офис", apt: "до автомат", address: "до адрес" };
+  const shipCache = new Map();
+  function shipQuote(c, d, { office = "", city = "", w = 0.7, cod = 0 } = {}) {
+    const key = [c, d, office, city.trim().toLowerCase(), w.toFixed(1), Math.round(cod)].join("|");
+    if (!shipCache.has(key)) {
+      const q = new URLSearchParams({ c, d, w: w.toFixed(1), cod: Math.round(cod * 100) / 100 });
+      if (office) q.set("o", office); if (city.trim()) q.set("city", city.trim());
+      shipCache.set(key, fetch("/api/shipping?" + q).then((r) => (r.ok ? r.json() : null)).catch(() => null)
+        .then((x) => { if (!x) setTimeout(() => shipCache.delete(key), 15000); return x; }));
+    }
+    return shipCache.get(key);
+  }
+  // крайна сума за клиента според настройките на магазина (безплатна доставка над X €, такса за наложен платеж)
+  const shipForCustomer = (q, goods) => {
+    if (!q) return null;
+    const free = S.freeShipOver > 0 && goods >= S.freeShipOver;
+    const ship = free ? 0 : q.ship, cod = S.codFeeShown === false ? 0 : q.codFee;
+    return { ship, cod, free, total: Math.round((ship + cod) * 100) / 100, q };
+  };
+
+  function openShipCalc(opts = {}) {
+    const presets = [["Телефон", 0.7], ["Таблет", 1.2], ["Аксесоар", 0.35], ["2 телефона", 1.2], ["Кутия до 3 кг", 3]];
+    let w = opts.w || 0.7, cod = opts.cod ?? 0, withCod = opts.cod !== 0;
+    openModal(`<button class="icon-btn modal__close" data-close aria-label="Затвори">${icon("close")}</button>
+      <div class="shipcalc">
+        <span class="eyebrow">Калкулатор</span>
+        <h2>Колко струва доставката?</h2>
+        <p class="muted small">${opts.title ? esc(opts.title) + " · " : ""}Цени по публичните тарифи на Еконт и Спиди за пратка от Гоце Делчев. Вземане от магазина е без такса.</p>
+        <div class="field"><span>Пратка</span><div class="shipcalc__w" id="scW">${presets.map(([n, kg]) => `<button type="button" class="chip ${kg === w ? "active" : ""}" data-w="${kg}">${n}<small>${String(kg).replace(".", ",")} кг</small></button>`).join("")}</div></div>
+        <div class="two">
+          <label class="field"><span>Тегло (кг)</span><input class="input" id="scKg" type="number" min="0.1" max="31.5" step="0.1" value="${w}"></label>
+          <label class="field"><span>Сума за наложен платеж (€)</span><input class="input" id="scCod" type="number" min="0" step="1" value="${cod || ""}" placeholder="0 = без наложен платеж"></label>
+        </div>
+        <div class="shipcalc__res" id="scRes" aria-live="polite"></div>
+        <p class="muted small">${S.freeShipOver > 0 ? `Безплатна доставка за поръчки над ${eur(S.freeShipOver, true)}. ` : ""}Таксата за наложен платеж е на куриера и се дължи при плащане с наложен платеж. Крайната сума се потвърждава от магазина преди изпращане.</p>
+      </div>`);
+    const draw = async () => {
+      const rows = [["econt", "office"], ["econt", "office", "8015", "до Еконтомат"], ["econt", "address"], ["speedy", "office"], ["speedy", "apt"], ["speedy", "address"]];
+      $("#scRes").innerHTML = `<p class="muted small">Изчисляване…</p>`;
+      const res = await Promise.all(rows.map(([c, d, o]) => shipQuote(c, d, { w, cod, office: o || "" })));
+      if (!$("#scRes")) return;
+      const ok = res.filter(Boolean);
+      const best = ok.length ? Math.min(...ok.map((q) => q.total)) : null;
+      $("#scRes").innerHTML = `<table class="shipcalc__table"><thead><tr><th>Куриер</th><th>Доставка</th>${cod ? "<th>Наложен платеж</th>" : ""}<th>Общо</th></tr></thead><tbody>
+        ${rows.map(([c, d, , lbl], i) => { const q = res[i]; return `<tr class="${q && q.total === best ? "best" : ""}"><th><b>${COURIER_NAME[c]}</b><small>${lbl || DEST_NAME[d]}${q?.note ? " · " + esc(q.note) : ""}</small></th>
+          ${q ? `<td>${eur(q.ship, true)}</td>${cod ? `<td>${eur(q.codFee, true)}</td>` : ""}<td><b>${eur(q.total, true)}</b></td>` : `<td colspan="${cod ? 3 : 2}" class="muted small">няма връзка с куриера</td>`}</tr>`; }).join("")}
+        </tbody></table><p class="muted small">Еконт: публична тарифа (изчислена от Еконт). Спиди: тарифа „Стандарт 24 часа“, обновена ${esc("27.11.2026")}. Цените са с ДДС.</p>`;
+    };
+    let t;
+    const later = () => { clearTimeout(t); t = setTimeout(draw, 350); };
+    $("#scW").addEventListener("click", (e) => { const b = e.target.closest("[data-w]"); if (!b) return; w = +b.dataset.w; $("#scKg").value = w; $$("#scW .chip").forEach((x) => x.classList.toggle("active", x === b)); draw(); });
+    $("#scKg").addEventListener("input", (e) => { w = Math.min(31.5, Math.max(0.1, Number(e.target.value) || 0.1)); $$("#scW .chip").forEach((x) => x.classList.toggle("active", +x.dataset.w === w)); later(); });
+    $("#scCod").addEventListener("input", (e) => { cod = Math.max(0, Number(e.target.value) || 0); later(); });
+    draw();
   }
 
   /* ---------- поръчка ---------- */
@@ -2308,7 +2371,7 @@
             <label class="radio-card"><input type="radio" name="recv" value="Спиди"><b>${icon("truck")} Спиди</b><small>До офис или адрес</small></label>
           </div>
           <div id="courierFields" hidden>
-            <div class="seg"><label><input type="radio" name="dest" value="office" checked><span>До офис</span></label><label><input type="radio" name="dest" value="address"><span>До адрес</span></label></div>
+            <div class="seg"><label><input type="radio" name="dest" value="office" checked><span>До офис</span></label><label id="aptOpt" hidden><input type="radio" name="dest" value="apt"><span>До автомат</span></label><label><input type="radio" name="dest" value="address"><span>До адрес</span></label></div>
             <div id="officeBox" hidden>
               <label class="field"><span>Офис или Еконтомат *</span><input class="input" id="officeQ" placeholder="Търси по град, квартал или улица" autocomplete="off"></label>
               <div class="office-pick" id="officePick" hidden></div>
@@ -2316,7 +2379,7 @@
             </div>
             <div class="two" id="addrFields"><label class="field"><span>Населено място *</span><input class="input" name="city" autocomplete="address-level2"></label>
             <label class="field"><span id="addrLbl">Офис на куриера *</span><input class="input" name="addr" autocomplete="street-address"></label></div>
-            <p class="small" id="speedyHint" hidden><a class="link" href="https://www.speedy.bg/bg/speedy-offices" target="_blank" rel="noopener">Намери офис на Спиди →</a> и впиши името или адреса му.</p>
+            <p class="small" id="speedyHint" hidden><a class="link" href="https://www.speedy.bg/bg/speedy-offices" target="_blank" rel="noopener">Намери офис или автомат на Спиди →</a> и впиши името или адреса му.</p>
           </div>
           <p class="muted small" id="recvNote"></p>
         </fieldset>
@@ -2331,7 +2394,7 @@
         <p class="muted small center">Заявката не те задължава да платиш. Договорът се сключва, когато магазинът потвърди наличността, крайната сума и срока и ти ги приемеш. Цените са с ДДС${DUAL ? `; в лева по курс ${String(S.bgnRate).replace(".", ",")} лв. за 1 €` : ""}. Имаш право на отказ в 14 дни от получаването – <a href="#/legal/returns" target="_blank">условия</a> и <a href="#/withdraw" target="_blank">функция за отказ</a>.</p>
       </form>`);
     const f = $("#checkoutForm");
-    let lastCourier = null, promo = null, office = null;
+    let lastCourier = null, promo = null, office = null, quote = null, quoteKey = "";
     const promoDisc = (sub) => {
       if (!promo) return 0;
       const elig = cartLines().reduce((s, l) => { const { p, v } = lineInfo(l); return s + (promo.scope === "all" || p.cat === promo.scope ? v.price * l.qty : 0); }, 0);
@@ -2344,31 +2407,50 @@
       $("#courierFields").hidden = !courier;
       $("#officeBox").hidden = !econtOffice;
       $("#addrFields").hidden = econtOffice;
-      $("#speedyHint").hidden = !(recv === "Спиди" && dest === "office");
+      $("#aptOpt").hidden = recv !== "Спиди";
+      if (recv !== "Спиди" && dest === "apt") { f.dest.value = "office"; return upd(); }
+      $("#speedyHint").hidden = !(recv === "Спиди" && dest !== "address");
       f.city.required = f.addr.required = courier && !econtOffice;
       if (econtOffice && !OFFICES) loadOffices();
-      $("#addrLbl").textContent = dest === "office" ? "Офис на куриера *" : "Адрес (улица, №, вх., ап.) *";
-      $("#recvNote").textContent = courier
-        ? "Това не генерира автоматично товарителница. Магазинът потвърждава възможността, таксата и очаквания срок за конкретната доставка."
-        : `Вземане от ${S.address} след потвърждение, че избраната конфигурация е готова.`;
+      $("#addrLbl").textContent = dest === "office" ? "Офис на куриера *" : dest === "apt" ? "Автомат на Спиди *" : "Адрес (улица, №, вх., ап.) *";
+      $("#recvNote").innerHTML = courier
+        ? `Цената на доставката е по публичната тарифа на ${recv}. Магазинът потвърждава сумата и срока преди изпращане. <button type="button" class="link-btn" id="shipCmp">Сравни куриерите</button>`
+        : esc(`Вземане от ${S.address} след потвърждение, че избраната конфигурация е готова.`);
       if (lastCourier !== courier) {
         const pays = courier ? [["Наложен платеж", "Плащане при получаване"]] : [["Плащане в магазина", "При вземане на място"]];
         $("#payCards").innerHTML = pays.map(([v, s], i) => `<label class="radio-card"><input type="radio" name="pay" value="${v}" ${i === 0 ? "checked" : ""}><b>${v}</b><small>${s}</small></label>`).join("");
         lastCourier = courier;
       }
       const sub = subtotal(), disc = promoDisc(sub);
-      const fee = !courier ? 0 : dest === "office" ? S.deliveryOffice : S.deliveryAddress;
+      const c = recv === "Еконт" ? "econt" : "speedy", w = shipWeight(cartLines());
+      const tariff = courier && shipMode() === "tariff";
+      let fee = !courier ? 0 : dest === "address" ? S.deliveryAddress : S.deliveryOffice, codFee = 0, shipInfo = "";
+      if (tariff) {
+        const payCod = (f.pay?.value || "Наложен платеж") === "Наложен платеж";
+        const params = { office: econtOffice && office ? office[0] : "", city: dest === "address" ? f.city.value : "", w, cod: payCod ? Math.max(0, sub - disc) : 0 };
+        const key = [c, dest, params.office, params.city.trim().toLowerCase(), w, Math.round(params.cod)].join("|");
+        if (key !== quoteKey) {
+          quoteKey = key; quote = undefined;
+          shipQuote(c, dest, params).then((q) => { if (quoteKey === key && $("#checkoutForm")) { quote = q; upd(); } });
+        }
+        const sc = quote ? shipForCustomer(quote, sub - disc) : null;
+        if (sc) { fee = sc.ship; codFee = sc.cod; shipInfo = `${recv} ${econtOffice && office && office[5] === "a" ? "до Еконтомат" : DEST_NAME[dest]} · ~${String(w).replace(".", ",")} кг${sc.free ? " · безплатна доставка" : ""}`; }
+        else fee = quote === undefined ? "…" : null;
+      }
       if (promo) $("#promoMsg").innerHTML = disc ? `✓ Код <b>${esc(promo.code)}</b>: −${eur(disc, true)}${promo.title ? ` · ${esc(promo.title)}` : ""}`
         : `Код <b>${esc(promo.code)}</b> важи ${promo.min ? `при поръчка над ${eur(promo.min, true)}` : ""}${promo.scope !== "all" ? ` за ${esc((CAT_NAMES[promo.scope] || "").toLowerCase())}` : ""}.`;
       $("#sum").innerHTML = `
         ${cartLines().map((l) => { const { p, v } = lineInfo(l); return `<div class="row small"><span>${esc(p.name)}${varLabel(v) ? ` <span class="muted">(${esc(varLabel(v))})</span>` : ""} × ${l.qty}</span><span>${eur(v.price * l.qty, true)}</span></div>`; }).join("")}
         <hr><div class="row"><span class="muted">Стоки</span><span>${eur(sub, true)}</span></div>
         ${disc ? `<div class="row promo-line"><span>Отстъпка (${esc(promo.code)})</span><span>−${eur(disc, true)}</span></div>` : ""}
-        <div class="row"><span class="muted">Доставка</span><span>${fee === 0 ? "Без такса" : fee == null ? "Предстои уточняване" : eur(fee, true)}</span></div>
-        <div class="row row--total"><span>Общо${fee == null ? " <small class=\"muted\">(без доставка)</small>" : ""}</span><span>${eur(sub - disc + (fee || 0), true)} ${bgnHtml(sub - disc + (fee || 0))}</span></div>`;
-      return { courier, fee, sub, disc, econtOffice };
+        <div class="row"><span class="muted">Доставка${shipInfo ? `<small class="ship-info">${esc(shipInfo)}</small>` : ""}</span><span>${fee === "…" ? `<span class="muted">изчисляване…</span>` : fee === 0 ? "Без такса" : fee == null ? "Предстои уточняване" : eur(fee, true)}</span></div>
+        ${codFee ? `<div class="row"><span class="muted">Такса наложен платеж<small class="ship-info">на куриера</small></span><span>${eur(codFee, true)}</span></div>` : ""}
+        <div class="row row--total"><span>Общо${fee == null || fee === "…" ? " <small class=\"muted\">(без доставка)</small>" : ""}</span><span>${eur(sub - disc + (typeof fee === "number" ? fee : 0) + codFee, true)} ${bgnHtml(sub - disc + (typeof fee === "number" ? fee : 0) + codFee)}</span></div>`;
+      return { courier, fee: typeof fee === "number" ? fee : null, codFee, sub, disc, econtOffice, shipInfo };
     };
     f.addEventListener("change", (e) => { if (e.target.id !== "officeQ" && e.target.id !== "promoIn") upd(); });
+    let cityT; f.city.addEventListener("input", () => { clearTimeout(cityT); cityT = setTimeout(upd, 600); });
+    f.addEventListener("click", (e) => { if (e.target.closest("#shipCmp")) { const sub = subtotal(); openShipCalc({ w: shipWeight(cartLines()), cod: sub, title: "Твоята поръчка" }); } });
     upd();
 
     // промо код
@@ -2412,12 +2494,12 @@
     $("#officeQ").addEventListener("input", showOffices);
     $("#officeBox").addEventListener("click", (e) => {
       const b = e.target.closest("[data-office]");
-      if (b) pickOffice(OFFICES.find((o) => o[0] === b.dataset.office));
+      if (b) { pickOffice(OFFICES.find((o) => o[0] === b.dataset.office)); upd(); }
       if (e.target.closest("#officeChange")) { pickOffice(null); $("#officeQ").focus(); showOffices(); }
     });
     f.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const { courier, fee, sub, disc, econtOffice } = upd();
+      const { courier, fee, codFee, sub, disc, econtOffice, shipInfo } = upd();
       if (econtOffice && !office) { $("#officeQ").focus(); $("#officeList").innerHTML = `<p class="small promo-msg">Избери офис на Еконт от списъка.</p>`; return; }
       if (promo) {
         const r = await fetch(`/api/orders?promo=${encodeURIComponent(promo.code)}`).catch(() => null);
@@ -2427,10 +2509,11 @@
       const num = refNo("GD");
       const items = cartLines().map((l) => { const { p, v } = lineInfo(l); return `• ${p.name}${varLabel(v) ? ` (${varLabel(v)})` : ""} – арт. ${v.id} × ${l.qty} = ${eur(v.price * l.qty, true)}`; });
       const recvTxt = econtOffice ? `Еконт, до офис: ${office[1]}${office[5] === "a" ? " (Еконтомат)" : ""} [код ${office[0]}], ${office[2]}${office[4] ? ", " + office[4] : ""}`
-        : courier ? `${fd.recv}, ${fd.dest === "office" ? "до офис" : "до адрес"}: ${fd.city}, ${fd.addr}` : `Вземане от магазина (${S.address})`;
-      const total = Math.round((sub - disc + (fee || 0)) * 100) / 100;
+        : courier ? `${fd.recv}, ${DEST_NAME[fd.dest] || "до офис"}: ${fd.city}, ${fd.addr}` : `Вземане от магазина (${S.address})`;
+      const total = Math.round((sub - disc + (fee || 0) + (codFee || 0)) * 100) / 100;
       const text = [`Заявка за поръчка № ${num}`, "", ...items, "", `Стоки: ${eur(sub, true)}`, disc ? `Отстъпка (код ${promo.code}): −${eur(disc, true)}` : false,
-        `Доставка: ${fee === 0 ? "без такса" : fee == null ? "предстои уточняване" : eur(fee, true)}`, `Общо: ${eur(total, true)}${DUAL ? ` (${bgn(total)})` : ""}`, "",
+        `Доставка: ${fee === 0 ? "без такса" : fee == null ? "предстои уточняване" : eur(fee, true)}${shipInfo ? ` (${shipInfo}, по тарифа на куриера)` : ""}`,
+        codFee ? `Такса наложен платеж (куриер): ${eur(codFee, true)}` : false, `Общо: ${eur(total, true)}${DUAL ? ` (${bgn(total)})` : ""}`, "",
         `Клиент: ${fd.name}`, `Телефон: ${fd.phone}`, fd.email ? `Имейл: ${fd.email}` : false, `Получаване: ${recvTxt}`, `Плащане: ${fd.pay}`,
         fd.note ? `Бележка: ${fd.note}` : false].filter((x) => x !== false).join("\n");
       const btn = f.querySelector("[type=submit]");
@@ -2909,6 +2992,7 @@
       }
       if (e.target.closest("[data-review]")) return openReview();
       if (e.target.closest("[data-consent]")) return openConsent(true);
+      if (e.target.closest("#cartShip")) { closeDrawers(); return openShipCalc({ w: shipWeight(cartLines()), cod: subtotal(), title: "Твоята количка" }); }
       const t = e.target.closest("[data-add],[data-qv],[data-fav],[data-cmp],[data-inc],[data-dec],[data-rm],[data-close],[data-reset],[data-unf],[data-expand],#checkoutBtn");
       if (!t) {
         if (e.target.closest(".drawer a[href^='#/']")) closeDrawers();

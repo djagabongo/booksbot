@@ -488,8 +488,18 @@
       <section class="adm-box"><h2>Работно време</h2><div class="adm-grid">
         ${hours.map((h, i) => `<label class="field"><span>${esc(h[0])}</span><input class="input" data-h="${i}" value="${esc(h[1])}" /></label>`).join("")}</div>
         <p class="muted small">Формат: „09:30 – 18:00“ или „Почивен ден“. По него сайтът показва „Отворено/Затворено сега“.</p></section>
-      <section class="adm-box"><h2>Доставка и поръчки</h2><div class="adm-grid">
-        ${f("deliveryOffice", "Такса до офис на куриер (€)", "number", "празно = предстои уточняване")}${f("deliveryAddress", "Такса до адрес (€)", "number", "празно = предстои уточняване")}
+      <section class="adm-box"><h2>Доставка и поръчки</h2>
+        <div class="adm-grid">
+          <label class="field"><span>Цена на доставката в поръчката</span><select class="select" id="shipMode">
+            <option value="tariff" ${st("shipMode") !== "fixed" ? "selected" : ""}>Автоматично – по тарифите на Еконт и Спиди</option>
+            <option value="fixed" ${st("shipMode") === "fixed" ? "selected" : ""}>Фиксирани такси (полетата по-долу)</option></select></label>
+          ${f("freeShipOver", "Безплатна доставка над (€)", "number", "празно = няма")}
+          ${f("econtSender", "Офис на Еконт за изпращане (код)", "text", "2900")}
+          <label class="check" style="align-self:end"><input type="checkbox" id="codFeeShown" ${st("codFeeShown") !== false ? "checked" : ""}><span>Показвай таксата за наложен платеж (на куриера) в поръчката</span></label>
+        </div>
+        <p class="muted small">Автоматично: Еконт се изчислява на живо по публичната им тарифа, Спиди – по тарифата от services.speedy.bg (27.11.2026). Ако имаш договор с по-ниски цени, избери „Фиксирани такси“.</p>
+        <div class="adm-grid">
+        ${f("deliveryOffice", "Фиксирана такса до офис (€)", "number", "празно = предстои уточняване")}${f("deliveryAddress", "Фиксирана такса до адрес (€)", "number", "празно = предстои уточняване")}
         ${f("orderEndpoint", "Адрес за получаване на поръчки (Formspree)", "url", "https://formspree.io/f/…")}</div>
         <p class="muted small">Без адрес на форма клиентът изпраща поръчката като имейл до магазина.</p></section>
       <section class="adm-box"><h2>Социални мрежи</h2><div class="adm-grid">
@@ -504,6 +514,8 @@
       if (t.dataset.soc) { O.store.social = { ...(O.store.social || {}), [t.dataset.soc]: t.value.trim() }; change(); }
     });
     $("#aiChat").addEventListener("change", (e) => { O.store.aiChat = e.target.checked; change(); });
+    $("#shipMode").addEventListener("change", (e) => { O.store.shipMode = e.target.value; change(); });
+    $("#codFeeShown").addEventListener("change", (e) => { O.store.codFeeShown = e.target.checked; change(); });
   }
 
   /* ===== СЕРВИЗ: ЦЕНОРАЗПИС ПО МОДЕЛ ===== */
