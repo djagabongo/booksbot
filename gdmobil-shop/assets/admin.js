@@ -798,7 +798,7 @@
     const A = O.analytics;
     const P = [
       ["", "Изключена", "", []],
-      ["plausible", "Plausible", "https://plausible.io", [["domain", "Домейн (както е в Plausible)", "gdmobil.netlify.app"]]],
+      ["plausible", "Plausible", "https://plausible.io", [["domain", "Домейн (както е в Plausible)", "gdmobil.bg"]]],
       ["umami", "Umami Cloud (има безплатен план)", "https://cloud.umami.is", [["websiteId", "Website ID", "xxxxxxxx-xxxx-…"]]],
       ["goatcounter", "GoatCounter", "https://www.goatcounter.com", [["code", "Код (поддомейн)", "gdmobil"]]],
       ["cloudflare", "Cloudflare Web Analytics (безплатна)", "https://www.cloudflare.com/web-analytics/", [["token", "Token", "…"]]],

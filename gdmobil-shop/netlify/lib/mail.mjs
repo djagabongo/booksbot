@@ -10,7 +10,7 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 export const eur = (n) => (n == null ? "—" : new Intl.NumberFormat("bg-BG", { style: "currency", currency: "EUR" }).format(n));
 export const when = (iso) => new Date(iso).toLocaleString("bg-BG", { timeZone: "Europe/Sofia", weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
 
-const DEFAULT_STORE = { name: "GDMobil", phone: "0893 933 338", email: "office@gdmobil.bg", address: "ул. „Солун“ 21, Гоце Делчев", siteUrl: "https://gdmobil.netlify.app" };
+const DEFAULT_STORE = { name: "GDMobil", phone: "0893 933 338", email: "office@gdmobil.bg", address: "ул. „Солун“ 21, Гоце Делчев", siteUrl: "https://gdmobil.bg" };
 export async function storeInfo() {
   try {
     const o = (await getStore({ name: "gdmobil-settings" }).get("overrides", { type: "json" })) || {};

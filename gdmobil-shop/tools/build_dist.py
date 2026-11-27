@@ -6,7 +6,7 @@
     сервиза и правните текстове (с истинско съдържание, мета данни и JSON-LD)
   - генерира sitemap.xml и robots.txt
 
-Употреба:  python3 tools/build_dist.py [--site https://gdmobil.netlify.app]
+Употреба:  python3 tools/build_dist.py [--site https://gdmobil.bg]
 Изисква Node.js (за прочитане на assets/data.js).
 """
 import html
@@ -73,7 +73,7 @@ def main():
     specs = load_js(os.path.join(ROOT, "assets", "specs.js"), "SPECS")
     legal = load_js(os.path.join(ROOT, "assets", "legal.js"), "LEGAL")
     content = load_js(os.path.join(ROOT, "assets", "content.js"), "CONTENT")
-    site = (site or store.get("siteUrl") or "https://gdmobil.netlify.app").rstrip("/")
+    site = (site or store.get("siteUrl") or "https://gdmobil.bg").rstrip("/")
     cat_names = {c["key"]: c["name"] for c in cats}
     no_thumb = set(catalog.get("noThumb", []))
 
@@ -336,6 +336,9 @@ def main():
     sm.append("</urlset>")
     open(os.path.join(DIST, "sitemap.xml"), "w", encoding="utf-8").write("\n".join(sm) + "\n")
     open(os.path.join(DIST, "robots.txt"), "w").write(f"User-agent: *\nAllow: /\nDisallow: /admin.html\nDisallow: /api/\n\nSitemap: {site}/sitemap.xml\n")
+    # старият адрес на Netlify пренасочва към основния домейн
+    if "netlify.app" not in site:
+        open(os.path.join(DIST, "_redirects"), "w").write(f"https://gdmobil.netlify.app/* {site}/:splat 301!\n")
     print(f"dist: {len(urls)} страници (продукти: {len(products)}), sitemap.xml, robots.txt · сайт: {site}")
 
 
