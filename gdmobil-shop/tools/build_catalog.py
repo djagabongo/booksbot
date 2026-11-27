@@ -290,6 +290,141 @@ def merge_same_name(groups):
     return out
 
 
+# ---------- имената на аксесоарите започват с вида на продукта ----------
+# „Guess … MagSafe кейс за iPhone“ → „Кейс Guess … MagSafe за iPhone“, „Hair dryer Hoco HP19“ → „Сешоар Hoco HP19“.
+# Сменя се само показаното име – адресът (slug) остава същият.
+TYPE_START = {"кейс", "калъф", "твърд", "силиконов", "кожен", "лицензиран", "протектор", "протектори", "стъклен", "темпериран",
+              "закален", "хибриден", "хидрогел", "зарядно", "адаптер", "безжично", "стенен", "стенно", "мрежово", "магнитно",
+              "слушалки", "безжични", "жични", "проводни", "каишка", "висулка", "външна", "държач", "стойка", "кабел", "кабелни",
+              "тефтер", "гъвкава", "магнитен", "магнитна", "комплект", "универсална", "портфейл", "четец", "карта", "локатор",
+              "сешоар", "преса", "машинка", "маша", "тример", "писалка", "селфи", "мишка", "батерия", "алкална", "литиева", "usb",
+              "bluetooth колонка", "колонка", "чанта", "блендер", "тостер", "кантар", "камера", "видеорегистратор", "трансмитер", "fm"}
+# (шаблон, вид) – първото съвпадение печели; шаблонът се маха от името, ако е отделна дума/фраза
+TYPE_RULES = [
+    (r"airpods[^,]*silicone|silicone[^,]*airpods", "Калъф"),
+    (r"crossbody", "Връзка за телефон"),
+    (r"phone strap|hand ?strap|handstrap|universal[^,]*strap|strap[^,]*charm", "Каишка за телефон"),
+    (r"notebook", "Тефтер"),
+    (r"mouse (?:and keyboard )?pad|mouse ?pad", "Подложка за мишка"),
+    (r"selfie ?stick|selfie", "Селфи стик"),
+    (r"протектори? за камера|camera lens protection|camera lens|lens protection|\boptik(?:\.tr)?\b|glas\.tr", "Протектор за камера"),
+    (r"протектор\w*|tempered glass|\bglass\b(?! case)", "Протектор"),
+    (r"hard ?case|\bcase\b|\bcover\b|\bcas\b|кейс|калъф", "Кейс"),
+    (r"външна батерия|допълнителна батерия|магнитна батерия|power ?bank", "Външна батерия"),
+    (r"charging station", "Зарядна станция"),
+    (r"wireless charg\w*|induction|indukc\w*|безжично зарядно|charg\w* car mount", "Безжично зарядно"),
+    (r"car charger|зарядно за кола", "Зарядно за кола"),
+    (r"зарядно|charger", "Зарядно"),
+    (r"\bcab(?:el|le)\b|\bkabel\b|кабел", "Кабел"),
+    (r"card reader", "Четец за карти"),
+    (r"memory card|micro ?sd(?! adapter)", "Карта памет"),
+    (r"адаптер|adapter|\botg\b", "Адаптер"),
+    (r"pendrive|flash ?drive|usb flash|флашка", "USB флашка"),
+    (r"ear-?phones?|head-?phones?|слушалки|\btws\b", "Слушалки"),
+    (r"bluetooth speakers?|speakers?|високоговорител|говорител", "Bluetooth колонка"),
+    (r"transmit+er|transmiter|ransmiter", "Трансмитер"),
+    (r"държач за велосипед|велосипед|\bbike mount\b|\bbike\b|bicycle", "Държач за велосипед"),
+    (r"car mount|dashboard mount|(?:държач|holder|\bmount\b)(?=[^,]*(?:\bcar\b|vent|dashboard|windshield|за кола|табло))", "Държач за кола"),
+    (r"държач|holder|\bmount\b", "Държач"),
+    (r"стойка|\bstand\b|desk folder display", "Стойка"),
+    (r"locator|lokalizator|tagme|tracker", "Локатор"),
+    (r"каишка|watch ?band|\bstrap\b", "Каишка"),
+    (r"magnetic (?:charm|pendant)|\bcharm\b|pendant|висулка", "Висулка"),
+    (r"\btorba\b|\bbag\b|чанта", "Чанта"),
+    (r"cord|chain|lanyard", "Връзка за телефон"),
+    (r"alkaline battery", "Алкална батерия"),
+    (r"lithium battery", "Литиева батерия"),
+    (r"hair dryer", "Сешоар"),
+    (r"hair straightener", "Преса за коса"),
+    (r"hair clipper", "Машинка за подстригване"),
+    (r"curling iron", "Маша за коса"),
+    (r"trimmer", "Тример"),
+    (r"electric toothbrush", "Електрическа четка за зъби"),
+    (r"massager", "Масажор"),
+    (r"foot file", "Електрическа пила за пети"),
+    (r"ears? cleaner", "Уред за почистване на уши"),
+    (r"blender", "Блендер"),
+    (r"toaster", "Тостер"),
+    (r"weight scale|\bscale\b", "Кантар"),
+    (r"dash ?cam", "Видеорегистратор"),
+    (r"kids camera", "Детски фотоапарат"),
+    (r"indoor camera|ip camera", "Камера за наблюдение"),
+    (r"gimbal", "Гимбал"),
+    (r"\bmouse\b", "Мишка"),
+    (r"keyboard", "Клавиатура"),
+    (r"pencil|\bpen\b|stylus", "Писалка"),
+    (r"sound card|sound blaster", "Звукова карта"),
+    (r"audio interface|interface live!?", "Аудио интерфейс"),
+    (r"compressor", "Компресор за гуми"),
+    (r"sunshade", "Сенник за кола"),
+    (r"night light", "Нощна лампа"),
+    (r"gaming triggers", "Геймърски тригери"),
+    (r"lavalier microphones?|microphones?", "Безжичен микрофон"),
+    (r"gamepad", "Безжичен геймпад"),
+    (r"router", "Рутер"),
+    (r"network card", "Мрежова карта"),
+    (r"projector", "Проектор"),
+    (r"portable fan|hand fan|\bfan\b", "Вентилатор"),
+    (r"portable radio|\bradio\b", "Радио"),
+    (r"sports camera", "Спортна камера"),
+    (r"outdoor camera", "Камера за наблюдение"),
+    (r"printing paper", "Хартия за принтиране"),
+    (r"razor", "Самобръсначка"),
+    (r"toothbrush heads?", "Резервни глави за четка за зъби"),
+    (r"oral flushing device", "Зъбен душ"),
+    (r"smart sport bracelet|smart band", "Смарт гривна"),
+    (r"tablet(?= \d| за kids)", "Таблет"),
+    (r"touch screen", "Тъч скрийн"),
+    (r"traveling pillow|travel pillow", "Възглавница за път"),
+    (r"mini lamp|\blamp\b", "Лампа"),
+    (r"presenter", "Презентер"),
+    (r"headset", "Слушалка"),
+    (r"car receiver|\breceiver\b", "Bluetooth приемник"),
+    (r"waist pack|running vest|vest", "Спортна чанта"),
+    (r"organizer", "Органайзер"),
+    (r"pop ?tok|popsocket|pop socket", "Поставка за пръст"),
+    (r"leash", "Каишка"),
+    (r"battery pack", "Външна батерия"),
+    (r"magnetyczna zawieszka|zawieszka|magnetic \d|magnetic\b(?=[^,]*logo)", "Висулка"),
+    (r"airtag", "Калъф за AirTag"),
+    (r"tough armor|rugged armor|liquid (?:air|crystal)|urban fit|durapro|fit lite|ultra hybrid|thin fit", "Кейс"),
+]
+TYPE_DEFAULT = {"Калъфи": "Кейс", "Протектори": "Протектор", "Зарядни": "Зарядно", "Слушалки": "Слушалки", "Каишки за часовник": "Каишка",
+                "Power Bank": "Външна батерия", "Стойки": "Стойка", "Кабели": "Кабел"}
+
+
+def type_first(name, sc):
+    n = name.strip()
+    first = n.split(" ", 1)[0].lower().strip(",.-–")
+    if first in TYPE_START or n.lower().startswith(("bluetooth колонка", "usb флашка", "fm трансмитер")):
+        return n[0].upper() + n[1:]
+    kind, rx = None, None
+    for pat, k in TYPE_RULES:
+        if re.search(pat, n, re.I):
+            kind, rx = k, pat
+            break
+    if not kind:
+        kind = TYPE_DEFAULT.get(sc)
+    if not kind:
+        return n
+    rest = n
+    if rx:
+        # махаме английската/повторената дума за вида (само първото срещане)
+        rest = re.sub(r"(?:\s*-\s*)?(?:" + rx + r")", " ", rest, count=1, flags=re.I)
+    rest = re.sub(r"\s{2,}", " ", rest).strip(" ,-–/")
+    # без повторение на думите от вида („Bluetooth колонка Bluetooth …“, „Слушалки слушалки …“)
+    kw = {w.lower() for w in kind.split() if len(w) >= 4}
+    if kind.lower().startswith("безжич"):
+        kw |= {"wireless", "безжичен", "безжична", "безжично", "безжични"}
+    rest = " ".join(w for i, w in enumerate(rest.split()) if not (w.lower().strip(",.") in kw and i < 4))
+    if kind.startswith("Протектор"):
+        rest = re.sub(r"\bFull кейс\b", "Full Cover", rest)
+    # „съвместим с …“ след вида се отделя със запетая: „Локатор, съвместим с Apple Find My“
+    rest = re.sub(r"^(съвместим[аио]?\s+с)", r", \1", rest, flags=re.I)
+    out = f"{kind}{'' if rest.startswith(',') else ' '}{rest}".strip()
+    return re.sub(r"\s{2,}", " ", out)
+
+
 def build_catalog(src):
     items = json.load(open(os.path.join(src, "catalog-list.json"), encoding="utf-8"))
     models = json.load(open(os.path.join(src, "models.json"), encoding="utf-8"))
@@ -450,6 +585,12 @@ def build_catalog(src):
             acc_groups.insert(0, {"s": slug, "n": name, "b": "OG Premium", "c": "accessories", "mk": "", "sc": "Протектори",
                                   "cm": [g["mk"] for g in phones], "v": variants})
         print(f"OG Premium: {len(OG_PRODUCTS)} продукта × {len(phones)} модела телефони по {OG_PRICE} €")
+        renamed = 0
+        for g in acc_groups:
+            nn = type_first(g["n"], g.get("sc", ""))
+            if nn != g["n"]:
+                g["n"], renamed = nn, renamed + 1
+        print(f"аксесоари: {renamed} имена преподредени да започват с вида на продукта")
         for g in acc_groups:
             groups[g["s"]] = g
         multi_model = sum(1 for g in acc_groups if any(v[12] for v in g["v"]))
