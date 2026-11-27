@@ -44,7 +44,20 @@
   /* ---------- състояние ---------- */
   let O = null; // настройките
   let dirty = false;
-  let tab = "orders";
+  let tab = sessionStorage.getItem("gdm_admin_tab") || "dash";
+  const PAGES = {
+    dash: ["Табло", "Оборот, поръчки, ремонти и състояние на магазина"],
+    orders: ["Поръчки и заявки", "Поръчки, ремонти, запитвания, записани часове и откази"],
+    promos: ["Промо кодове", "Кодове за отстъпка, които клиентите въвеждат при поръчка"],
+    watches: ["Следени цени", "Клиенти, които чакат намаление на продукт"],
+    products: ["Продукти", "Цени, наличност, снимки, описания, скриване и изтриване"],
+    labels: ["Етикети и намаления", "„Ново“, „Хит“ и намаления по марка или модел"],
+    home: ["Начална страница", "Витрина, подбрани модели и слайдове"],
+    service: ["Ценоразпис на ремонти", "Цени по модел за страницата на сервиза, калкулатора и чата"],
+    store: ["Магазин и доставка", "Контакти, работно време, доставка и социални мрежи"],
+    chat: ["Чат асистент", "Указания, готови отговори и въпроси, препратени към служител"],
+    analytics: ["Статистика", "Брояч на посещенията (само със съгласие на посетителя)"],
+  };
   let sel = null; // избран продукт
   const blank = () => ({
     store: {}, labels: { new: [...(L0.new || [])], hot: [...(L0.hot || [])], sale: { ...(L0.sale || {}) }, newAdd: [], newRemove: [] },
@@ -98,8 +111,8 @@
     const r = await api("GET", null, "?t=" + Date.now());
     O = normalize(r.ok ? r.data : {});
     $("#login").hidden = true; $("#app").hidden = false;
-    if (O._savedAt) { $("#status").textContent = "Последно запазено: " + new Date(O._savedAt).toLocaleString("bg-BG"); }
-    render();
+    if (O._savedAt) { $("#status").textContent = "Запазено " + new Date(O._savedAt).toLocaleString("bg-BG", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }); }
+    render(); badges(); setInterval(badges, 120000);
   }
   $("#loginForm").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -148,14 +161,28 @@
   $("#logoutBtn").addEventListener("click", () => { sessionStorage.removeItem(PW_KEY); location.reload(); });
 
   /* ---------- раздели ---------- */
+  const sideOpen = (on) => { document.body.classList.toggle("adm-side-open", on); $("#scrim").hidden = !on; };
+  $("#sideBtn").addEventListener("click", () => sideOpen(!document.body.classList.contains("adm-side-open")));
+  $("#scrim").addEventListener("click", () => sideOpen(false));
   $("#tabs").addEventListener("click", (e) => {
     const b = e.target.closest("[data-tab]"); if (!b) return;
-    tab = b.dataset.tab;
-    $$("#tabs [data-tab]").forEach((x) => x.setAttribute("aria-selected", x === b));
-    render();
+    tab = b.dataset.tab; sessionStorage.setItem("gdm_admin_tab", tab);
+    sideOpen(false); render(); scrollTo(0, 0);
   });
+  // брой нови заявки в менюто
+  async function badges() {
+    const r = await fetch("/api/orders?list=1", { headers: { "x-admin-password": pw() }, cache: "no-store" }).catch(() => null);
+    if (!r || !r.ok) return;
+    const d = await r.json().catch(() => null); if (!d) return;
+    const n = (d.orders || []).filter((o) => o.status === "new").length;
+    const b = $('[data-badge="orders"]'); if (b) { b.hidden = !n; b.textContent = n; }
+  }
   function freshMain() { const m = $("#main"); const f = m.cloneNode(true); m.replaceWith(f); return f; } // без натрупани обработчици
   function render() {
+    if (!PAGES[tab]) tab = "dash";
+    $$("#tabs [data-tab]").forEach((x) => x.setAttribute("aria-selected", x.dataset.tab === tab));
+    $("#pageTitle").textContent = PAGES[tab][0]; $("#pageSub").textContent = PAGES[tab][1];
+    document.title = PAGES[tab][0] + " | Админ GDMobil";
     const m = $("#main"), fresh = m.cloneNode(false);
     m.replaceWith(fresh); // нов елемент – без натрупани обработчици от предишния раздел
     ({ chat: renderChat, dash: renderDash, promos: renderPromos, watches: renderWatches, orders: renderOrders, products: renderProducts, service: renderService, labels: renderLabels, home: renderHome, store: renderStore, reviews: renderReviews, analytics: renderAnalytics })[tab]();
@@ -181,6 +208,7 @@
   // филтри (пазят се, докато е отворен разделът)
   const F = { q: "", cat: "", brand: "", model: "", sub: "", status: "", sort: "name", limit: 100 };
   const picked = new Set(); // маркирани продукти (slug)
+  let refreshList = null; // обновява списъка на място (запазва превъртането)
 
   const prMin = (p) => { const l = p.variants.map((v) => finalOf(p, v)).filter((x) => x != null); return l.length ? Math.min(...l) : null; };
   const prMax = (p) => { const l = p.variants.map((v) => finalOf(p, v)).filter((x) => x != null); return l.length ? Math.max(...l) : null; };
@@ -285,7 +313,7 @@
       const inRes = res.filter((p) => picked.has(p.slug)).length;
       $("#pickAll").checked = !!res.length && inRes === res.length;
       $("#pickAll").indeterminate = inRes > 0 && inRes < res.length;
-      $("#pcount").textContent = `${res.length} продукта${res.length > F.limit ? ` · показани ${F.limit}` : ""}${n ? "" : " · маркирай за общи действия"}`;
+      $("#pcount").textContent = `${res.length} продукта${res.length > F.limit ? ` · показани ${F.limit}` : ""}`;
     };
     const list = () => {
       syncSets();
@@ -320,6 +348,7 @@
       bulkBar();
     };
     const set = (k, v) => { F[k] = v; F.limit = 100; list(); };
+    refreshList = () => { const sc = $("#pres").scrollTop; list(); $("#pres").scrollTop = sc; };
     list();
     $("#pq").addEventListener("input", (e) => set("q", e.target.value));
     [["fCat", "cat"], ["fBrand", "brand"], ["fModel", "model"], ["fSub", "sub"], ["fStatus", "status"], ["fSort", "sort"]].forEach(([id, k]) => $("#" + id).addEventListener("change", (e) => set(k, e.target.value)));
@@ -349,7 +378,7 @@
       }
       change();
       toast(`✓ ${{ delete: "Изтрити", restore: "Възстановени", hide: "Скрити", show: "Показани", hot: "Маркирани като хит", unhot: "Без хит", order: "По заявка", stock: "В наличност", sale: "Намалението е зададено за" }[act]} ${n} – натисни „Запази“`);
-      picked.clear(); list(); editProduct();
+      picked.clear(); refreshList(); editProduct();
     });
     let lastPick = null;
     $("#pres").addEventListener("click", (e) => {
@@ -455,9 +484,16 @@
     });
     $("#pDelete")?.addEventListener("click", () => {
       if (!confirm(`Да изтрия ли „${nameOf(p)}“ от сайта?\n\nМожеш да го възстановиш от плочката „Изтрити“.`)) return;
-      toggleIn(O.deleted, p.slug, true); change(); toast("✓ Изтрит – натисни „Запази“"); renderProducts();
+      // следващият продукт в списъка остава избран – удобно за бързо почистване
+      const slugs = $$("#pres [data-slug]").map((x) => x.dataset.slug), i = slugs.indexOf(p.slug);
+      const next = slugs[i + 1] || slugs[i - 1];
+      toggleIn(O.deleted, p.slug, true); picked.delete(p.slug); change();
+      sel = next && next !== p.slug ? BY_SLUG.get(next) : null;
+      if (refreshList) refreshList();
+      editProduct();
+      toast(`✓ „${nameOf(p).slice(0, 40)}“ е изтрит – натисни „Запази“`);
     });
-    $("#pRestore")?.addEventListener("click", () => { toggleIn(O.deleted, p.slug, false); change(); toast("✓ Възстановен – натисни „Запази“"); renderProducts(); });
+    $("#pRestore")?.addEventListener("click", () => { toggleIn(O.deleted, p.slug, false); change(); if (refreshList) refreshList(); editProduct(); toast("✓ Възстановен – натисни „Запази“"); });
     // съдържание: име, описание, снимки
     $("#edName").addEventListener("input", (e) => { edSet(p, "n", e.target.value.trim() === p.name ? "" : e.target.value.trim()); });
     $("#edDesc").addEventListener("input", (e) => { edSet(p, "d", e.target.value.trim()); });
@@ -1036,8 +1072,8 @@
     const W = 720, H = 200, bw = W / dashDays, fmtD = (d) => `${d.getDate()}.${String(d.getMonth() + 1).padStart(2, "0")}`;
     const ticks = [0, 0.5, 1].map((t) => Math.round(max * t));
     m.innerHTML = `<div class="adm-page">
-      <div class="adm-row"><h2 style="margin:0">Табло</h2><div class="adm-chips" style="margin:0">${[7, 30, 90].map((n) => `<button class="adm-chip ${dashDays === n ? "on" : ""}" data-days="${n}">${n} дни</button>`).join("")}</div>
-        <button class="btn btn--ghost btn--sm" id="dReload">Обнови</button></div>
+      <div class="adm-row adm-toolbar"><div class="adm-seg">${[7, 30, 90].map((n) => `<button class="${dashDays === n ? "on" : ""}" data-days="${n}">${n} дни</button>`).join("")}</div>
+        <button class="btn btn--ghost btn--sm" id="dReload">↻ Обнови</button></div>
       <div class="dash-kpis">
         <div class="kpi"><span>Оборот (поръчки)</span><b>${eur(rev)}</b>${delta(rev, rev0)}</div>
         <div class="kpi"><span>Поръчки</span><b>${S1.length}</b>${delta(S1.length, S0.length)}</div>
@@ -1062,11 +1098,39 @@
         <section class="adm-box"><h3>Най-продавани</h3>${topList.length ? `<ol class="dash-top">${topList.map((t) => `<li><span class="dash-top__name">${esc(t.name)}</span><span class="dash-top__bar"><i style="width:${(t.rev / topMax) * 100}%"></i></span><b>${eur(t.rev)}</b><small class="muted">${t.qty} бр.</small></li>`).join("")}</ol>` : `<p class="muted">Още няма данни. (Продуктите се отчитат за поръчки след това обновяване.)</p>`}</section>
         <section class="adm-box"><h3>Предстоящи часове в сервиза</h3>${upcoming.length ? `<ul class="dash-list">${upcoming.map((o) => `<li><b>${new Date(o.appointment).toLocaleString("bg-BG", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</b><span>${esc(o.name)} · ${esc(o.title.replace(/^Час [\d. :]+– /, ""))}</span><a href="tel:${esc(o.phone)}">${esc(o.phone)}</a></li>`).join("")}</ul>` : `<p class="muted">Няма записани часове.</p>`}
           <h3>Състояние</h3><div class="adm-row" id="mailState2"></div></section>
+      </div>
+      <div class="dash-two">
+        <section class="adm-box"><div class="adm-box__head"><h3>Последни заявки</h3><button class="link-btn" data-go="orders">Всички →</button></div>
+          ${all.length ? `<table class="adm-table dash-recent"><tbody>${[...all].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 7).map((o) => `<tr data-go="orders">
+            <td><b>${esc(o.ref || "")}</b><small class="muted">${new Date(o.createdAt).toLocaleString("bg-BG", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</small></td>
+            <td>${esc(o.name || "")}<small class="muted">${esc(({ order: "Поръчка", repair: "Ремонт", inquiry: "Запитване", withdrawal: "Отказ", newsletter: "Бюлетин", watch: "Следене", unsubscribe: "Отписване" })[o.type] || o.type)}</small></td>
+            <td class="num">${o.total ? eur(o.total) : ""}</td><td><span class="adm-badge adm-badge--${esc(o.status)}">${esc(o.status === "new" ? "нова" : o.status)}</span></td></tr>`).join("")}</tbody></table>` : `<p class="muted">Още няма заявки.</p>`}
+        </section>
+        <section class="adm-box"><div class="adm-box__head"><h3>Каталог</h3><button class="link-btn" data-go="products">Продукти →</button></div>
+          ${(() => {
+            const del = new Set(O.deleted || []), hid = new Set(O.hidden || []);
+            const live = PRODUCTS.filter((p) => !del.has(p.slug));
+            const cnt = (f) => live.filter(f).length;
+            const noPrice = cnt((p) => !p.variants.some((v) => (O.prices[v.id] ?? v.price) > 0));
+            const order = cnt((p) => p.variants.some((v) => O.stock[v.id] === 0));
+            const rows = [
+              ["Активни продукти", live.length - hid.size, ""], ["Телефони", cnt((p) => p.cat === "phones"), ""], ["Таблети", cnt((p) => p.cat === "tablets"), ""], ["Аксесоари", cnt((p) => p.cat === "accessories"), ""],
+              ["Скрити", hid.size, "hidden"], ["Изтрити", del.size, "deleted"], ["Без цена", noPrice, "noprice"], ["По заявка", order, "order"], ["С редактирано съдържание", Object.keys(O.edits || {}).length, "edited"],
+            ];
+            return `<ul class="dash-stats">${rows.map(([n, v, st]) => `<li ${st ? `data-gostatus="${st}"` : ""}><span>${n}</span><b>${v}</b></li>`).join("")}</ul>`;
+          })()}
+        </section>
       </div></div>`;
     mailState($("#mailState2"), false);
     m.addEventListener("click", (e) => {
       const d = e.target.closest("[data-days]"); if (d) { dashDays = +d.dataset.days; renderDash(); }
       if (e.target.id === "dReload") { OL = null; renderDash(); }
+      const go = e.target.closest("[data-go],[data-gostatus]");
+      if (go) {
+        if (go.dataset.gostatus) { Object.assign(F, { q: "", cat: "", brand: "", model: "", sub: "", status: go.dataset.gostatus, limit: 100 }); tab = "products"; }
+        else tab = go.dataset.go;
+        sessionStorage.setItem("gdm_admin_tab", tab); render(); scrollTo(0, 0);
+      }
     });
   }
 

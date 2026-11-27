@@ -25,33 +25,48 @@
 
   <!-- Панел -->
   <div class="adm-app" id="app" hidden>
-    <header class="adm-top">
-      <a href="./" class="adm-logo"><img src="assets/img/logo-h.webp" alt="GDMobil" height="30" /><span>Админ</span></a>
-      <nav class="adm-tabs" id="tabs" role="tablist">
-        <button role="tab" data-tab="dash">Табло</button>
-        <button role="tab" data-tab="orders" aria-selected="true">Поръчки</button>
-        <button role="tab" data-tab="products">Продукти</button>
-        <button role="tab" data-tab="service">Сервиз</button>
-        <button role="tab" data-tab="labels">Етикети</button>
-        <button role="tab" data-tab="home">Начална страница</button>
-        <button role="tab" data-tab="store">Магазин</button>
-        <button role="tab" data-tab="watches">Следени цени</button>
-        <button role="tab" data-tab="promos">Промо кодове</button>
-        <button role="tab" data-tab="chat">Чат асистент</button>
-        <button role="tab" data-tab="analytics">Статистика</button>
+    <aside class="adm-side" id="side">
+      <a href="./" class="adm-logo"><img src="assets/img/logo-h.webp" alt="GDMobil" height="28" /><span>Админ</span></a>
+      <nav class="adm-nav" id="tabs" role="tablist" aria-label="Раздели">
+          <p class="adm-nav__group">Общ преглед</p>
+          <button role="tab" data-tab="dash" aria-selected="true"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span>Табло</span><b class="adm-nav__badge" data-badge="dash" hidden></b></button>
+          <p class="adm-nav__group">Продажби</p>
+          <button role="tab" data-tab="orders"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg><span>Поръчки и заявки</span><b class="adm-nav__badge" data-badge="orders" hidden></b></button>
+          <button role="tab" data-tab="promos"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12 12 20 4 12V4h8z"/><circle cx="8.5" cy="8.5" r="1.5"/></svg><span>Промо кодове</span><b class="adm-nav__badge" data-badge="promos" hidden></b></button>
+          <button role="tab" data-tab="watches"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg><span>Следени цени</span><b class="adm-nav__badge" data-badge="watches" hidden></b></button>
+          <p class="adm-nav__group">Каталог</p>
+          <button role="tab" data-tab="products"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg><span>Продукти</span><b class="adm-nav__badge" data-badge="products" hidden></b></button>
+          <button role="tab" data-tab="labels"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><path d="M8 8h.01"/></svg><span>Етикети и намаления</span><b class="adm-nav__badge" data-badge="labels" hidden></b></button>
+          <button role="tab" data-tab="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/></svg><span>Начална страница</span><b class="adm-nav__badge" data-badge="home" hidden></b></button>
+          <p class="adm-nav__group">Сервиз</p>
+          <button role="tab" data-tab="service"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/></svg><span>Ценоразпис на ремонти</span><b class="adm-nav__badge" data-badge="service" hidden></b></button>
+          <p class="adm-nav__group">Настройки</p>
+          <button role="tab" data-tab="store"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16l-1 4H5z"/><path d="M5 11v9h14v-9"/><path d="M9 20v-5h6v5"/></svg><span>Магазин и доставка</span><b class="adm-nav__badge" data-badge="store" hidden></b></button>
+          <button role="tab" data-tab="chat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg><span>Чат асистент</span><b class="adm-nav__badge" data-badge="chat" hidden></b></button>
+          <button role="tab" data-tab="analytics"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/></svg><span>Статистика</span><b class="adm-nav__badge" data-badge="analytics" hidden></b></button>
       </nav>
-      <div class="adm-top__act">
-        <span class="adm-status" id="status">Няма промени</span>
-        <button class="btn btn--primary btn--sm" id="saveBtn" disabled>Запази</button>
-        <button class="icon-btn" id="menuBtn" aria-label="Още" title="Резервно копие и изход">⋯</button>
-        <div class="adm-menu" id="menu" hidden>
-          <button id="exportBtn">Свали резервно копие (JSON)</button>
-          <label class="adm-menu__file">Възстанови от файл<input type="file" id="importFile" accept="application/json" hidden /></label>
-          <button id="logoutBtn">Изход</button>
-        </div>
+      <div class="adm-side__foot">
+        <a class="adm-side__link" href="./" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3h7v7"/><path d="M21 3 10 14"/><path d="M19 14v6H4V5h6"/></svg><span>Виж магазина</span></a>
+        <button class="adm-side__link" id="logoutBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h4v16h-4"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h11"/></svg><span>Изход</span></button>
       </div>
-    </header>
-    <main class="adm-main" id="main"></main>
+    </aside>
+    <div class="adm-scrim" id="scrim" hidden></div>
+    <div class="adm-body">
+      <header class="adm-top">
+        <button class="icon-btn adm-burger" id="sideBtn" aria-label="Меню"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+        <div class="adm-top__title"><h1 id="pageTitle">Табло</h1><p id="pageSub"></p></div>
+        <div class="adm-top__act">
+          <span class="adm-status" id="status">Няма промени</span>
+          <button class="btn btn--primary btn--sm" id="saveBtn" disabled>Запази</button>
+          <button class="icon-btn" id="menuBtn" aria-label="Още" title="Резервно копие">⋯</button>
+          <div class="adm-menu" id="menu" hidden>
+            <button id="exportBtn">Свали резервно копие (JSON)</button>
+            <label class="adm-menu__file">Възстанови от файл<input type="file" id="importFile" accept="application/json" hidden /></label>
+          </div>
+        </div>
+      </header>
+      <main class="adm-main" id="main"></main>
+    </div>
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
