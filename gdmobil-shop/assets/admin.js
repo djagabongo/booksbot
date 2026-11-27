@@ -12,11 +12,28 @@
   const PW_KEY = "gdm_admin_pw";
 
   /* ---------- продукти от каталога ---------- */
+  const noThumb = new Set(C.noThumb || []);
+  const csImg = (h, w) => `https://casestore.bg/cdn/img/products/${h.slice(3)}${h.includes("?") ? "&" : "?"}width=${w}&height=${w}`;
+  const thumb = (h) => (!h ? "" : h.startsWith("cs:") ? csImg(h, 160) : h.startsWith("https:") ? h.replace(/width=\d+&height=\d+/, "width=160&height=160")
+    : h.startsWith("assets/") ? h : /^cs\d+$/.test(h) || noThumb.has(h) ? `assets/img/products/${h}.webp` : `assets/img/products/${h}-sm.webp`);
+  const NO_BRAND = "Без марка";
   const PRODUCTS = [
-    ...C.groups.map((g) => ({ slug: g.s, name: g.n, brand: g.b, cat: g.c, kind: "g",
-      variants: g.v.map((v) => ({ id: v[0], label: [v[12] && "за " + v[12], v[1], v[2] && v[2] + " RAM", v[3], v[4]].filter(Boolean).join(" · ") || "Стандартен", price: v[5] })) })),
-    ...C.items.map((i) => ({ slug: i.s, name: i.n, brand: i.b, cat: i.c, kind: "i", sub: i.sc, variants: [{ id: i.i, label: i.sc || "Артикул", price: i.p }] })),
+    ...C.groups.map((g) => ({ slug: g.s, name: g.n, brand: g.b, cat: g.c, kind: "g", mk: g.mk || "", sub: g.sc || "", compat: g.cm || [], specs: g.sp || {},
+      variants: g.v.map((v) => ({ id: v[0], storage: v[1], ram: v[2], color: v[3], conn: v[4], price: v[5], img: v[6], code: v[7], disc: v[8], stock: v[9], old: v[11], model: v[12] || "", vmk: v[13] || "",
+        label: [v[12] && "за " + v[12], v[1], v[2] && v[2] + " RAM", v[3], v[4]].filter(Boolean).join(" · ") || "Стандартен" })) })),
+    ...C.items.map((i) => ({ slug: i.s, name: i.n, brand: i.b, cat: i.c, kind: "i", mk: "", sub: i.sc || "", compat: i.cm || [], specs: {},
+      variants: [{ id: i.i, label: i.sc || "Артикул", price: i.p, img: i.im, old: i.op, stock: i.st }] })),
   ];
+  PRODUCTS.forEach((p) => { p.brandLabel = p.brand || NO_BRAND; p.img = p.variants[0].img; });
+  // модели: телефони/таблети от каталога + моделите, за които има аксесоари
+  const MODELS = new Map();
+  for (const m of C.models) MODELS.set(m.key, { key: m.key, brand: m.brand, name: m.name.toLowerCase().startsWith(m.brand.toLowerCase()) ? m.name : `${m.brand} ${m.name}` });
+  for (const p of PRODUCTS) if (p.mk && p.cat !== "accessories" && !MODELS.has(p.mk)) MODELS.set(p.mk, { key: p.mk, brand: p.brand, name: p.name });
+  const modelName = (k) => MODELS.get(k)?.name || "";
+  // ключове на модели за продукта: самият телефон или съвместимите модели на аксесоара
+  PRODUCTS.forEach((p) => { p.models = [...new Set([p.cat !== "accessories" && p.mk, ...p.compat, ...p.variants.map((v) => v.vmk)].filter((k) => k && MODELS.has(k)))]; });
+  const modelCount = new Map();
+  PRODUCTS.forEach((p) => p.models.forEach((k) => modelCount.set(k, (modelCount.get(k) || 0) + 1)));
   const BY_SLUG = new Map(PRODUCTS.map((p) => [p.slug, p]));
   const norm = (s) => String(s).toLowerCase();
   const NEW_RE = () => {
@@ -146,37 +163,124 @@
   /* ===== ПРОДУКТИ ===== */
   const isChanged = (p) => O.hidden.includes(p.slug) || O.labels.hot.includes(p.slug) || O.labels.newAdd.includes(p.slug) || O.labels.newRemove.includes(p.slug) ||
     O.labels.sale[p.slug] != null || p.variants.some((v) => O.prices[v.id] != null || O.stock[v.id] === 0 || O.labels.sale[v.id] != null);
-  let q = "", qCat = "", onlyChanged = false;
+  // филтри (пазят се, докато е отворен разделът)
+  const F = { q: "", cat: "", brand: "", model: "", sub: "", status: "", sort: "name", limit: 100 };
+
+  const prMin = (p) => { const l = p.variants.map((v) => finalOf(p, v)).filter((x) => x != null); return l.length ? Math.min(...l) : null; };
+  const prMax = (p) => { const l = p.variants.map((v) => finalOf(p, v)).filter((x) => x != null); return l.length ? Math.max(...l) : null; };
+  const STATUS = {
+    changed: ["Променени", isChanged],
+    hidden: ["Скрити", (p) => O.hidden.includes(p.slug)],
+    sale: ["С намаление", (p) => O.labels.sale[p.slug] > 0 || p.variants.some((v) => O.labels.sale[v.id] > 0 || v.disc > 0 || v.old > v.price)],
+    price: ["С ръчна цена", (p) => p.variants.some((v) => O.prices[v.id] != null)],
+    order: ["По заявка", (p) => p.variants.some((v) => O.stock[v.id] === 0 || v.stock === 0)],
+    hot: ["Хит", (p) => O.labels.hot.includes(p.slug)],
+    noprice: ["Без цена", (p) => prMin(p) == null],
+    multi: ["С много варианти (5+)", (p) => p.variants.length >= 5],
+  };
+  const firstModel = (p) => (p.models[0] ? modelName(p.models[0]) : "");
+  const SORTS = {
+    name: ["Име (А–Я)", (a, b) => a.name.localeCompare(b.name, "bg")],
+    brand: ["Марка, после име", (a, b) => (a.brandLabel === NO_BRAND) - (b.brandLabel === NO_BRAND) || a.brandLabel.localeCompare(b.brandLabel, "en") || a.name.localeCompare(b.name, "bg")],
+    model: ["Модел, после име", (a, b) => (firstModel(a) || "яяя").localeCompare(firstModel(b) || "яяя", "bg") || a.name.localeCompare(b.name, "bg")],
+    priceUp: ["Цена ↑", (a, b) => (prMin(a) ?? 1e9) - (prMin(b) ?? 1e9)],
+    priceDown: ["Цена ↓", (a, b) => (prMin(b) ?? -1) - (prMin(a) ?? -1)],
+    variants: ["Брой варианти", (a, b) => b.variants.length - a.variants.length],
+  };
+  function filtered(ignore = "") {
+    const toks = norm(F.q).split(/\s+/).filter(Boolean);
+    return PRODUCTS.filter((p) =>
+      (ignore === "cat" || !F.cat || p.cat === F.cat) &&
+      (ignore === "brand" || !F.brand || p.brandLabel === F.brand) &&
+      (ignore === "model" || !F.model || p.models.includes(F.model)) &&
+      (ignore === "sub" || !F.sub || p.sub === F.sub) &&
+      (!F.status || STATUS[F.status][1](p)) &&
+      toks.every((t) => norm(`${p.brand} ${p.name} ${p.sub} ${p.models.map(modelName).join(" ")} ${p.variants.map((v) => v.id + " " + (v.code || "")).join(" ")}`).includes(t)));
+  }
+  const counts = (list, key) => { const m = new Map(); list.forEach((p) => [].concat(key(p)).forEach((k) => k && m.set(k, (m.get(k) || 0) + 1))); return m; };
   function renderProducts() {
     freshMain();
-    $("#main").innerHTML = `<div class="adm-split">
+    const total = PRODUCTS.length;
+    const stat = (k) => PRODUCTS.filter(STATUS[k][1]).length;
+    $("#main").innerHTML = `
+      <div class="adm-stats">
+        <button data-qs="">Всички<b>${total}</b></button>
+        ${["changed", "hidden", "sale", "price", "order", "noprice"].map((k) => `<button data-qs="${k}" class="${F.status === k ? "on" : ""}">${STATUS[k][0]}<b>${stat(k)}</b></button>`).join("")}
+      </div>
+      <div class="adm-split">
       <aside class="adm-list">
         <div class="adm-list__tools">
-          <input class="input" id="pq" placeholder="Търси модел или аксесоар…" value="${esc(q)}" />
-          <div class="adm-row">
-            <select class="select" id="pcat"><option value="">Всички категории</option>${Object.entries(CAT).map(([k, n]) => `<option value="${k}" ${qCat === k ? "selected" : ""}>${n}</option>`).join("")}</select>
-            <label class="check"><input type="checkbox" id="pchg" ${onlyChanged ? "checked" : ""}><span>Само променени</span></label>
+          <input class="input" id="pq" type="search" placeholder="Търси по име, модел, арт. номер…" value="${esc(F.q)}" />
+          <div class="adm-filters">
+            <select class="select" id="fCat" aria-label="Категория"></select>
+            <select class="select" id="fBrand" aria-label="Марка"></select>
+            <select class="select" id="fModel" aria-label="Модел"></select>
+            <select class="select" id="fSub" aria-label="Подкатегория"></select>
+            <select class="select" id="fStatus" aria-label="Статус"></select>
+            <select class="select" id="fSort" aria-label="Подреди по"></select>
           </div>
+          <div class="adm-row adm-row--between"><span class="muted small" id="pcount"></span><button class="link-btn" id="fReset">Изчисти филтрите</button></div>
         </div>
         <div class="adm-results" id="pres"></div>
       </aside>
       <section class="adm-edit" id="pedit"></section>
     </div>`;
-    const list = () => {
-      const toks = norm(q).split(/\s+/).filter(Boolean);
-      const res = PRODUCTS.filter((p) => (!qCat || p.cat === qCat) && (!onlyChanged || isChanged(p)) && toks.every((t) => norm(p.brand + " " + p.name).includes(t)));
-      $("#pres").innerHTML = `<p class="muted small">${res.length} продукта${res.length > 80 ? " · показани първите 80" : ""}</p>` + res.slice(0, 80).map((p) => {
-        const min = Math.min(...p.variants.map((v) => v.price ?? Infinity));
-        return `<button class="adm-item ${sel === p ? "on" : ""}" data-slug="${p.slug}"><b>${esc(p.name)}</b>
-          <small>${CAT[p.cat]} · ${isFinite(min) ? "от " + eur(min) : "при запитване"}${p.variants.length > 1 ? ` · ${p.variants.length} варианта` : ""}</small>
-          ${isChanged(p) ? `<i class="adm-dot" title="Има промени"></i>` : ""}</button>`;
-      }).join("");
+    const opt = (v, label, n, cur) => `<option value="${esc(v)}" ${cur === v ? "selected" : ""}>${esc(label)}${n != null ? ` (${n})` : ""}</option>`;
+    const fillFilters = () => {
+      const cc = counts(filtered("cat"), (p) => p.cat);
+      $("#fCat").innerHTML = opt("", "Всички категории", null, F.cat) + Object.entries(CAT).map(([k, n]) => opt(k, n, cc.get(k) || 0, F.cat)).join("");
+      const bc = counts(filtered("brand"), (p) => p.brandLabel);
+      $("#fBrand").innerHTML = opt("", "Всички марки", null, F.brand) + [...bc.keys()].sort((a, b) => (a === NO_BRAND) - (b === NO_BRAND) || a.localeCompare(b, "en")).map((b) => opt(b, b, bc.get(b), F.brand)).join("");
+      const mc = counts(filtered("model"), (p) => p.models);
+      const byBrand = new Map();
+      [...mc.keys()].map((k) => MODELS.get(k)).sort((a, b) => a.brand.localeCompare(b.brand) || a.name.localeCompare(b.name, "bg", { numeric: true })).forEach((m) => { if (!byBrand.has(m.brand)) byBrand.set(m.brand, []); byBrand.get(m.brand).push(m); });
+      $("#fModel").innerHTML = opt("", "Всички модели", null, F.model) + [...byBrand].map(([b, ms]) => `<optgroup label="${esc(b)}">${ms.map((m) => opt(m.key, m.name, mc.get(m.key), F.model)).join("")}</optgroup>`).join("");
+      const sc = counts(filtered("sub"), (p) => p.sub);
+      $("#fSub").innerHTML = opt("", "Всички подкатегории", null, F.sub) + [...sc.keys()].sort((a, b) => a.localeCompare(b, "bg")).map((x) => opt(x, x, sc.get(x), F.sub)).join("");
+      $("#fSub").hidden = sc.size < 2 && !F.sub;
+      $("#fStatus").innerHTML = opt("", "Всякакъв статус", null, F.status) + Object.entries(STATUS).map(([k, [n]]) => opt(k, n, null, F.status)).join("");
+      $("#fSort").innerHTML = Object.entries(SORTS).map(([k, [n]]) => opt(k, "Подреди: " + n, null, F.sort)).join("");
+      $$(".adm-stats [data-qs]").forEach((b) => b.classList.toggle("on", b.dataset.qs === F.status));
     };
+    const groupOf = (p) => (F.sort === "brand" ? p.brandLabel : F.sort === "model" ? firstModel(p) || "Без модел" : "");
+    const list = () => {
+      fillFilters();
+      const res = filtered().sort(SORTS[F.sort][1]);
+      $("#pcount").textContent = `${res.length} продукта${res.length > F.limit ? ` · показани ${F.limit}` : ""}`;
+      let last = null;
+      $("#pres").innerHTML = res.slice(0, F.limit).map((p) => {
+        const g = groupOf(p);
+        const head = g && g !== last ? `<h4 class="adm-group">${esc(g)} <span>${res.filter((x) => groupOf(x) === g).length}</span></h4>` : "";
+        last = g;
+        const min = prMin(p), max = prMax(p);
+        const chips = [
+          O.hidden.includes(p.slug) && `<i class="adm-chip adm-chip--grey">скрит</i>`,
+          STATUS.sale[1](p) && `<i class="adm-chip adm-chip--red">намаление</i>`,
+          STATUS.price[1](p) && `<i class="adm-chip">ръчна цена</i>`,
+          STATUS.order[1](p) && `<i class="adm-chip adm-chip--amber">по заявка</i>`,
+          O.labels.hot.includes(p.slug) && `<i class="adm-chip adm-chip--ember">хит</i>`,
+        ].filter(Boolean).join("");
+        const models = p.cat === "accessories" && p.models.length ? ` · ${esc(modelName(p.models[0]))}${p.models.length > 1 ? ` +${p.models.length - 1}` : ""}` : "";
+        return head + `<button class="adm-item ${sel === p ? "on" : ""}" data-slug="${p.slug}">
+          <span class="adm-item__img">${p.img ? `<img src="${esc(thumb(p.img))}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ""}</span>
+          <span class="adm-item__txt"><small class="adm-item__brand">${esc(p.brandLabel)} · ${CAT[p.cat]}${p.sub && p.cat === "accessories" ? " · " + esc(p.sub) : ""}</small>
+            <b>${esc(p.name)}</b>
+            <small>${min == null ? "при запитване" : min === max ? eur(min) : `${eur(min)} – ${eur(max)}`}${p.variants.length > 1 ? ` · ${p.variants.length} варианта` : ""}${models}</small>
+            ${chips ? `<span class="adm-chips">${chips}</span>` : ""}</span>
+          ${isChanged(p) ? `<i class="adm-dot" title="Има промени"></i>` : ""}</button>`;
+      }).join("") + (res.length > F.limit ? `<button class="btn btn--ghost btn--sm btn--block" id="pmore">Покажи още ${Math.min(100, res.length - F.limit)}</button>` : "")
+        + (res.length ? "" : `<p class="muted adm-none">Няма продукти с тези филтри.</p>`);
+    };
+    const set = (k, v) => { F[k] = v; F.limit = 100; list(); };
     list();
-    $("#pq").addEventListener("input", (e) => { q = e.target.value; list(); });
-    $("#pcat").addEventListener("change", (e) => { qCat = e.target.value; list(); });
-    $("#pchg").addEventListener("change", (e) => { onlyChanged = e.target.checked; list(); });
-    $("#pres").addEventListener("click", (e) => { const b = e.target.closest("[data-slug]"); if (b) { sel = BY_SLUG.get(b.dataset.slug); list(); editProduct(); } });
+    $("#pq").addEventListener("input", (e) => set("q", e.target.value));
+    [["fCat", "cat"], ["fBrand", "brand"], ["fModel", "model"], ["fSub", "sub"], ["fStatus", "status"], ["fSort", "sort"]].forEach(([id, k]) => $("#" + id).addEventListener("change", (e) => set(k, e.target.value)));
+    $("#fReset").addEventListener("click", () => { Object.assign(F, { q: "", cat: "", brand: "", model: "", sub: "", status: "", sort: "name", limit: 100 }); $("#pq").value = ""; list(); });
+    $(".adm-stats").addEventListener("click", (e) => { const b = e.target.closest("[data-qs]"); if (b) set("status", b.dataset.qs); });
+    $("#pres").addEventListener("click", (e) => {
+      if (e.target.closest("#pmore")) { F.limit += 100; list(); return; }
+      const b = e.target.closest("[data-slug]"); if (b) { sel = BY_SLUG.get(b.dataset.slug); $$("#pres .adm-item").forEach((x) => x.classList.toggle("on", x === b)); editProduct(); if (innerWidth < 900) $("#pedit").scrollIntoView({ behavior: "smooth" }); }
+    });
     editProduct();
   }
   const toggleIn = (arr, v, on) => { const i = arr.indexOf(v); if (on && i < 0) arr.push(v); if (!on && i > -1) arr.splice(i, 1); };
@@ -191,8 +295,19 @@
     const p = sel, autoNew = !!NEW_RE() && (p.cat === "phones" || p.cat === "tablets") && NEW_RE().test(p.name);
     const newMode = O.labels.newAdd.includes(p.slug) ? "on" : O.labels.newRemove.includes(p.slug) ? "off" : "auto";
     box.innerHTML = `
-      <div class="adm-edit__head"><div><small class="muted">${esc(p.brand)} · ${CAT[p.cat]}${p.sub ? " · " + esc(p.sub) : ""}</small><h2>${esc(p.name)}</h2></div>
+      <div class="adm-edit__head">
+        <div class="adm-edit__img">${p.img ? `<img src="${esc(thumb(p.img))}" alt="" onerror="this.style.visibility='hidden'">` : ""}</div>
+        <div class="adm-edit__title"><small class="muted">${esc(p.brandLabel)} · ${CAT[p.cat]}${p.sub ? " · " + esc(p.sub) : ""}</small><h2>${esc(p.name)}</h2>
+          <div class="adm-facts">
+            <span><small>Цена в сайта</small><b>${(() => { const a = prMin(p), b = prMax(p); return a == null ? "при запитване" : a === b ? eur(a) : eur(a) + " – " + eur(b); })()}</b></span>
+            <span><small>Варианти</small><b>${p.variants.length}</b></span>
+            ${p.cat !== "accessories" && p.mk ? `<span><small>Модел</small><b>${esc(modelName(p.mk) || p.name)}</b></span>` : ""}
+            ${p.cat === "accessories" ? `<span><small>Съвместим с</small><b>${p.models.length ? p.models.length + " модела" : "—"}</b></span>` : ""}
+            <span><small>Адрес</small><b class="adm-slug">/p/${esc(p.slug)}/</b></span>
+          </div></div>
         <a class="btn btn--ghost btn--sm" href="./#/p/${p.slug}" target="_blank" rel="noopener">Виж в магазина ↗</a></div>
+      ${p.cat === "accessories" && p.models.length ? `<details class="adm-details"><summary>Съвместими модели (${p.models.length})</summary><div class="adm-tags">${p.models.map((k) => `<button class="adm-tag" data-model="${esc(k)}" title="Покажи всички продукти за модела">${esc(modelName(k))}</button>`).join("")}</div></details>` : ""}
+      ${Object.keys(p.specs).length ? `<details class="adm-details"><summary>Характеристики (${Object.keys(p.specs).length})</summary><dl class="adm-specs">${Object.entries(p.specs).slice(0, 40).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl></details>` : ""}
       <div class="adm-cards">
         <label class="adm-card"><span>Намаление за целия модел</span><div class="adm-pct"><input class="input" type="number" min="0" max="90" step="1" id="mSale" value="${esc(O.labels.sale[p.slug] ?? "")}" placeholder="0" /><b>%</b></div></label>
         <label class="adm-card"><span>Етикет „Ново“</span><select class="select" id="mNew">
@@ -202,10 +317,11 @@
         <label class="adm-card adm-card--check"><input type="checkbox" id="mHide" ${O.hidden.includes(p.slug) ? "checked" : ""}><span><b>Скрий от сайта</b><small>Няма да се показва никъде</small></span></label>
       </div>
       <div class="adm-table-wrap"><table class="adm-table">
-        <thead><tr><th>Вариант</th><th>Цена в каталога</th><th>Нова цена</th><th>Намаление</th><th>Наличност</th><th>Крайна цена</th></tr></thead>
+        <thead><tr><th></th><th>Вариант</th><th>Цена в каталога</th><th>Нова цена</th><th>Намаление</th><th>Наличност</th><th>Крайна цена</th></tr></thead>
         <tbody>${p.variants.map((v) => `<tr data-id="${v.id}">
-          <td><b>${esc(v.label)}</b><small class="muted">Арт. ${v.id}</small></td>
-          <td>${eur(v.price)}</td>
+          <td class="adm-vimg">${v.img ? `<img src="${esc(thumb(v.img))}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ""}</td>
+          <td><b>${esc(v.label)}</b><small class="muted">Арт. ${v.id}${v.code ? " · код " + esc(v.code) : ""}${v.stock === 0 ? " · в каталога: по заявка" : ""}</small></td>
+          <td>${eur(v.price)}${v.old > v.price ? `<small class="muted"><s>${eur(v.old)}</s></small>` : ""}</td>
           <td><input class="input input--sm" type="number" min="0" step="0.01" data-f="price" value="${esc(O.prices[v.id] ?? "")}" placeholder="${v.price ?? ""}" /></td>
           <td><div class="adm-pct"><input class="input input--sm" type="number" min="0" max="90" step="1" data-f="sale" value="${esc(O.labels.sale[v.id] ?? "")}" placeholder="${O.labels.sale[p.slug] ?? 0}" /><b>%</b></div></td>
           <td><select class="select input--sm" data-f="stock"><option value="1">В наличност</option><option value="0" ${O.stock[v.id] === 0 ? "selected" : ""}>По заявка</option></select></td>
@@ -231,6 +347,10 @@
       const id = e.target.closest("tr").dataset.id;
       e.target.value === "0" ? (O.stock[id] = 0) : delete O.stock[id];
       change();
+    });
+    box.addEventListener("click", (e) => {
+      const t = e.target.closest("[data-model]"); if (!t) return;
+      Object.assign(F, { model: t.dataset.model, brand: "", cat: "", sub: "", q: "", status: "", sort: "brand", limit: 100 }); renderProducts();
     });
     const allStock = (on) => { p.variants.forEach((v) => (on ? delete O.stock[v.id] : (O.stock[v.id] = 0))); change(); editProduct(); };
     $("#allStockOn")?.addEventListener("click", () => allStock(true));
