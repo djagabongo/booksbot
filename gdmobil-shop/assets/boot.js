@@ -50,6 +50,30 @@
         if (stock[i.i] === 0 || stock[i.s] === 0) i.st = 0;
       });
     }
+    // 3а) редакции от админ панела: име, описание, снимки
+    const ed = o.edits && typeof o.edits === "object" ? o.edits : {};
+    if (C) {
+      const ok = (u) => typeof u === "string" && /^(media\/[a-z0-9]+\.(webp|jpg|png)|https:\/\/[^\s"'<>]+)$/.test(u);
+      const gal = (e) => (Array.isArray(e.gal) ? e.gal.filter(ok) : null);
+      C.groups.forEach((g) => {
+        const e = ed[g.s]; if (!e) return;
+        if (e.n && String(e.n).trim()) g.n = String(e.n).trim();
+        if (typeof e.d === "string" && e.d.trim()) g.d = e.d.trim();
+        const gl = gal(e);
+        g.v.forEach((v) => {
+          const vi = e.vimg && e.vimg[v[0]];
+          if (ok(vi)) v[6] = vi; else if (ok(e.img)) v[6] = e.img;
+          if (gl) v[10] = gl;
+        });
+      });
+      C.items.forEach((i) => {
+        const e = ed[i.s]; if (!e) return;
+        if (e.n && String(e.n).trim()) i.n = String(e.n).trim();
+        if (typeof e.d === "string" && e.d.trim()) i.d = e.d.trim();
+        if (ok(e.img)) i.im = e.img;
+        const gl = gal(e); if (gl) i.gl = gl;
+      });
+    }
     // 4) отзиви и статистика
     if (o.reviews && typeof o.reviews === "object") window.REVIEWS = o.reviews;
     if (o.analytics && typeof o.analytics === "object") window.ANALYTICS = o.analytics;

@@ -35,9 +35,9 @@
   /* ---------- каталог ---------- */
   const noThumb = new Set(C.noThumb || []);
   const csImg = (h, w) => `https://casestore.bg/cdn/img/products/${h.slice(3)}${h.includes("?") ? "&" : "?"}width=${w}&height=${w}`;
-  const full = (h) => (!h ? "assets/img/camera.svg" : h.startsWith("cs:") ? csImg(h, 600) : /^(assets\/|https:)/.test(h) ? h : `assets/img/products/${h}.webp`);
+  const full = (h) => (!h ? "assets/img/camera.svg" : h.startsWith("cs:") ? csImg(h, 600) : /^(assets\/|https:|media\/)/.test(h) ? h : `assets/img/products/${h}.webp`);
   const thumb = (h) => (h && h.startsWith("cs:") ? csImg(h, 300) : h && h.startsWith("https:") ? h.replace(/width=\d+&height=\d+/, "width=300&height=300")
-    : !h || h.startsWith("assets/") || /^cs\d+$/.test(h) || noThumb.has(h) ? full(h) : `assets/img/products/${h}-sm.webp`);
+    : !h || h.startsWith("assets/") || h.startsWith("media/") || /^cs\d+$/.test(h) || noThumb.has(h) ? full(h) : `assets/img/products/${h}-sm.webp`);
   const finalPrice = (base, disc) => (base == null ? null : disc ? Math.round(base * (100 - disc)) / 100 : base);
   const CAT_NAMES = Object.fromEntries(window.CATEGORIES.map((c) => [c.key, c.name]));
   const MODEL_NAMES = Object.fromEntries(C.models.map((m) => [m.key, `${m.brand} ${m.name}`]));
@@ -86,14 +86,14 @@
 
   for (const g of C.groups) {
     addProduct({
-      kind: "g", slug: g.s, name: g.n, brand: g.b, cat: g.c, mk: g.mk, specs: g.sp || {}, sub: g.sc, compat: g.cm,
+      kind: "g", slug: g.s, name: g.n, brand: g.b, cat: g.c, mk: g.mk, specs: g.sp || {}, sub: g.sc, compat: g.cm, desc: g.d,
       variants: g.v.map((a) => ({ id: a[0], storage: a[1], ram: a[2], color: a[3], conn: a[4], base: a[5], img: a[6], code: a[7], disc: a[8], stock: a[9], gal: a[10] || [], old: a[11], model: a[12] || "", vmk: a[13] || "" })),
     });
   }
   for (const i of C.items) {
     addProduct({
       kind: "i", slug: i.s, name: i.n, brand: i.b, cat: i.c, sub: i.sc, compat: i.cm, desc: i.d, specs: {},
-      variants: [{ id: i.i, base: i.p, disc: i.dc, stock: i.st, img: i.im, old: i.op }],
+      variants: [{ id: i.i, base: i.p, disc: i.dc, stock: i.st, img: i.im, old: i.op, gal: i.gl || [] }],
     });
   }
   const FEATURED = S.featured.map((s) => BY_SLUG.get(s)).filter(Boolean);
@@ -909,7 +909,7 @@
           ${badgesHtml(p, "pd__badges")}
           <h1>${esc(p.name)}</h1>
           <p class="muted pd__codes" id="pdCodes"></p>
-          ${p.desc ? `<p class="muted">${esc(p.desc)}</p>` : p.cat === "accessories" ? `<p class="pd__desc">${esc(accDesc(p))}</p>` : ""}
+          ${p.desc ? `<div class="pd__desc pd__desc--own">${esc(p.desc).split(/\n{2,}/).map((x) => `<p>${x.replace(/\n/g, "<br>")}</p>`).join("")}</div>` : p.cat === "accessories" ? `<p class="pd__desc">${esc(accDesc(p))}</p>` : ""}
           <div class="config" id="config"></div>
           <div class="pd__buy" id="pdBuy"></div>
           ${keySpecs.length ? `<div class="keyspecs">${keySpecs.map((k) => `<div><small>${esc(k)}</small><b>${esc(p.specs[k])}</b></div>`).join("")}</div>` : ""}

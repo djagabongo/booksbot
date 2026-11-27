@@ -62,6 +62,51 @@ def prepare_dist():
     shutil.copytree(os.path.join(ROOT, "assets"), os.path.join(DIST, "assets"), copy_function=link_or_copy)
 
 
+def live_overrides(site):
+    """Взема настройките от админ панела на живия сайт (скрити продукти и редакции на име/описание/снимки),
+    за да ги отрази и в статичните страници за Google. Без връзка – празни настройки."""
+    if "--offline" in sys.argv:
+        return {}
+    import ssl, urllib.request
+    ctx = ssl.create_default_context(cafile="/root/.ccr/ca-bundle.crt") if os.path.exists("/root/.ccr/ca-bundle.crt") else None
+    try:
+        with urllib.request.urlopen(site + "/api/settings", timeout=15, context=ctx) as r:
+            return json.load(r) or {}
+    except Exception as e:
+        print("(настройките от живия сайт не са достъпни:", str(e)[:80], ")")
+        return {}
+
+
+def apply_overrides(catalog, o):
+    hidden = set(o.get("hidden") or [])
+    ed = o.get("edits") or {}
+    ok = lambda u: isinstance(u, str) and re.match(r"^(media/[a-z0-9]+\.(webp|jpg|png)|https://\S+)$", u)
+    catalog["groups"] = [g for g in catalog["groups"] if g["s"] not in hidden]
+    catalog["items"] = [i for i in catalog["items"] if i["s"] not in hidden]
+    n = 0
+    for g in catalog["groups"]:
+        e = ed.get(g["s"])
+        if not e: continue
+        n += 1
+        if (e.get("n") or "").strip(): g["n"] = e["n"].strip()
+        if (e.get("d") or "").strip(): g["d"] = e["d"].strip()
+        gal = [u for u in (e.get("gal") or []) if ok(u)]
+        for v in g["v"]:
+            vi = (e.get("vimg") or {}).get(str(v[0]))
+            if ok(vi): v[6] = vi
+            elif ok(e.get("img")): v[6] = e["img"]
+            if gal: v[10] = gal
+    for i in catalog["items"]:
+        e = ed.get(i["s"])
+        if not e: continue
+        n += 1
+        if (e.get("n") or "").strip(): i["n"] = e["n"].strip()
+        if (e.get("d") or "").strip(): i["d"] = e["d"].strip()
+        if ok(e.get("img")): i["im"] = e["img"]
+    if n or hidden:
+        print(f"от админ панела: {n} редактирани и {len(hidden)} скрити продукта")
+
+
 def main():
     site = None
     if "--site" in sys.argv:
@@ -74,6 +119,7 @@ def main():
     legal = load_js(os.path.join(ROOT, "assets", "legal.js"), "LEGAL")
     content = load_js(os.path.join(ROOT, "assets", "content.js"), "CONTENT")
     site = (site or store.get("siteUrl") or "https://gdmobil.bg").rstrip("/")
+    apply_overrides(catalog, live_overrides(site))
     cat_names = {c["key"]: c["name"] for c in cats}
     no_thumb = set(catalog.get("noThumb", []))
 
@@ -82,7 +128,7 @@ def main():
             return "assets/img/camera.svg"
         if h.startswith("cs:"):
             return f"https://casestore.bg/cdn/img/products/{h[3:]}{'&' if '?' in h else '?'}width=600&height=600"
-        if h.startswith("assets/") or h.startswith("https:"):
+        if h.startswith("assets/") or h.startswith("https:") or h.startswith("media/"):
             return h
         return f"assets/img/products/{h}.webp" if big or h in no_thumb or re.match(r"^cs\d+$", h) else f"assets/img/products/{h}-sm.webp"
 
@@ -123,10 +169,10 @@ def main():
     products = []
     for g in catalog["groups"]:
         variants = [{"id": v[0], "storage": v[1], "ram": v[2], "color": v[3], "conn": v[4], "price": v[5], "img": v[6], "model": v[12] if len(v) > 12 else ""} for v in g["v"]]
-        products.append({"slug": g["s"], "name": g["n"], "brand": g["b"], "cat": g["c"], "sub": g.get("sc", ""), "compat": g.get("cm", []), "variants": variants, "specs": g.get("sp", {}), "img": variants[0]["img"]})
+        products.append({"slug": g["s"], "name": g["n"], "brand": g["b"], "cat": g["c"], "sub": g.get("sc", ""), "compat": g.get("cm", []), "variants": variants, "specs": g.get("sp", {}), "img": variants[0]["img"], "desc": g.get("d") or ""})
     for i in catalog["items"]:
         products.append({"slug": i["s"], "name": i["n"], "brand": i["b"], "cat": i["c"], "sub": i.get("sc", ""), "compat": i.get("cm", []),
-                         "variants": [{"id": i["i"], "storage": "", "ram": "", "color": "", "conn": "", "price": i["p"], "img": i["im"]}], "specs": {}, "img": i["im"]})
+                         "variants": [{"id": i["i"], "storage": "", "ram": "", "color": "", "conn": "", "price": i["p"], "img": i["im"]}], "specs": {}, "img": i["im"], "desc": i.get("d") or ""})
     model_names = {m["key"]: f'{m["brand"]} {m["name"]}' for m in catalog["models"]}
 
     for p in products:
@@ -137,6 +183,9 @@ def main():
         many = len(p["variants"]) > 1
         price_txt = (("от " if many else "") + eur(lo)) if lo is not None else "Цена при запитване"
         desc = f'{p["name"]} – {price_txt} с ДДС. {"Избери памет и цвят, п" if many else "П"}оръчай онлайн или вземи от GDMobil в Гоце Делчев.'
+        own = re.sub(r"\s+", " ", p.get("desc") or "").strip()
+        if own:
+            desc = f'{p["name"]} – {price_txt}. ' + (own[:150].rsplit(" ", 1)[0] + "…" if len(own) > 155 else own)
         rows = []
         for title, sec in (specs.get(p["slug"]) or ([["Характеристики", list(p["specs"].items())]] if p["specs"] else [])):
             rows.append(f'<section class="specbox"><h3>{E(title)}</h3><dl>' + "".join(f"<div><dt>{E(k)}</dt><dd>{E(str(v))}</dd></div>" for k, v in sec) + "</dl></section>")
@@ -150,12 +199,14 @@ def main():
             compat = "<h2>Съвместим с</h2><p>" + ", ".join(E(model_names.get(k, k)) for k in p["compat"]) + "</p>"
         body = f'''<section class="container page seo-pre">{crumbs([(cat, f"/c/{p['cat']}/"), (p["name"], None)])}
 <div class="pd"><div class="pd__gallery"><div class="pd__main"><div class="pd__stage"><img src="{E(img(p["img"]))}" alt="{E(p["name"])}" width="600" height="600"></div></div></div>
-<div class="pd__info"><div class="pd__brand"><span>{E(" / ".join(x for x in [p["brand"], cat, p.get("sub")] if x))}</span></div><h1>{E(p["name"])}</h1>
+<div class="pd__info"><div class="pd__brand"><span>{E(" / ".join(x for x in [p["brand"], cat, p.get("sub")] if x))}</span></div><h1>{E(p["name"])}</h1>{f'<div class="pd__desc pd__desc--own"><p>{E(p["desc"])}</p></div>' if p.get("desc") else ""}
 <div class="pd__buy"><div class="pd__price"><span class="price">{E(price_txt)}</span><small class="muted">с ДДС</small></div><p class="stock"><i></i>В наличност</p>
 <a class="btn btn--primary btn--lg btn--block" href="#/p/{p["slug"]}">Избери и поръчай</a></div>{var_list}{compat}</div></div>
 {f'<div class="pd-section"><h2>Технически характеристики</h2><div class="specgrid">{"".join(rows)}</div></div>' if rows else ""}</section>'''
         ld = {"@context": "https://schema.org", "@type": "Product", "name": p["name"], "brand": {"@type": "Brand", "name": p["brand"]},
               "image": img(p["img"]) if img(p["img"]).startswith("https:") else f'{site}/{img(p["img"])}', "sku": str(p["variants"][0]["id"]), "category": cat, "url": f'{site}/p/{p["slug"]}/'}
+        if p.get("desc"):
+            ld["description"] = p["desc"][:5000]
         if not p["brand"]:
             ld.pop("brand")
         if lo is not None:
@@ -336,7 +387,7 @@ def main():
             rows.append({"id": v[0], "g": g["s"] if len(g["v"]) > 1 else "", "s": g["s"], "t": title[:150], "b": g["b"], "c": g["c"], "sub": g.get("sc", ""),
                          "color": v[3], "mem": v[1], "p": v[5], "d": v[8], "o": v[11] if len(v) > 11 else None, "st": v[9],
                          "im": img(v[6]), "gal": [img(x) for x in (v[10] or [])[:5]],
-                         "desc": short(f'{g["n"]} {" ".join(x for x in [v[1], v[3]] if x)}. {spec_txt}. Купи от GDMobil – магазин и сервиз в Гоце Делчев. Доставка в цяла България или вземане от магазина.')})
+                         "desc": short(g["d"]) if g.get("d") else short(f'{g["n"]} {" ".join(x for x in [v[1], v[3]] if x)}. {spec_txt}. Купи от GDMobil – магазин и сервиз в Гоце Делчев. Доставка в цяла България или вземане от магазина.')})
     for i in catalog["items"]:
         rows.append({"id": i["i"], "g": "", "s": i["s"], "t": i["n"][:150], "b": i["b"], "c": i["c"], "sub": i.get("sc", ""), "color": "", "mem": "",
                      "p": i["p"], "d": i.get("dc", 0), "o": i.get("op"), "st": i.get("st", 1), "im": img(i["im"]), "gal": [],

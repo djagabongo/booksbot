@@ -15,7 +15,7 @@
   const noThumb = new Set(C.noThumb || []);
   const csImg = (h, w) => `https://casestore.bg/cdn/img/products/${h.slice(3)}${h.includes("?") ? "&" : "?"}width=${w}&height=${w}`;
   const thumb = (h) => (!h ? "" : h.startsWith("cs:") ? csImg(h, 160) : h.startsWith("https:") ? h.replace(/width=\d+&height=\d+/, "width=160&height=160")
-    : h.startsWith("assets/") ? h : /^cs\d+$/.test(h) || noThumb.has(h) ? `assets/img/products/${h}.webp` : `assets/img/products/${h}-sm.webp`);
+    : h.startsWith("assets/") || h.startsWith("media/") ? h : /^cs\d+$/.test(h) || noThumb.has(h) ? `assets/img/products/${h}.webp` : `assets/img/products/${h}-sm.webp`);
   const NO_BRAND = "Без марка";
   const PRODUCTS = [
     ...C.groups.map((g) => ({ slug: g.s, name: g.n, brand: g.b, cat: g.c, kind: "g", mk: g.mk || "", sub: g.sc || "", compat: g.cm || [], specs: g.sp || {},
@@ -48,7 +48,7 @@
   let sel = null; // избран продукт
   const blank = () => ({
     store: {}, labels: { new: [...(L0.new || [])], hot: [...(L0.hot || [])], sale: { ...(L0.sale || {}) }, newAdd: [], newRemove: [] },
-    prices: {}, stock: {}, hidden: [], reviews: { items: [] }, analytics: { provider: "" },
+    prices: {}, stock: {}, hidden: [], reviews: { items: [] }, analytics: { provider: "" }, edits: {},
   });
   function normalize(o) {
     const b = blank();
@@ -59,6 +59,7 @@
       labels: { ...b.labels, ...(o.labels || {}), sale: { ...((o.labels && o.labels.sale) || b.labels.sale) } },
       prices: { ...(o.prices || {}) }, stock: { ...(o.stock || {}) }, hidden: [...(o.hidden || [])],
       reviews: { items: [], ...(o.reviews || {}) }, analytics: { provider: "", ...(o.analytics || {}) },
+      edits: { ...(o.edits || {}) },
     };
   }
   const st = (k) => (O.store[k] !== undefined ? O.store[k] : S0[k]);
@@ -161,7 +162,18 @@
   }
 
   /* ===== ПРОДУКТИ ===== */
-  const isChanged = (p) => O.hidden.includes(p.slug) || O.labels.hot.includes(p.slug) || O.labels.newAdd.includes(p.slug) || O.labels.newRemove.includes(p.slug) ||
+  // редакции на съдържанието: O.edits[slug] = { n: име, d: описание, img: главна снимка, gal: [галерия], vimg: {вариант: снимка} }
+  const edOf = (p) => O.edits[p.slug] || {};
+  const edSet = (p, k, v) => {
+    const e = { ...edOf(p) };
+    if (v == null || v === "" || (Array.isArray(v) && !v.length) || (typeof v === "object" && !Array.isArray(v) && !Object.keys(v).length)) delete e[k]; else e[k] = v;
+    if (Object.keys(e).length) O.edits[p.slug] = e; else delete O.edits[p.slug];
+    change();
+  };
+  const imgOf = (p, v) => (v && edOf(p).vimg?.[v.id]) || edOf(p).img || (v ? v.img : p.img);
+  const nameOf = (p) => edOf(p).n || p.name;
+  const isEdited = (p) => !!O.edits[p.slug];
+  const isChanged = (p) => isEdited(p) || O.hidden.includes(p.slug) || O.labels.hot.includes(p.slug) || O.labels.newAdd.includes(p.slug) || O.labels.newRemove.includes(p.slug) ||
     O.labels.sale[p.slug] != null || p.variants.some((v) => O.prices[v.id] != null || O.stock[v.id] === 0 || O.labels.sale[v.id] != null);
   // филтри (пазят се, докато е отворен разделът)
   const F = { q: "", cat: "", brand: "", model: "", sub: "", status: "", sort: "name", limit: 100 };
@@ -170,6 +182,7 @@
   const prMax = (p) => { const l = p.variants.map((v) => finalOf(p, v)).filter((x) => x != null); return l.length ? Math.max(...l) : null; };
   const STATUS = {
     changed: ["Променени", isChanged],
+    edited: ["С редактирано име/описание/снимки", isEdited],
     hidden: ["Скрити", (p) => O.hidden.includes(p.slug)],
     sale: ["С намаление", (p) => O.labels.sale[p.slug] > 0 || p.variants.some((v) => O.labels.sale[v.id] > 0 || v.disc > 0 || v.old > v.price)],
     price: ["С ръчна цена", (p) => p.variants.some((v) => O.prices[v.id] != null)],
@@ -195,7 +208,7 @@
       (ignore === "model" || !F.model || p.models.includes(F.model)) &&
       (ignore === "sub" || !F.sub || p.sub === F.sub) &&
       (!F.status || STATUS[F.status][1](p)) &&
-      toks.every((t) => norm(`${p.brand} ${p.name} ${p.sub} ${p.models.map(modelName).join(" ")} ${p.variants.map((v) => v.id + " " + (v.code || "")).join(" ")}`).includes(t)));
+      toks.every((t) => norm(`${p.brand} ${nameOf(p)} ${p.name} ${p.sub} ${p.models.map(modelName).join(" ")} ${p.variants.map((v) => v.id + " " + (v.code || "")).join(" ")}`).includes(t)));
   }
   const counts = (list, key) => { const m = new Map(); list.forEach((p) => [].concat(key(p)).forEach((k) => k && m.set(k, (m.get(k) || 0) + 1))); return m; };
   function renderProducts() {
@@ -205,7 +218,7 @@
     $("#main").innerHTML = `
       <div class="adm-stats">
         <button data-qs="">Всички<b>${total}</b></button>
-        ${["changed", "hidden", "sale", "price", "order", "noprice"].map((k) => `<button data-qs="${k}" class="${F.status === k ? "on" : ""}">${STATUS[k][0]}<b>${stat(k)}</b></button>`).join("")}
+        ${["changed", "edited", "hidden", "sale", "price", "order", "noprice"].map((k) => `<button data-qs="${k}" class="${F.status === k ? "on" : ""}">${STATUS[k][0]}<b>${stat(k)}</b></button>`).join("")}
       </div>
       <div class="adm-split">
       <aside class="adm-list">
@@ -259,12 +272,13 @@
           STATUS.price[1](p) && `<i class="adm-chip">ръчна цена</i>`,
           STATUS.order[1](p) && `<i class="adm-chip adm-chip--amber">по заявка</i>`,
           O.labels.hot.includes(p.slug) && `<i class="adm-chip adm-chip--ember">хит</i>`,
+          isEdited(p) && `<i class="adm-chip adm-chip--blue">редактиран</i>`,
         ].filter(Boolean).join("");
         const models = p.cat === "accessories" && p.models.length ? ` · ${esc(modelName(p.models[0]))}${p.models.length > 1 ? ` +${p.models.length - 1}` : ""}` : "";
         return head + `<button class="adm-item ${sel === p ? "on" : ""}" data-slug="${p.slug}">
-          <span class="adm-item__img">${p.img ? `<img src="${esc(thumb(p.img))}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ""}</span>
+          <span class="adm-item__img">${imgOf(p) ? `<img src="${esc(thumb(imgOf(p)))}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ""}</span>
           <span class="adm-item__txt"><small class="adm-item__brand">${esc(p.brandLabel)} · ${CAT[p.cat]}${p.sub && p.cat === "accessories" ? " · " + esc(p.sub) : ""}</small>
-            <b>${esc(p.name)}</b>
+            <b>${esc(nameOf(p))}</b>
             <small>${min == null ? "при запитване" : min === max ? eur(min) : `${eur(min)} – ${eur(max)}`}${p.variants.length > 1 ? ` · ${p.variants.length} варианта` : ""}${models}</small>
             ${chips ? `<span class="adm-chips">${chips}</span>` : ""}</span>
           ${isChanged(p) ? `<i class="adm-dot" title="Има промени"></i>` : ""}</button>`;
@@ -290,14 +304,15 @@
     return base == null ? null : pct > 0 ? Math.round(base * (100 - pct)) / 100 : base;
   }
   function editProduct() {
-    const box = $("#pedit");
+    const old = $("#pedit"); if (!old) return;
+    const box = old.cloneNode(false); old.replaceWith(box); // без натрупани обработчици от предишния продукт
     if (!sel) { box.innerHTML = `<div class="adm-empty"><b>Избери продукт отляво</b><p class="muted">Можеш да промениш цена, намаление, наличност и етикети, или да го скриеш от сайта.</p></div>`; return; }
     const p = sel, autoNew = !!NEW_RE() && (p.cat === "phones" || p.cat === "tablets") && NEW_RE().test(p.name);
     const newMode = O.labels.newAdd.includes(p.slug) ? "on" : O.labels.newRemove.includes(p.slug) ? "off" : "auto";
     box.innerHTML = `
       <div class="adm-edit__head">
-        <div class="adm-edit__img">${p.img ? `<img src="${esc(thumb(p.img))}" alt="" onerror="this.style.visibility='hidden'">` : ""}</div>
-        <div class="adm-edit__title"><small class="muted">${esc(p.brandLabel)} · ${CAT[p.cat]}${p.sub ? " · " + esc(p.sub) : ""}</small><h2>${esc(p.name)}</h2>
+        <div class="adm-edit__img">${imgOf(p) ? `<img src="${esc(thumb(imgOf(p)))}" alt="" onerror="this.style.visibility='hidden'">` : ""}</div>
+        <div class="adm-edit__title"><small class="muted">${esc(p.brandLabel)} · ${CAT[p.cat]}${p.sub ? " · " + esc(p.sub) : ""}</small><h2>${esc(nameOf(p))}</h2>
           <div class="adm-facts">
             <span><small>Цена в сайта</small><b>${(() => { const a = prMin(p), b = prMax(p); return a == null ? "при запитване" : a === b ? eur(a) : eur(a) + " – " + eur(b); })()}</b></span>
             <span><small>Варианти</small><b>${p.variants.length}</b></span>
@@ -306,6 +321,22 @@
             <span><small>Адрес</small><b class="adm-slug">/p/${esc(p.slug)}/</b></span>
           </div></div>
         <a class="btn btn--ghost btn--sm" href="./#/p/${p.slug}" target="_blank" rel="noopener">Виж в магазина ↗</a></div>
+      <section class="adm-content">
+        <div class="adm-content__head"><h3>Съдържание на страницата</h3>${isEdited(p) ? `<button class="link-btn" id="edReset">Върни оригинала</button>` : ""}</div>
+        <label class="field"><span>Име на продукта</span><input class="input" id="edName" value="${esc(edOf(p).n || "")}" placeholder="${esc(p.name)}" maxlength="160"></label>
+        <label class="field"><span>Описание <small class="muted">(празен ред = нов абзац; празно поле = автоматичното описание)</small></span>
+          <textarea class="input" id="edDesc" rows="5" maxlength="4000" placeholder="${esc(p.desc || "Напиши описание – предимства, какво има в кутията, гаранция…")}">${esc(edOf(p).d || "")}</textarea></label>
+        <div class="field"><span>Снимки <small class="muted">(главна + галерия; JPG/PNG/WebP – намаляват се автоматично${p.variants.length > 1 ? "; снимка за отделен цвят/вариант – натисни снимката му в таблицата по-долу" : ""})</small></span>
+          <div class="adm-photos" id="edPhotos">
+            <figure class="adm-photo adm-photo--main"><img src="${esc(thumb(imgOf(p)) || "")}" alt="" onerror="this.style.visibility='hidden'"><figcaption>Главна${p.variants.length > 1 ? " (за всички варианти)" : ""}${edOf(p).img ? ` · <button class="link-btn" data-edimg-reset>оригинал</button>` : ""}</figcaption>
+              <label class="adm-photo__btn">Смени<input type="file" accept="image/*" data-up="main" hidden></label></figure>
+            ${(edOf(p).gal || []).map((u, i) => `<figure class="adm-photo"><img src="${esc(thumb(u))}" alt=""><figcaption>
+              <button class="link-btn" data-galmv="${i}" title="Направи главна">главна</button> · <button class="link-btn" data-galdel="${i}">изтрий</button></figcaption></figure>`).join("")}
+            <label class="adm-photo adm-photo--add"><span>+</span><small>Добави снимки</small><input type="file" accept="image/*" multiple data-up="gal" hidden></label>
+          </div>
+          <p class="muted small" id="edMsg">${(edOf(p).gal || []).length ? "" : "Без собствена галерия се показват снимките от каталога."}</p>
+        </div>
+      </section>
       ${p.cat === "accessories" && p.models.length ? `<details class="adm-details"><summary>Съвместими модели (${p.models.length})</summary><div class="adm-tags">${p.models.map((k) => `<button class="adm-tag" data-model="${esc(k)}" title="Покажи всички продукти за модела">${esc(modelName(k))}</button>`).join("")}</div></details>` : ""}
       ${Object.keys(p.specs).length ? `<details class="adm-details"><summary>Характеристики (${Object.keys(p.specs).length})</summary><dl class="adm-specs">${Object.entries(p.specs).slice(0, 40).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl></details>` : ""}
       <div class="adm-cards">
@@ -319,7 +350,8 @@
       <div class="adm-table-wrap"><table class="adm-table">
         <thead><tr><th></th><th>Вариант</th><th>Цена в каталога</th><th>Нова цена</th><th>Намаление</th><th>Наличност</th><th>Крайна цена</th></tr></thead>
         <tbody>${p.variants.map((v) => `<tr data-id="${v.id}">
-          <td class="adm-vimg">${v.img ? `<img src="${esc(thumb(v.img))}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ""}</td>
+          <td class="adm-vimg"><label title="Смени снимката на този вариант">${imgOf(p, v) ? `<img src="${esc(thumb(imgOf(p, v)))}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : "<span>+</span>"}<input type="file" accept="image/*" data-up="v" data-vid="${v.id}" hidden></label>
+            ${edOf(p).vimg?.[v.id] ? `<button class="link-btn" data-vreset="${v.id}">оригинал</button>` : ""}</td>
           <td><b>${esc(v.label)}</b><small class="muted">Арт. ${v.id}${v.code ? " · код " + esc(v.code) : ""}${v.stock === 0 ? " · в каталога: по заявка" : ""}</small></td>
           <td>${eur(v.price)}${v.old > v.price ? `<small class="muted"><s>${eur(v.old)}</s></small>` : ""}</td>
           <td><input class="input input--sm" type="number" min="0" step="0.01" data-f="price" value="${esc(O.prices[v.id] ?? "")}" placeholder="${v.price ?? ""}" /></td>
@@ -348,7 +380,33 @@
       e.target.value === "0" ? (O.stock[id] = 0) : delete O.stock[id];
       change();
     });
+    // съдържание: име, описание, снимки
+    $("#edName").addEventListener("input", (e) => { edSet(p, "n", e.target.value.trim() === p.name ? "" : e.target.value.trim()); });
+    $("#edDesc").addEventListener("input", (e) => { edSet(p, "d", e.target.value.trim()); });
+    $("#edReset")?.addEventListener("click", () => { if (confirm("Да върна ли оригиналното име, описание и снимки?")) { delete O.edits[p.slug]; change(); editProduct(); } });
+    box.addEventListener("change", async (e) => {
+      const up = e.target.dataset.up; if (!up || !e.target.files.length) return;
+      const files = [...e.target.files].slice(0, up === "gal" ? 10 : 1);
+      $("#edMsg").textContent = `Качване на ${files.length} снимк${files.length > 1 ? "и" : "а"}…`;
+      try {
+        const urls = [];
+        for (const f of files) urls.push(await uploadImage(f));
+        if (up === "main") edSet(p, "img", urls[0]);
+        if (up === "gal") edSet(p, "gal", [...(edOf(p).gal || []), ...urls]);
+        if (up === "v") edSet(p, "vimg", { ...(edOf(p).vimg || {}), [e.target.dataset.vid]: urls[0] });
+        toast("✓ Снимката е качена – натисни „Запази“"); editProduct();
+      } catch (err) { $("#edMsg").textContent = "Грешка при качване: " + err.message; }
+    });
     box.addEventListener("click", (e) => {
+      const g = e.target.closest("[data-galdel],[data-galmv],[data-edimg-reset],[data-vreset]");
+      if (g) {
+        const gal = [...(edOf(p).gal || [])];
+        if (g.dataset.galdel != null) { gal.splice(+g.dataset.galdel, 1); edSet(p, "gal", gal); }
+        if (g.dataset.galmv != null) { const [u] = gal.splice(+g.dataset.galmv, 1); if (edOf(p).img) gal.unshift(edOf(p).img); edSet(p, "gal", gal); edSet(p, "img", u); }
+        if (g.dataset.edimgReset !== undefined) edSet(p, "img", "");
+        if (g.dataset.vreset) { const vi = { ...(edOf(p).vimg || {}) }; delete vi[g.dataset.vreset]; edSet(p, "vimg", vi); }
+        editProduct(); return;
+      }
       const t = e.target.closest("[data-model]"); if (!t) return;
       Object.assign(F, { model: t.dataset.model, brand: "", cat: "", sub: "", q: "", status: "", sort: "brand", limit: 100 }); renderProducts();
     });
@@ -361,6 +419,21 @@
       [O.hidden, O.labels.hot, O.labels.newAdd, O.labels.newRemove].forEach((a) => toggleIn(a, p.slug, false));
       change(); editProduct();
     });
+  }
+
+  async function uploadImage(file) {
+    if (!/^image\//.test(file.type)) throw new Error("файлът не е снимка");
+    const bmp = await createImageBitmap(file).catch(() => null);
+    if (!bmp) throw new Error("снимката не може да се отвори");
+    const k = Math.min(1, 1200 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement("canvas"); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    const x = c.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0, 0, c.width, c.height); x.drawImage(bmp, 0, 0, c.width, c.height);
+    let blob = await new Promise((r) => c.toBlob(r, "image/webp", 0.85));
+    if (!blob || blob.type !== "image/webp") blob = await new Promise((r) => c.toBlob(r, "image/jpeg", 0.88));
+    const r = await fetch("/api/media", { method: "POST", headers: { "x-admin-password": pw(), "content-type": blob.type }, body: blob });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(r.status === 401 ? "сесията изтече – влез отново" : r.status === 413 ? "снимката е твърде голяма" : "сървърът отказа (" + r.status + ")");
+    return d.url;
   }
 
   /* ===== ЕТИКЕТИ ===== */

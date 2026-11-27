@@ -196,3 +196,22 @@
   .adm-edit__head { flex-wrap: wrap; }
   .adm-edit__img { width: 80px; height: 80px; }
 }
+
+/* ---------- съдържание на продукта: име, описание, снимки ---------- */
+.adm-content { display: grid; gap: 12px; padding: 16px; border-radius: 18px; border: 1px solid var(--line); background: var(--bg); }
+.adm-content__head { display: flex; justify-content: space-between; align-items: center; }
+.adm-content h3 { margin: 0; font-size: 1rem; }
+.adm-content textarea { resize: vertical; min-height: 110px; font: inherit; line-height: 1.5; }
+.adm-photos { display: flex; flex-wrap: wrap; gap: 10px; }
+.adm-photo { position: relative; margin: 0; width: 112px; display: grid; gap: 4px; }
+.adm-photo img { width: 112px; height: 112px; object-fit: contain; border-radius: 14px; background: #fff; border: 1px solid var(--line); }
+.adm-photo figcaption { font-size: .72rem; color: var(--muted); text-align: center; }
+.adm-photo--main img { border: 2px solid var(--ember); }
+.adm-photo__btn { position: absolute; top: 6px; right: 6px; padding: 3px 9px; border-radius: 999px; background: var(--ink); color: #fff; font-size: .72rem; font-weight: 600; cursor: pointer; }
+.adm-photo--add { height: 112px; border: 2px dashed var(--line); border-radius: 14px; place-items: center; align-content: center; cursor: pointer; color: var(--muted); }
+.adm-photo--add span { font-size: 1.8rem; line-height: 1; }
+.adm-photo--add:hover { border-color: var(--ember); color: var(--ember-ink); }
+.adm-vimg label { cursor: pointer; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 8px; border: 1px dashed var(--line); }
+.adm-vimg label:hover { border-color: var(--ember); }
+.adm-vimg .link-btn { font-size: .7rem; }
+.adm-chip--blue { background: #e0ecff; color: #1d4ed8; }

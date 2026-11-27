@@ -1571,3 +1571,4 @@ body.lock .toast { display: none; }
 .shipcalc__res { min-height: 120px; }
 .ship-info { display: block; font-size: .74rem; color: var(--muted); }
 @media (max-width: 560px) { .shipcalc { padding: 22px 16px; } .shipcalc__table { font-size: .86rem; } .shipcalc__table th, .shipcalc__table td { padding: 9px 4px; } }
+.pd__desc--own p { margin: 0 0 10px; } .pd__desc--own p:last-child { margin-bottom: 0; }
