@@ -301,7 +301,9 @@ TYPE_START = {"кейс", "калъф", "твърд", "силиконов", "к�
               "bluetooth колонка", "колонка", "чанта", "блендер", "тостер", "кантар", "камера", "видеорегистратор", "трансмитер", "fm"}
 # (шаблон, вид) – първото съвпадение печели; шаблонът се маха от името, ако е отделна дума/фраза
 TYPE_RULES = [
-    (r"airpods[^,]*silicone|silicone[^,]*airpods", "Калъф"),
+    (r"(?=[^,]*airpods[^,]*silicone)|(?=[^,]*silicone[^,]*airpods)", "Калъф за AirPods"),
+    (r"night light", "Нощна лампа"),
+    (r"belt за dog|dog[^,]*car", "Колан за куче за кола"),
     (r"crossbody", "Връзка за телефон"),
     (r"phone strap|hand ?strap|handstrap|universal[^,]*strap|strap[^,]*charm", "Каишка за телефон"),
     (r"notebook", "Тефтер"),
@@ -393,8 +395,15 @@ TYPE_DEFAULT = {"Калъфи": "Кейс", "Протектори": "Проте�
                 "Power Bank": "Външна батерия", "Стойки": "Стойка", "Кабели": "Кабел"}
 
 
+# имена от източника, които започват с грешен вид
+NAME_FIX = [(r"^Универсална каишка", "Каишка за телефон"), (r"^Стойка (Magnetic (?:phone )?wallet)", r"Портфейл MagSafe \1"), (r"\s*-\s*casestore\.bg\s*$", ""),
+            (r"\bFull кейс\b", "Full Cover"), (r"\bfull кейс glass\b", "Full Cover Glass")]
+
+
 def type_first(name, sc):
     n = name.strip()
+    for rx, to in NAME_FIX:
+        n = re.sub(rx, to, n, flags=re.I)
     first = n.split(" ", 1)[0].lower().strip(",.-–")
     if first in TYPE_START or n.lower().startswith(("bluetooth колонка", "usb флашка", "fm трансмитер")):
         return n[0].upper() + n[1:]
@@ -416,13 +425,40 @@ def type_first(name, sc):
     kw = {w.lower() for w in kind.split() if len(w) >= 4}
     if kind.lower().startswith("безжич"):
         kw |= {"wireless", "безжичен", "безжична", "безжично", "безжични"}
-    rest = " ".join(w for i, w in enumerate(rest.split()) if not (w.lower().strip(",.") in kw and i < 4))
+    words = rest.split()
+    rest = " ".join(w for i, w in enumerate(words) if not (w.lower().strip(",.") in kw and (i < 4 or i == len(words) - 1)))
     if kind.startswith("Протектор"):
         rest = re.sub(r"\bFull кейс\b", "Full Cover", rest)
     # „съвместим с …“ след вида се отделя със запетая: „Локатор, съвместим с Apple Find My“
     rest = re.sub(r"^(съвместим[аио]?\s+с)", r", \1", rest, flags=re.I)
     out = f"{kind}{'' if rest.startswith(',') else ' '}{rest}".strip()
     return re.sub(r"\s{2,}", " ", out)
+
+
+def category_for(name, sc):
+    """Подкатегория според вида в началото на името (след type_first). None = остава същата."""
+    w = name.lower()
+    if w.startswith("таблет"):
+        return "@tablets"
+    if re.match(r"(стойка|държач) за кола", w) and re.search(r"зарядно|charg|индукц", w):
+        return "Зарядни"
+    rules = [
+        (r"^(калъф|кейс|твърд|силиконов|кожен|лицензиран|портфейл)", "Калъфи"),
+        (r"^(протектор|стъклен|темпериран|закален|хибриден|хидрогел)", "Протектори"),
+        (r"^външна батерия", "Power Bank"),
+        (r"^(слушалк|безжични слушалки|жични слушалки|проводни слушалки)", "Слушалки"),
+        (r"^(кабел|кабелни|адаптер)", "Кабели"),
+        (r"^(безжично зарядно|зарядно|зарядна станция|стенно|стенен|мрежово|магнитно зарядно)", "Зарядни"),
+        (r"^(държач|стойка|гъвкава|поставка за пръст)", "Стойки"),
+        (r"^каишка(?! за телефон)", "Каишки за часовник"),
+    ]
+    for rx, cat in rules:
+        if re.match(rx, w):
+            return cat
+    if sc != "Други аксесоари" and (re.match(r"^(висулка|връзка за телефон|каишка за телефон|универсална каишка|тефтер|чанта|локатор|колан|bluetooth колонка)", w)
+                                     or (sc == "Каишки за часовник" and re.search(r"armband|lanyard|tether|cbdy", w))):
+        return "Други аксесоари"
+    return None
 
 
 def build_catalog(src):
@@ -591,6 +627,19 @@ def build_catalog(src):
             if nn != g["n"]:
                 g["n"], renamed = nn, renamed + 1
         print(f"аксесоари: {renamed} имена преподредени да започват с вида на продукта")
+        moved = {}
+        for g in acc_groups:
+            if g["s"].startswith("og-"):
+                continue
+            cat = category_for(g["n"], g.get("sc", ""))
+            if cat == "@tablets":
+                g["c"], g["sc"] = "tablets", ""
+                moved["Таблети"] = moved.get("Таблети", 0) + 1
+            elif cat and cat != g.get("sc"):
+                key = f'{g.get("sc")} → {cat}'
+                moved[key] = moved.get(key, 0) + 1
+                g["sc"] = cat
+        print("аксесоари: преместени в правилната подкатегория –", ", ".join(f"{k}: {v}" for k, v in sorted(moved.items())) or "няма")
         for g in acc_groups:
             groups[g["s"]] = g
         multi_model = sum(1 for g in acc_groups if any(v[12] for v in g["v"]))
