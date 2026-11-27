@@ -215,3 +215,18 @@
 .adm-vimg label:hover { border-color: var(--ember); }
 .adm-vimg .link-btn { font-size: .7rem; }
 .adm-chip--blue { background: #e0ecff; color: #1d4ed8; }
+
+/* ---------- маркиране и общи действия ---------- */
+.adm-pickrow { display: grid; grid-template-columns: 30px 1fr; align-items: center; border-radius: 12px; }
+.adm-pickrow.is-picked { background: color-mix(in srgb, var(--ember-soft) 70%, transparent); }
+.adm-pick { display: grid; place-items: center; height: 100%; cursor: pointer; }
+.adm-pick input, .adm-pickall input { width: 18px; height: 18px; accent-color: var(--ember); cursor: pointer; }
+.adm-pickall { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.adm-bulk { display: grid; gap: 8px; padding: 10px 12px; border-radius: 14px; background: var(--ink); color: #fff; }
+.adm-bulk__btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.adm-bulk .btn--ghost { background: rgba(255,255,255,.1); color: #fff; border-color: transparent; }
+.adm-bulk .link-btn { color: #c9c6c1; }
+.adm-btn--danger { background: #d92d20; color: #fff; border-color: #d92d20; }
+.adm-btn--danger:hover { background: #b42318; }
+.adm-edit__act { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.adm-warn { padding: 12px 14px; border-radius: 14px; background: #fde4e4; color: #8f1d14; font-size: .9rem; }

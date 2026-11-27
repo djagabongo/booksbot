@@ -11,7 +11,7 @@ export async function currentPrices(site) {
   const base = await (await fetch(site + "/feeds/base.json", { signal: AbortSignal.timeout(15000) })).json();
   let o = {};
   try { o = (await getStore({ name: "gdmobil-settings" }).get("overrides", { type: "json" })) || {}; } catch {}
-  const prices = o.prices || {}, sale = o.labels?.sale || {}, hidden = new Set(o.hidden || []);
+  const prices = o.prices || {}, sale = o.labels?.sale || {}, hidden = new Set([...(o.hidden || []), ...(o.deleted || [])]);
   const out = {};
   for (const r of base.rows || []) {
     if (hidden.has(r.s)) continue;

@@ -15,7 +15,7 @@ export default async (req) => {
   const base = await r.json();
   let o = {};
   try { o = (await getStore({ name: "gdmobil-settings" }).get("overrides", { type: "json" })) || {}; } catch {}
-  const prices = o.prices || {}, stock = o.stock || {}, hidden = new Set(o.hidden || []), sale = o.labels?.sale || {};
+  const prices = o.prices || {}, stock = o.stock || {}, hidden = new Set([...(o.hidden || []), ...(o.deleted || [])]), sale = o.labels?.sale || {};
   const site = (base.site || origin).replace(/\/$/, "");
   const abs = (u) => (/^https?:/.test(u) ? u : `${site}/${u.replace(/^\//, "")}`);
   const fixed = o.store?.shipMode === "fixed";

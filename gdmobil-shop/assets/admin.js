@@ -48,7 +48,7 @@
   let sel = null; // избран продукт
   const blank = () => ({
     store: {}, labels: { new: [...(L0.new || [])], hot: [...(L0.hot || [])], sale: { ...(L0.sale || {}) }, newAdd: [], newRemove: [] },
-    prices: {}, stock: {}, hidden: [], reviews: { items: [] }, analytics: { provider: "" }, edits: {},
+    prices: {}, stock: {}, hidden: [], deleted: [], reviews: { items: [] }, analytics: { provider: "" }, edits: {},
   });
   function normalize(o) {
     const b = blank();
@@ -57,7 +57,7 @@
       ...b, ...o,
       store: { ...(o.store || {}) },
       labels: { ...b.labels, ...(o.labels || {}), sale: { ...((o.labels && o.labels.sale) || b.labels.sale) } },
-      prices: { ...(o.prices || {}) }, stock: { ...(o.stock || {}) }, hidden: [...(o.hidden || [])],
+      prices: { ...(o.prices || {}) }, stock: { ...(o.stock || {}) }, hidden: [...(o.hidden || [])], deleted: [...(o.deleted || [])],
       reviews: { items: [], ...(o.reviews || {}) }, analytics: { provider: "", ...(o.analytics || {}) },
       edits: { ...(o.edits || {}) },
     };
@@ -173,17 +173,22 @@
   const imgOf = (p, v) => (v && edOf(p).vimg?.[v.id]) || edOf(p).img || (v ? v.img : p.img);
   const nameOf = (p) => edOf(p).n || p.name;
   const isEdited = (p) => !!O.edits[p.slug];
-  const isChanged = (p) => isEdited(p) || O.hidden.includes(p.slug) || O.labels.hot.includes(p.slug) || O.labels.newAdd.includes(p.slug) || O.labels.newRemove.includes(p.slug) ||
+  let DEL = new Set(), HID = new Set(); // бързи проверки; обновяват се при всяко изрисуване на списъка
+  const syncSets = () => { DEL = new Set(O.deleted); HID = new Set(O.hidden); };
+  const isDeleted = (p) => DEL.has(p.slug);
+  const isChanged = (p) => isEdited(p) || DEL.has(p.slug) || HID.has(p.slug) || O.labels.hot.includes(p.slug) || O.labels.newAdd.includes(p.slug) || O.labels.newRemove.includes(p.slug) ||
     O.labels.sale[p.slug] != null || p.variants.some((v) => O.prices[v.id] != null || O.stock[v.id] === 0 || O.labels.sale[v.id] != null);
   // филтри (пазят се, докато е отворен разделът)
   const F = { q: "", cat: "", brand: "", model: "", sub: "", status: "", sort: "name", limit: 100 };
+  const picked = new Set(); // маркирани продукти (slug)
 
   const prMin = (p) => { const l = p.variants.map((v) => finalOf(p, v)).filter((x) => x != null); return l.length ? Math.min(...l) : null; };
   const prMax = (p) => { const l = p.variants.map((v) => finalOf(p, v)).filter((x) => x != null); return l.length ? Math.max(...l) : null; };
   const STATUS = {
     changed: ["Променени", isChanged],
     edited: ["С редактирано име/описание/снимки", isEdited],
-    hidden: ["Скрити", (p) => O.hidden.includes(p.slug)],
+    hidden: ["Скрити", (p) => HID.has(p.slug)],
+    deleted: ["Изтрити", isDeleted],
     sale: ["С намаление", (p) => O.labels.sale[p.slug] > 0 || p.variants.some((v) => O.labels.sale[v.id] > 0 || v.disc > 0 || v.old > v.price)],
     price: ["С ръчна цена", (p) => p.variants.some((v) => O.prices[v.id] != null)],
     order: ["По заявка", (p) => p.variants.some((v) => O.stock[v.id] === 0 || v.stock === 0)],
@@ -207,19 +212,20 @@
       (ignore === "brand" || !F.brand || p.brandLabel === F.brand) &&
       (ignore === "model" || !F.model || p.models.includes(F.model)) &&
       (ignore === "sub" || !F.sub || p.sub === F.sub) &&
+      (F.status === "deleted" || !isDeleted(p)) &&
       (!F.status || STATUS[F.status][1](p)) &&
       toks.every((t) => norm(`${p.brand} ${nameOf(p)} ${p.name} ${p.sub} ${p.models.map(modelName).join(" ")} ${p.variants.map((v) => v.id + " " + (v.code || "")).join(" ")}`).includes(t)));
   }
   const counts = (list, key) => { const m = new Map(); list.forEach((p) => [].concat(key(p)).forEach((k) => k && m.set(k, (m.get(k) || 0) + 1))); return m; };
   function renderProducts() {
     freshMain();
-    const total = PRODUCTS.length;
-    const stat = (k) => PRODUCTS.filter(STATUS[k][1]).length;
+    const stat = (k) => PRODUCTS.filter((p) => (k === "deleted" || !isDeleted(p)) && STATUS[k][1](p)).length;
+    const drawStats = () => {
+      $("#pstats").innerHTML = `<button data-qs="" class="${F.status ? "" : "on"}">Всички<b>${PRODUCTS.length - DEL.size}</b></button>` +
+        ["changed", "edited", "hidden", "deleted", "sale", "price", "order", "noprice"].map((k) => `<button data-qs="${k}" class="${F.status === k ? "on" : ""}">${STATUS[k][0]}<b>${stat(k)}</b></button>`).join("");
+    };
     $("#main").innerHTML = `
-      <div class="adm-stats">
-        <button data-qs="">Всички<b>${total}</b></button>
-        ${["changed", "edited", "hidden", "sale", "price", "order", "noprice"].map((k) => `<button data-qs="${k}" class="${F.status === k ? "on" : ""}">${STATUS[k][0]}<b>${stat(k)}</b></button>`).join("")}
-      </div>
+      <div class="adm-stats" id="pstats"></div>
       <div class="adm-split">
       <aside class="adm-list">
         <div class="adm-list__tools">
@@ -232,7 +238,22 @@
             <select class="select" id="fStatus" aria-label="Статус"></select>
             <select class="select" id="fSort" aria-label="Подреди по"></select>
           </div>
-          <div class="adm-row adm-row--between"><span class="muted small" id="pcount"></span><button class="link-btn" id="fReset">Изчисти филтрите</button></div>
+          <div class="adm-row adm-row--between"><label class="check adm-pickall"><input type="checkbox" id="pickAll"><span class="muted small" id="pcount"></span></label><button class="link-btn" id="fReset">Изчисти филтрите</button></div>
+          <div class="adm-bulk" id="bulk" hidden>
+            <b id="bulkN"></b>
+            <div class="adm-bulk__btns">
+              <button class="btn btn--sm adm-btn--danger" data-bulk="delete">Изтрий</button>
+              <button class="btn btn--ghost btn--sm" data-bulk="restore">Възстанови</button>
+              <button class="btn btn--ghost btn--sm" data-bulk="hide">Скрий</button>
+              <button class="btn btn--ghost btn--sm" data-bulk="show">Покажи</button>
+              <button class="btn btn--ghost btn--sm" data-bulk="hot">Хит</button>
+              <button class="btn btn--ghost btn--sm" data-bulk="unhot">Без „Хит“</button>
+              <button class="btn btn--ghost btn--sm" data-bulk="order">По заявка</button>
+              <button class="btn btn--ghost btn--sm" data-bulk="stock">В наличност</button>
+              <button class="btn btn--ghost btn--sm" data-bulk="sale">Намаление %</button>
+              <button class="link-btn" data-bulk="clear">Отмени избора</button>
+            </div>
+          </div>
         </div>
         <div class="adm-results" id="pres"></div>
       </aside>
@@ -256,10 +277,21 @@
       $$(".adm-stats [data-qs]").forEach((b) => b.classList.toggle("on", b.dataset.qs === F.status));
     };
     const groupOf = (p) => (F.sort === "brand" ? p.brandLabel : F.sort === "model" ? firstModel(p) || "Без модел" : "");
+    let res = [];
+    const bulkBar = () => {
+      const n = picked.size;
+      $("#bulk").hidden = !n;
+      $("#bulkN").textContent = `Избрани: ${n}`;
+      const inRes = res.filter((p) => picked.has(p.slug)).length;
+      $("#pickAll").checked = !!res.length && inRes === res.length;
+      $("#pickAll").indeterminate = inRes > 0 && inRes < res.length;
+      $("#pcount").textContent = `${res.length} продукта${res.length > F.limit ? ` · показани ${F.limit}` : ""}${n ? "" : " · маркирай за общи действия"}`;
+    };
     const list = () => {
+      syncSets();
+      drawStats();
       fillFilters();
-      const res = filtered().sort(SORTS[F.sort][1]);
-      $("#pcount").textContent = `${res.length} продукта${res.length > F.limit ? ` · показани ${F.limit}` : ""}`;
+      res = filtered().sort(SORTS[F.sort][1]);
       let last = null;
       $("#pres").innerHTML = res.slice(0, F.limit).map((p) => {
         const g = groupOf(p);
@@ -267,7 +299,8 @@
         last = g;
         const min = prMin(p), max = prMax(p);
         const chips = [
-          O.hidden.includes(p.slug) && `<i class="adm-chip adm-chip--grey">скрит</i>`,
+          isDeleted(p) && `<i class="adm-chip adm-chip--red">изтрит</i>`,
+          HID.has(p.slug) && `<i class="adm-chip adm-chip--grey">скрит</i>`,
           STATUS.sale[1](p) && `<i class="adm-chip adm-chip--red">намаление</i>`,
           STATUS.price[1](p) && `<i class="adm-chip">ръчна цена</i>`,
           STATUS.order[1](p) && `<i class="adm-chip adm-chip--amber">по заявка</i>`,
@@ -275,15 +308,16 @@
           isEdited(p) && `<i class="adm-chip adm-chip--blue">редактиран</i>`,
         ].filter(Boolean).join("");
         const models = p.cat === "accessories" && p.models.length ? ` · ${esc(modelName(p.models[0]))}${p.models.length > 1 ? ` +${p.models.length - 1}` : ""}` : "";
-        return head + `<button class="adm-item ${sel === p ? "on" : ""}" data-slug="${p.slug}">
+        return head + `<div class="adm-pickrow ${picked.has(p.slug) ? "is-picked" : ""}"><label class="adm-pick" title="Маркирай"><input type="checkbox" data-pick="${p.slug}" ${picked.has(p.slug) ? "checked" : ""}></label><button class="adm-item ${sel === p ? "on" : ""}" data-slug="${p.slug}">
           <span class="adm-item__img">${imgOf(p) ? `<img src="${esc(thumb(imgOf(p)))}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ""}</span>
           <span class="adm-item__txt"><small class="adm-item__brand">${esc(p.brandLabel)} · ${CAT[p.cat]}${p.sub && p.cat === "accessories" ? " · " + esc(p.sub) : ""}</small>
             <b>${esc(nameOf(p))}</b>
             <small>${min == null ? "при запитване" : min === max ? eur(min) : `${eur(min)} – ${eur(max)}`}${p.variants.length > 1 ? ` · ${p.variants.length} варианта` : ""}${models}</small>
             ${chips ? `<span class="adm-chips">${chips}</span>` : ""}</span>
-          ${isChanged(p) ? `<i class="adm-dot" title="Има промени"></i>` : ""}</button>`;
+          ${isChanged(p) ? `<i class="adm-dot" title="Има промени"></i>` : ""}</button></div>`;
       }).join("") + (res.length > F.limit ? `<button class="btn btn--ghost btn--sm btn--block" id="pmore">Покажи още ${Math.min(100, res.length - F.limit)}</button>` : "")
         + (res.length ? "" : `<p class="muted adm-none">Няма продукти с тези филтри.</p>`);
+      bulkBar();
     };
     const set = (k, v) => { F[k] = v; F.limit = 100; list(); };
     list();
@@ -291,7 +325,44 @@
     [["fCat", "cat"], ["fBrand", "brand"], ["fModel", "model"], ["fSub", "sub"], ["fStatus", "status"], ["fSort", "sort"]].forEach(([id, k]) => $("#" + id).addEventListener("change", (e) => set(k, e.target.value)));
     $("#fReset").addEventListener("click", () => { Object.assign(F, { q: "", cat: "", brand: "", model: "", sub: "", status: "", sort: "name", limit: 100 }); $("#pq").value = ""; list(); });
     $(".adm-stats").addEventListener("click", (e) => { const b = e.target.closest("[data-qs]"); if (b) set("status", b.dataset.qs); });
+    $("#pickAll").addEventListener("change", (e) => { res.forEach((p) => (e.target.checked ? picked.add(p.slug) : picked.delete(p.slug))); list(); });
+    $("#bulk").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-bulk]"); if (!b) return;
+      const act = b.dataset.bulk, slugs = [...picked], n = slugs.length;
+      if (act === "clear") { picked.clear(); list(); return; }
+      if (!n) return;
+      const ps = slugs.map((x) => BY_SLUG.get(x)).filter(Boolean);
+      if (act === "delete") {
+        if (!confirm(`Да изтрия ли ${n} продукт${n > 1 ? "а" : ""} от сайта?\n\nТе изчезват от магазина, търсенето, Google и фийда след „Запази“. Можеш да ги възстановиш от плочката „Изтрити“.`)) return;
+        slugs.forEach((x) => toggleIn(O.deleted, x, true));
+        if (sel && picked.has(sel.slug)) sel = null;
+      }
+      if (act === "restore") slugs.forEach((x) => toggleIn(O.deleted, x, false));
+      if (act === "hide" || act === "show") slugs.forEach((x) => toggleIn(O.hidden, x, act === "hide"));
+      if (act === "hot" || act === "unhot") slugs.forEach((x) => toggleIn(O.labels.hot, x, act === "hot"));
+      if (act === "order" || act === "stock") ps.forEach((p) => p.variants.forEach((v) => (act === "order" ? (O.stock[v.id] = 0) : delete O.stock[v.id])));
+      if (act === "sale") {
+        const v = prompt(`Намаление в % за ${n} продукта (0 = премахни намалението):`, "10");
+        if (v == null) return;
+        const pct = Math.max(0, Math.min(90, Math.round(Number(v) || 0)));
+        slugs.forEach((x) => (pct ? (O.labels.sale[x] = pct) : delete O.labels.sale[x]));
+      }
+      change();
+      toast(`✓ ${{ delete: "Изтрити", restore: "Възстановени", hide: "Скрити", show: "Показани", hot: "Маркирани като хит", unhot: "Без хит", order: "По заявка", stock: "В наличност", sale: "Намалението е зададено за" }[act]} ${n} – натисни „Запази“`);
+      picked.clear(); list(); editProduct();
+    });
+    let lastPick = null;
     $("#pres").addEventListener("click", (e) => {
+      const cb = e.target.closest("[data-pick]");
+      if (cb) {
+        // Shift + клик маркира всички между последната и тази отметка
+        const slugs = res.slice(0, F.limit).map((x) => x.slug), i = slugs.indexOf(cb.dataset.pick);
+        const range = e.shiftKey && lastPick != null ? slugs.slice(Math.min(i, lastPick), Math.max(i, lastPick) + 1) : [cb.dataset.pick];
+        range.forEach((sl) => (cb.checked ? picked.add(sl) : picked.delete(sl)));
+        lastPick = i;
+        range.forEach((sl) => { const r = $(`[data-pick="${CSS.escape(sl)}"]`); if (r) { r.checked = cb.checked; r.closest(".adm-pickrow").classList.toggle("is-picked", cb.checked); } });
+        bulkBar(); return;
+      }
       if (e.target.closest("#pmore")) { F.limit += 100; list(); return; }
       const b = e.target.closest("[data-slug]"); if (b) { sel = BY_SLUG.get(b.dataset.slug); $$("#pres .adm-item").forEach((x) => x.classList.toggle("on", x === b)); editProduct(); if (innerWidth < 900) $("#pedit").scrollIntoView({ behavior: "smooth" }); }
     });
@@ -320,7 +391,9 @@
             ${p.cat === "accessories" ? `<span><small>Съвместим с</small><b>${p.models.length ? p.models.length + " модела" : "—"}</b></span>` : ""}
             <span><small>Адрес</small><b class="adm-slug">/p/${esc(p.slug)}/</b></span>
           </div></div>
-        <a class="btn btn--ghost btn--sm" href="./#/p/${p.slug}" target="_blank" rel="noopener">Виж в магазина ↗</a></div>
+        <div class="adm-edit__act"><a class="btn btn--ghost btn--sm" href="./#/p/${p.slug}" target="_blank" rel="noopener">Виж в магазина ↗</a>
+          ${O.deleted.includes(p.slug) ? `<button class="btn btn--ghost btn--sm" id="pRestore">Възстанови</button>` : `<button class="btn btn--sm adm-btn--danger" id="pDelete">Изтрий</button>`}</div></div>
+      ${O.deleted.includes(p.slug) ? `<div class="adm-warn">Този продукт е <b>изтрит</b> – не се показва в сайта, търсенето, Google и фийда.</div>` : ""}
       <section class="adm-content">
         <div class="adm-content__head"><h3>Съдържание на страницата</h3>${isEdited(p) ? `<button class="link-btn" id="edReset">Върни оригинала</button>` : ""}</div>
         <label class="field"><span>Име на продукта</span><input class="input" id="edName" value="${esc(edOf(p).n || "")}" placeholder="${esc(p.name)}" maxlength="160"></label>
@@ -380,6 +453,11 @@
       e.target.value === "0" ? (O.stock[id] = 0) : delete O.stock[id];
       change();
     });
+    $("#pDelete")?.addEventListener("click", () => {
+      if (!confirm(`Да изтрия ли „${nameOf(p)}“ от сайта?\n\nМожеш да го възстановиш от плочката „Изтрити“.`)) return;
+      toggleIn(O.deleted, p.slug, true); change(); toast("✓ Изтрит – натисни „Запази“"); renderProducts();
+    });
+    $("#pRestore")?.addEventListener("click", () => { toggleIn(O.deleted, p.slug, false); change(); toast("✓ Възстановен – натисни „Запази“"); renderProducts(); });
     // съдържание: име, описание, снимки
     $("#edName").addEventListener("input", (e) => { edSet(p, "n", e.target.value.trim() === p.name ? "" : e.target.value.trim()); });
     $("#edDesc").addEventListener("input", (e) => { edSet(p, "d", e.target.value.trim()); });

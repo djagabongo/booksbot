@@ -5,7 +5,7 @@ import { getStore } from "@netlify/blobs";
 import { createHash, timingSafeEqual } from "node:crypto";
 
 const KEY = "overrides";
-const MAX_BYTES = 400_000;
+const MAX_BYTES = 1_000_000;
 
 const json = (data, status = 200, headers = {}) =>
   new Response(JSON.stringify(data), {

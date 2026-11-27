@@ -37,7 +37,7 @@
       if (Array.isArray(o.labels.newRemove)) L.newRemove = o.labels.newRemove;
     }
     // 3) цени, наличност и скрити продукти в каталога
-    const prices = o.prices || {}, stock = o.stock || {}, hidden = new Set(o.hidden || []);
+    const prices = o.prices || {}, stock = o.stock || {}, hidden = new Set([...(o.hidden || []), ...(o.deleted || [])]);
     if (C) {
       C.groups = C.groups.filter((g) => !hidden.has(g.s));
       C.items = C.items.filter((i) => !hidden.has(i.s));

@@ -78,7 +78,7 @@ def live_overrides(site):
 
 
 def apply_overrides(catalog, o):
-    hidden = set(o.get("hidden") or [])
+    hidden = set(o.get("hidden") or []) | set(o.get("deleted") or [])
     ed = o.get("edits") or {}
     ok = lambda u: isinstance(u, str) and re.match(r"^(media/[a-z0-9]+\.(webp|jpg|png)|https://\S+)$", u)
     catalog["groups"] = [g for g in catalog["groups"] if g["s"] not in hidden]
