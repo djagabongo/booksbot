@@ -79,7 +79,15 @@
   function change() { dirty = true; $("#saveBtn").disabled = false; $("#status").textContent = "Има незапазени промени"; $("#status").className = "adm-status adm-status--dirty"; }
 
   let toastT;
-  function toast(m) { const t = $("#toast"); t.textContent = m; t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 2600); }
+  function toast(m, undo) {
+    const t = $("#toast"); t.textContent = m;
+    if (undo) {
+      const b = document.createElement("button"); b.className = "toast__undo"; b.textContent = "Отмени";
+      b.onclick = () => { undo(); t.classList.remove("show"); };
+      t.append(" ", b);
+    }
+    t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), undo ? 6000 : 2600);
+  }
 
   /* ---------- API ---------- */
   const pw = () => sessionStorage.getItem(PW_KEY) || "";
@@ -211,6 +219,21 @@
   const F = { q: "", cat: "", brand: "", model: "", sub: "", status: "", sort: "name", limit: 100 };
   const picked = new Set(); // маркирани продукти (slug)
   let refreshList = null; // обновява списъка на място (запазва превъртането)
+  const resetFilters = () => { Object.assign(F, { q: "", cat: "", brand: "", model: "", sub: "", status: "", limit: 100 }); const q = $("#pq"); if (q) q.value = ""; };
+  // изтриване/възстановяване на продукти без презареждане; при празен резултат – показва всички продукти
+  function deleteProducts(slugs, on = true) {
+    slugs.forEach((x) => toggleIn(O.deleted, x, on));
+    slugs.forEach((x) => picked.delete(x));
+    if (sel && on && slugs.includes(sel.slug)) sel = null;
+    change(); syncSets();
+    let reset = false;
+    if (on && F.status !== "deleted" && !filtered().length && (F.q || F.cat || F.brand || F.model || F.sub || F.status)) { resetFilters(); reset = true; }
+    if (refreshList) refreshList();
+    editProduct();
+    const n = slugs.length, one = n === 1 ? `„${nameOf(BY_SLUG.get(slugs[0]) || { name: "" }).slice(0, 40)}“` : `${n} продукта`;
+    toast(on ? `✓ Изтрит${n === 1 ? "" : "и"} ${one}${reset ? " · показвам всички продукти" : ""} – натисни „Запази“` : `✓ Възстановен${n === 1 ? "" : "и"} ${one}`,
+      on ? () => deleteProducts(slugs, false) : null);
+  }
 
   const prMin = (p) => { const l = p.variants.map((v) => finalOf(p, v)).filter((x) => x != null); return l.length ? Math.min(...l) : null; };
   const prMax = (p) => { const l = p.variants.map((v) => finalOf(p, v)).filter((x) => x != null); return l.length ? Math.max(...l) : null; };
@@ -344,9 +367,11 @@
             <b>${esc(nameOf(p))}</b>
             <small>${min == null ? "при запитване" : min === max ? eur(min) : `${eur(min)} – ${eur(max)}`}${p.variants.length > 1 ? ` · ${p.variants.length} варианта` : ""}${models}</small>
             ${chips ? `<span class="adm-chips">${chips}</span>` : ""}</span>
-          ${isChanged(p) ? `<i class="adm-dot" title="Има промени"></i>` : ""}</button></div>`;
+          ${isChanged(p) ? `<i class="adm-dot" title="Има промени"></i>` : ""}</button>
+          ${isDeleted(p) ? `<button class="adm-rowact" data-rowrestore="${p.slug}" title="Възстанови" aria-label="Възстанови">↺</button>`
+            : `<button class="adm-rowact adm-rowact--del" data-rowdel="${p.slug}" title="Изтрий" aria-label="Изтрий ${esc(nameOf(p))}"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>`}</div>`;
       }).join("") + (res.length > F.limit ? `<button class="btn btn--ghost btn--sm btn--block" id="pmore">Покажи още ${Math.min(100, res.length - F.limit)}</button>` : "")
-        + (res.length ? "" : `<p class="muted adm-none">Няма продукти с тези филтри.</p>`);
+        + (res.length ? "" : `<div class="adm-none"><p class="muted">Няма продукти с тези филтри.</p><button class="btn btn--ghost btn--sm" id="pShowAll">Покажи всички продукти</button></div>`);
       bulkBar();
     };
     const set = (k, v) => { F[k] = v; F.limit = 100; list(); };
@@ -365,10 +390,9 @@
       const ps = slugs.map((x) => BY_SLUG.get(x)).filter(Boolean);
       if (act === "delete") {
         if (!confirm(`Да изтрия ли ${n} продукт${n > 1 ? "а" : ""} от сайта?\n\nТе изчезват от магазина, търсенето, Google и фийда след „Запази“. Можеш да ги възстановиш от плочката „Изтрити“.`)) return;
-        slugs.forEach((x) => toggleIn(O.deleted, x, true));
-        if (sel && picked.has(sel.slug)) sel = null;
+        return deleteProducts(slugs, true);
       }
-      if (act === "restore") slugs.forEach((x) => toggleIn(O.deleted, x, false));
+      if (act === "restore") return deleteProducts(slugs, false);
       if (act === "hide" || act === "show") slugs.forEach((x) => toggleIn(O.hidden, x, act === "hide"));
       if (act === "hot" || act === "unhot") slugs.forEach((x) => toggleIn(O.labels.hot, x, act === "hot"));
       if (act === "order" || act === "stock") ps.forEach((p) => p.variants.forEach((v) => (act === "order" ? (O.stock[v.id] = 0) : delete O.stock[v.id])));
@@ -395,6 +419,9 @@
         bulkBar(); return;
       }
       if (e.target.closest("#pmore")) { F.limit += 100; list(); return; }
+      if (e.target.closest("#pShowAll")) { resetFilters(); list(); return; }
+      const rd = e.target.closest("[data-rowdel],[data-rowrestore]");
+      if (rd) { deleteProducts([rd.dataset.rowdel || rd.dataset.rowrestore], !!rd.dataset.rowdel); return; }
       const b = e.target.closest("[data-slug]"); if (b) { sel = BY_SLUG.get(b.dataset.slug); $$("#pres .adm-item").forEach((x) => x.classList.toggle("on", x === b)); editProduct(); if (innerWidth < 900) $("#pedit").scrollIntoView({ behavior: "smooth" }); }
     });
     editProduct();
@@ -486,16 +513,15 @@
     });
     $("#pDelete")?.addEventListener("click", () => {
       if (!confirm(`Да изтрия ли „${nameOf(p)}“ от сайта?\n\nМожеш да го възстановиш от плочката „Изтрити“.`)) return;
-      // следващият продукт в списъка остава избран – удобно за бързо почистване
+      // на компютър следващият продукт остава избран; на телефон се връщаме към списъка
       const slugs = $$("#pres [data-slug]").map((x) => x.dataset.slug), i = slugs.indexOf(p.slug);
       const next = slugs[i + 1] || slugs[i - 1];
-      toggleIn(O.deleted, p.slug, true); picked.delete(p.slug); change();
-      sel = next && next !== p.slug ? BY_SLUG.get(next) : null;
-      if (refreshList) refreshList();
-      editProduct();
-      toast(`✓ „${nameOf(p).slice(0, 40)}“ е изтрит – натисни „Запази“`);
+      const mobile = innerWidth < 900;
+      deleteProducts([p.slug], true);
+      if (!mobile && next && next !== p.slug && !O.deleted.includes(next)) { sel = BY_SLUG.get(next); refreshList(); editProduct(); }
+      if (mobile) $("#pres")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
-    $("#pRestore")?.addEventListener("click", () => { toggleIn(O.deleted, p.slug, false); change(); if (refreshList) refreshList(); editProduct(); toast("✓ Възстановен – натисни „Запази“"); });
+    $("#pRestore")?.addEventListener("click", () => deleteProducts([p.slug], false));
     // съдържание: име, описание, снимки
     $("#edName").addEventListener("input", (e) => { edSet(p, "n", e.target.value.trim() === p.name ? "" : e.target.value.trim()); });
     $("#edDesc").addEventListener("input", (e) => { edSet(p, "d", e.target.value.trim()); });

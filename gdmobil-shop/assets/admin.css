@@ -318,3 +318,14 @@
 .adm .adm-chips .adm-chip.on, .adm .adm-chips .adm-chip.on:hover { background: var(--ink); color: #fff; }
 .adm-page > *, .dash-two > * { min-width: 0; } .dash-chart { min-width: 0; overflow: hidden; } .adm-page { grid-template-columns: minmax(0, 1fr); }
 .adm .dash-recent, .adm .dash-chart + details .adm-table { min-width: 0; } .adm .adm-box > details { min-width: 0; overflow: hidden; }
+
+/* изтриване от реда на списъка и „Отмени“ */
+.adm-pickrow { grid-template-columns: 30px minmax(0, 1fr) 36px; }
+.adm-rowact { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; color: var(--muted); font-size: 1.1rem; opacity: .55; transition: .15s; }
+.adm-rowact svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.adm-pickrow:hover .adm-rowact, .adm-rowact:focus-visible { opacity: 1; }
+.adm-rowact--del:hover { background: #fde4e4; color: #b42318; }
+.adm-rowact:not(.adm-rowact--del):hover { background: #dff3e6; color: #17703a; }
+@media (hover: none) { .adm-rowact { opacity: .8; } }
+.adm-none { display: grid; justify-items: center; gap: 10px; padding: 24px 10px; text-align: center; }
+.toast__undo { margin-left: 10px; padding: 4px 12px; border-radius: 999px; background: #fff; color: #111; font-weight: 600; font-size: .85rem; }
