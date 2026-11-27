@@ -1469,7 +1469,7 @@ html { font-feature-settings: "locl" 0; }
   .two > *, form > * { min-width: 0; }
   input, select, textarea { max-width: 100%; min-width: 0; }
 }
-body.lock .toast { top: calc(14px + env(safe-area-inset-top)); bottom: auto; transform: translate(-50%, -30px); } body.lock .toast.show { transform: translate(-50%, 0); }
+body.lock .toast { display: none; }
 @media (max-width: 560px) { .consent__btns .btn { white-space: normal; line-height: 1.2; } }
 .consent__short { display: none; }
 @media (max-width: 560px) {
