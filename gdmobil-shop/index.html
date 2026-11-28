@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="bg">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>GDMobil — Телефони, аксесоари и сервиз в Гоце Делчев</title>
+  <meta name="description" content="Телефони, таблети и аксесоари. Избери памет и цвят, поръчай онлайн или вземи от GDMobil в Гоце Делчев. Сервиз за телефони и таблети." />
+  <meta name="theme-color" content="#0d0d0f" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="GDMobil" />
+  <meta property="og:title" content="GDMobil — Телефони, аксесоари и сервиз" />
+  <meta property="og:description" content="Телефони, таблети и аксесоари. Поръчай онлайн или вземи от магазина в Гоце Делчев." />
+  <meta property="og:image" content="assets/img/og.jpg" />
+  <meta property="og:locale" content="bg_BG" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <link rel="preload" href="assets/fonts/onest-cyrillic-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="assets/fonts/unbounded-cyrillic-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="assets/img/icons/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="GDMobil" />
+  <link rel="preload" as="image" href="assets/img/galaxys26.webp" fetchpriority="high" />
+  <link rel="preload" as="script" href="assets/app.js" />
+  <link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+  <a class="skip" href="#view">Към съдържанието</a>
+
+  <div class="topbar">
+    <div class="container topbar__inner">
+      <a data-maps target="_blank" rel="noopener" class="topbar__item">◉ <span data-addr></span></a>
+      <span class="topbar__item hide-sm" data-today></span>
+      <a data-tel class="topbar__item topbar__tel"></a>
+    </div>
+  </div>
+
+  <header class="header" id="header">
+    <div class="container header__inner">
+      <button class="icon-btn burger" id="burger" aria-label="Меню">
+        <svg viewBox="0 0 24 24"><path d="M4 8h16M4 16h10"/></svg>
+      </button>
+      <a href="#/" class="logo" aria-label="GDMobil начало"><img class="logo--d" src="assets/img/logo-h.webp" alt="GDMobil" width="169" height="40" /><img class="logo--l" src="assets/img/logo-h-light.webp" alt="GDMobil" width="169" height="40" loading="lazy" /></a>
+
+      <nav class="mainnav" aria-label="Категории">
+        <a href="#/c/phones" data-nav="phones">Телефони</a>
+        <a href="#/c/accessories" data-nav="accessories">Аксесоари</a>
+        <a href="#/c/tablets" data-nav="tablets">Таблети</a>
+        <a href="#/service" data-nav="service">Сервиз</a>
+      </nav>
+
+      <form class="search" id="searchForm" role="search" autocomplete="off">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+        <input type="search" id="searchInput" placeholder="Търси iPhone, Galaxy, калъф…" aria-label="Търсене" />
+        <button type="button" class="icon-btn search__close" id="searchClose" aria-label="Затвори търсенето"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+        <div class="suggest" id="suggest" hidden></div>
+      </form>
+
+      <div class="header__actions">
+        <button class="icon-btn" id="searchToggle" aria-label="Търсене" aria-expanded="false" aria-controls="searchForm" title="Търсене (/)">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+        </button>
+        <button class="icon-btn hide-md" id="themeToggle" aria-label="Смяна на тема" title="Тъмна/светла тема">
+          <svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+        </button>
+        <a class="icon-btn hide-md" href="#/compare" aria-label="Сравнение" title="Сравнение">
+          <svg viewBox="0 0 24 24"><path d="M7 4 3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/></svg>
+          <span class="count" id="cmpCount" data-zero="true">0</span>
+        </a>
+        <button class="icon-btn" id="favBtn" aria-label="Любими" title="Любими">
+          <svg viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-9.5-9.3C1 8 3.4 4.5 7 4.5c2 0 3.5 1 5 2.8 1.5-1.8 3-2.8 5-2.8 3.6 0 6 3.5 4.5 7.2C19.5 16.4 12 21 12 21z"/></svg>
+          <span class="count" id="favCount" data-zero="true">0</span>
+        </button>
+        <button class="cart-btn" id="cartBtn" aria-label="Количка">
+          <svg viewBox="0 0 24 24"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>
+          <span class="cart-btn__label">Количка</span>
+          <span class="count" id="cartCount" data-zero="true">0</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="view" tabindex="-1"></main>
+
+  <footer class="footer">
+    <div class="footer__cta">
+      <div class="container footer__cta-inner">
+        <div>
+          <h2>Свържи се с GDMobil</h2>
+          <a data-mail class="footer__mail"></a>
+        </div>
+        <a data-tel class="footer__phone"></a>
+      </div>
+    </div>
+    <div class="container footer__inner">
+      <div>
+        <img src="assets/img/logo-light.webp" alt="GDMobil" class="footer__logo" width="161" height="44" loading="lazy" />
+        <p class="muted" data-tagline></p>
+        <div class="socials" id="socials"></div>
+        <div class="footer__news"><h2 class="footer__h">Бюлетин</h2><div id="footNews"></div></div>
+      </div>
+      <div>
+        <h2 class="footer__h">Каталог</h2>
+        <a href="#/c/phones">Телефони</a><a href="#/c/accessories">Аксесоари</a><a href="#/c/tablets">Таблети</a>
+      </div>
+      <div>
+        <h2 class="footer__h">Обслужване</h2>
+        <a href="#/service">Сервиз и ремонти</a><a href="#/inquiries">Запитвания и съдействие</a><a href="#/track">Проследи поръчка / ремонт</a><a href="#/legal/delivery">Доставка и плащане</a><a href="#/legal/returns">Гаранция и връщане</a>
+      </div>
+      <div>
+        <h2 class="footer__h">GDMobil</h2>
+        <a href="#/about">За нас</a><a href="#/faq">Въпроси и отговори</a><a href="#/guides">Ръководства и съвети</a>
+      </div>
+      <div>
+        <h2 class="footer__h">Магазин в Гоце Делчев</h2>
+        <a data-maps target="_blank" rel="noopener" class="footer__addr" data-addr></a>
+        <p class="footer__open" data-today2></p>
+        <a href="#/contact">Работно време и контакти</a>
+      </div>
+    </div>
+    <div class="container footer__bottom">
+      <span data-copy></span>
+      <span class="footer__legal"><a href="#/legal/terms">Общи условия</a><a href="#/legal/privacy">Поверителност</a><a href="#/legal/cookies">Бисквитки</a><button type="button" class="footer__btn" data-consent>Настройки за бисквитки</button><a href="#/withdraw" class="footer__withdraw">Отказ от договора</a><a href="#/legal/accessibility">Достъпност</a><a href="https://kzp.bg" target="_blank" rel="noopener">КЗП</a></span>
+    </div>
+  </footer>
+
+  <div class="overlay" id="overlay" hidden></div>
+  <aside class="drawer" id="cartDrawer" aria-label="Количка" aria-hidden="true">
+    <div class="drawer__head">
+      <h3>Количка</h3>
+      <button class="icon-btn" data-close aria-label="Затвори"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>
+    <div class="drawer__body" id="cartItems"></div>
+    <div class="drawer__foot" id="cartFoot"></div>
+  </aside>
+  <aside class="drawer" id="favDrawer" aria-label="Любими" aria-hidden="true">
+    <div class="drawer__head">
+      <h3>Любими</h3>
+      <button class="icon-btn" data-close aria-label="Затвори"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>
+    <div class="drawer__body" id="favItems"></div>
+  </aside>
+  <aside class="drawer drawer--left" id="menuDrawer" aria-label="Меню" aria-hidden="true">
+    <div class="drawer__head">
+      <span class="logo"><img class="logo--d" src="assets/img/logo-h.webp" alt="GDMobil" height="34" width="143" /><img class="logo--l" src="assets/img/logo-h-light.webp" alt="GDMobil" height="34" width="143" loading="lazy" /></span>
+      <button class="icon-btn" data-close aria-label="Затвори"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>
+    <div class="drawer__body menu" id="menuBody"></div>
+  </aside>
+  <aside class="drawer drawer--left" id="filterDrawer" aria-label="Филтри" aria-hidden="true">
+    <div class="drawer__head">
+      <h3>Филтри</h3>
+      <button class="icon-btn" data-close aria-label="Затвори"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </div>
+    <div class="drawer__body" id="filterBody"></div>
+    <div class="drawer__foot"><button class="btn btn--primary btn--block" data-close id="filterApply">Покажи резултатите</button></div>
+  </aside>
+
+  <div class="modal" id="modal" aria-hidden="true" role="dialog" aria-modal="true">
+    <div class="modal__box" id="modalBox"></div>
+  </div>
+
+  <nav class="tabbar" aria-label="Бърза навигация">
+    <a href="#/" data-tab="home"><svg viewBox="0 0 24 24"><path d="M3 11 12 4l9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg><span>Начало</span></a>
+    <a href="#/c/all" data-tab="c"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg><span>Каталог</span></a>
+    <button type="button" id="tabSearch"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><span>Търси</span></button>
+    <a href="#/service" data-tab="service"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0 5 5L22 14l-8 8-2.3-2.3a4 4 0 0 0-5-5L2 10l8-8z"/></svg><span>Сервиз</span></a>
+    <button type="button" id="tabCart"><svg viewBox="0 0 24 24"><path d="M6 7h12l-1 13H7L6 7z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg><span>Количка</span><span class="count" id="cartCount2" data-zero="true">0</span></button>
+  </nav>
+
+  <div class="fab" id="fab"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="assets/data.js"></script>
+  <script src="assets/catalog.js"></script>
+  <script src="assets/legal.js"></script>
+  <script src="assets/content.js"></script>
+  <script src="assets/boot.js"></script>
+</body>
+</html>

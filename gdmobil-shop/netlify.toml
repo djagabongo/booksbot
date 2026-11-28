@@ -1,0 +1,15 @@
+# Netlify: статичният сайт се публикува от папка dist (създава се с tools/build_dist.py),
+# а сървърните функции са в netlify/functions.
+[build]
+  publish = "dist"
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+
+# Основният адрес е https://gdmobil.bg – старият адрес на Netlify пренасочва към него
+[[redirects]]
+  from = "https://gdmobil.netlify.app/*"
+  to = "https://gdmobil.bg/:splat"
+  status = 301
+  force = true
